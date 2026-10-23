@@ -195,7 +195,7 @@ export function SynthesisStage(props: SynthesisStageProps) {
             <FamilyBar patterns={confirmed} />
             <p className="m-0 text-xs text-ink-2">Arrastralos al tablero, o enfocalos y presioná Enter.</p>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="max-h-[240px] min-h-0 flex-1 overflow-y-auto p-4 lg:max-h-none">
             {confirmed.length === 0 ? (
               <EmptyState meta="0 confirmados" title="Todavía no hay patrones confirmados" body="Confirmá hallazgos en Auditoría para armar sistemas." />
             ) : (
