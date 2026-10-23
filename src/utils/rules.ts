@@ -1,4 +1,6 @@
-import { Rule, RuleExample, RuleField, VisualSystem } from '../types';
+import { Rule, RuleExample, RuleField, SpecimenStyle, VisualSystem } from '../types';
+
+const STYLES: SpecimenStyle[] = ['stretched', 'hierarchy', 'glitch', 'italic', 'rounded', 'serif', 'wide', 'outline'];
 
 export const RULE_FIELDS: { field: RuleField; prefix: string; label: string; exampleKind: RuleExample['kind'] }[] = [
   { field: 'typographyRules', prefix: 'T', label: 'Tipografía', exampleKind: 'type' },
@@ -43,6 +45,8 @@ export function normalizeRules(raw: any, prefix: string, kind: RuleExample['kind
         example: {
           kind: ex.kind === 'type' || ex.kind === 'evidence' || ex.kind === 'grid' ? ex.kind : kind,
           text: ex.text ? String(ex.text) : undefined,
+          style: STYLES.includes(ex.style) ? ex.style : undefined,
+          subtext: ex.subtext ? String(ex.subtext) : undefined,
           refIds: strings(ex.refIds),
           cols: Number(ex.cols) || undefined,
           rows: Number(ex.rows) || undefined,

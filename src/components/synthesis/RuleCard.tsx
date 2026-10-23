@@ -1,54 +1,15 @@
 import React from 'react';
 import { PaletteColor, Reference, Rule } from '../../types';
 import { FAMILIES, Family } from '../../utils/families';
+import { contrast, guessStyle, Specimen } from './Specimen';
 
-/* ---------- Color: contraste entre colores de la paleta ---------- */
-const lum = (hex: string) => {
-  const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16);
-  const ch = (v: number) => {
-    const c = v / 255;
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  };
-  return 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255);
-};
-export const contrast = (a: string, b: string) => {
-  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
-  return (x + 0.05) / (y + 0.05);
-};
+const lum = (hex: string) => contrast(hex, '#000000');
 const FALLBACK = ['#111111', '#EDEDEF'];
-
-/** Fondo y tinta para un espécimen: el color más intenso de la paleta y el de mayor contraste con él. */
-export function specimenColors(palette: PaletteColor[]): { bg: string; ink: string } {
-  const hexes = palette.length ? palette.map(c => c.hex) : FALLBACK;
-  const chroma = (h: string) => {
-    const n = parseInt(h.slice(1), 16);
-    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    return Math.max(r, g, b) - Math.min(r, g, b);
-  };
-  const bg = [...hexes].sort((a, b) => chroma(b) - chroma(a))[0];
-  const ink = [...hexes, '#0B0B0D', '#F4F4F0'].filter(h => h !== bg).sort((a, b) => contrast(b, bg) - contrast(a, bg))[0];
-  return { bg, ink };
-}
 
 /** Color más claro de la paleta (fondo de diagramas). */
 const lightest = (palette: PaletteColor[]) => [...(palette.length ? palette.map(c => c.hex) : FALLBACK)].sort((a, b) => lum(b) - lum(a))[0];
 
 /* ---------- Ejemplos visuales ---------- */
-function TypeSpecimen({ text, palette }: { text: string; palette: PaletteColor[] }) {
-  const { bg, ink } = specimenColors(palette);
-  const size = text.length <= 6 ? 88 : text.length <= 10 ? 64 : 44;
-  return (
-    <div className="flex h-[200px] items-center justify-center overflow-hidden px-4" style={{ background: bg }} aria-hidden="true">
-      <span
-        className="block max-w-full text-center uppercase leading-[0.9]"
-        style={{ fontFamily: 'var(--font-specimen)', fontSize: size, color: ink, letterSpacing: '-0.01em', transform: 'scaleY(1.25)' }}
-      >
-        {text}
-      </span>
-    </div>
-  );
-}
-
 function EvidenceCrop({ refs }: { refs: Reference[] }) {
   if (!refs.length) return <div className="h-[200px] bg-raised" aria-hidden="true" />;
   return (
@@ -103,19 +64,30 @@ interface RuleCardProps {
   fallbackRefIds: string[];
   specimenText: string;
   showWhy: boolean;
+  /** Posición de la ficha dentro de su familia: rota las combinaciones de color del espécimen. */
+  index?: number;
 }
 
-export function RuleCard({ rule, family, palette, references, fallbackRefIds, specimenText, showWhy }: RuleCardProps) {
+export function RuleCard({ rule, family, palette, references, fallbackRefIds, specimenText, showWhy, index = 0 }: RuleCardProps) {
   const byId = new Map(references.map(r => [r.id, r]));
-  const kind = rule.example?.kind ?? 'evidence';
+  let kind = rule.example?.kind ?? 'evidence';
   const refIds = rule.example?.refIds?.length ? rule.example.refIds : rule.refIds.length ? rule.refIds : fallbackRefIds;
   const refs = refIds.map(id => byId.get(id)).filter(Boolean) as Reference[];
   const trace = [rule.patternIds.join(' '), rule.refIds.join(' ')].filter(Boolean).join(' · ');
+  // Una regla tipográfica sin espécimen propio (redactada antes de este cambio) muestra la tipografía real
+  // del corpus: el recorte de su evidencia, en lugar de repetir el nombre de la marca.
+  if (kind === 'type' && !rule.example?.text && refs.length) kind = 'evidence';
 
   return (
     <article className="flex flex-col overflow-hidden rounded-card border border-line bg-bg">
       {kind === 'type' ? (
-        <TypeSpecimen text={rule.example?.text || specimenText} palette={palette} />
+        <Specimen
+          text={rule.example?.text || specimenText}
+          subtext={rule.example?.subtext}
+          style={rule.example?.style ?? guessStyle(`${rule.title} ${rule.detail}`, index)}
+          palette={palette}
+          index={index}
+        />
       ) : kind === 'grid' ? (
         <GridDiagram cols={rule.example?.cols} rows={rule.example?.rows} palette={palette} />
       ) : (

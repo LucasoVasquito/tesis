@@ -131,9 +131,10 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
                 </h3>
                 {rules.length ? (
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
-                    {rules.map(r => (
+                    {rules.map((r, i) => (
                       <div key={r.code} className="print:break-inside-avoid">
                         <RuleCard
+                          index={i}
                           rule={r}
                           family={RULE_FAMILY[field]}
                           palette={s.colorPalette ?? []}

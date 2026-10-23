@@ -553,6 +553,7 @@ No inventes nada que no esté presente en la imagen. Devuelve el resultado en JS
 // ==========================================
 // Synthesize / Update Visual System Details with Gemini
 // ==========================================
+const SPECIMEN_STYLES = ["stretched", "hierarchy", "glitch", "italic", "rounded", "serif", "wide", "outline"];
 /** Esquema de una ficha de regla para la respuesta estructurada de Gemini. */
 const RULE_SCHEMA = {
     type: genai_1.Type.OBJECT,
@@ -564,6 +565,8 @@ const RULE_SCHEMA = {
         patternIds: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
         refIds: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
         exampleText: { type: genai_1.Type.STRING },
+        specimenStyle: { type: genai_1.Type.STRING },
+        specimenSubtext: { type: genai_1.Type.STRING },
         gridCols: { type: genai_1.Type.NUMBER },
         gridRows: { type: genai_1.Type.NUMBER },
     },
@@ -609,7 +612,11 @@ Generate JSON containing:
    - "avoid": 0-2 short contexts where it must not be used (e.g. "textos de lectura").
    - "patternIds": IDs (in square brackets above) of the validated patterns that support it.
    - "refIds": IDs of the references that show it best (from the reference list).
-   - Typography rules also have "exampleText": 1 to 3 words to render as a type specimen (the brand name or a short headline).
+   - Typography rules also have a type specimen that must make THAT rule visible, different for each rule:
+     "exampleText": 1 to 3 words to render (vary it across rules: the brand name, a short headline, a menu or event word).
+     "specimenStyle": the one that best shows the rule, one of: "stretched" (display stretched vertically), "hierarchy" (condensed headline over a small sans line, for hierarchy rules), "glitch" (digital distortion, offset color ghosts), "italic" (slanted), "rounded" (rounded, curved terminals, organic), "serif" (display serif), "wide" (extended letters, open tracking), "outline" (outlined letters).
+     "specimenSubtext": only for "hierarchy": the secondary line (e.g. "Viernes 23 · 00 h").
+     Do not repeat the same specimenStyle in two rules unless the rules really demand it.
    - Composition rules also have "gridCols" and "gridRows": integers from 2 to 6 describing the underlying grid.
 8. "pillarSources": for each aesthetic pillar, in the same order, the IDs of the validated patterns that support it.
 9. "systemDetails": Object with rich text descriptions for:
@@ -702,7 +709,12 @@ Generate JSON containing:
                     patternIds: ids(r?.patternIds, validPatterns),
                     refIds,
                     example: kind === "type"
-                        ? { kind, text: String(r?.exampleText || "").trim() || undefined }
+                        ? {
+                            kind,
+                            text: String(r?.exampleText || "").trim() || undefined,
+                            style: SPECIMEN_STYLES.includes(r?.specimenStyle) ? r.specimenStyle : undefined,
+                            subtext: String(r?.specimenSubtext || "").trim() || undefined,
+                        }
                         : kind === "grid"
                             ? { kind, cols: clamp(r?.gridCols), rows: clamp(r?.gridRows) }
                             : { kind, refIds },

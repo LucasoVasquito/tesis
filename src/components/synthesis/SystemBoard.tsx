@@ -446,9 +446,10 @@ export function SystemBoard(props: SystemBoardProps) {
             )
           ) : activeRules.length ? (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
-              {activeRules.map(r => (
+              {activeRules.map((r, i) => (
                 <RuleCard
                   key={r.code}
+                  index={i}
                   rule={r}
                   family={RULE_FAMILY[tab as RuleField] ?? FAMILIES.image}
                   palette={palette}

@@ -105,10 +105,16 @@ export interface PaletteColor {
   share?: number;
 }
 
+/** Estilos de espécimen que la interfaz sabe dibujar (aproximaciones con fuentes genéricas). */
+export type SpecimenStyle = 'stretched' | 'hierarchy' | 'glitch' | 'italic' | 'rounded' | 'serif' | 'wide' | 'outline';
+
 /** Ejemplo visual de una regla: espécimen tipográfico, recorte de evidencia o diagrama de retícula. */
 export interface RuleExample {
   kind: 'type' | 'evidence' | 'grid';
   text?: string;
+  /** Solo espécimen: cómo se dibuja y una línea secundaria (para jerarquías). */
+  style?: SpecimenStyle;
+  subtext?: string;
   refIds?: string[];
   cols?: number;
   rows?: number;
