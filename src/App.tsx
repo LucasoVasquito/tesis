@@ -12,7 +12,6 @@ import { MIN_REFERENCES, STAGE_LABEL, canEnter, initialStage, isBriefComplete, r
 import { Button } from './components/ui';
 import { TopBar } from './components/shell/TopBar';
 import { ActionBar, Toast } from './components/shell/ActionBar';
-import { DockPanel } from './components/shell/DockPanel';
 import { CorpusView } from './components/canvas/CanvasArea';
 import { UploadModal } from './components/UploadModal';
 import { LightboxModal } from './components/LightboxModal';
@@ -103,7 +102,6 @@ export default function App() {
   const [selectedRefId, setSelectedRefId] = useState<string | null>(null);
   const [auditIndex, setAuditIndex] = useState(0);
   const [auditFilter, setAuditFilter] = useState<AuditFilter>('pending');
-  const [systemDetailId, setSystemDetailId] = useState<string | null>(null);
   const [focusSystemId, setFocusSystemId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -160,7 +158,6 @@ export default function App() {
       const p = projectRef.current;
       if (!canEnter(p, s) || induction.status === 'running') return;
       if (s === 'brief') setBriefDraft({ name: p.name, objective: p.objective, description: p.description });
-      setSystemDetailId(null);
       setStage(s);
     },
     [induction.status],
@@ -170,7 +167,6 @@ export default function App() {
     abortRef.current?.abort();
     setInduction({ status: 'idle', tick: 0 });
     setSelectedRefId(null);
-    setSystemDetailId(null);
     setAuditIndex(0);
     setAuditFilter('pending');
     setOverlay(null);
@@ -533,7 +529,6 @@ export default function App() {
       systems: p.systems.filter(s => s.id !== id),
       patterns: p.patterns.map(x => (x.assignedSystemId === id ? { ...x, assignedSystemId: null } : x)),
     }));
-    if (systemDetailId === id) setSystemDetailId(null);
     addLog('system_delete', id, `Sistema eliminado · ${sys?.name ?? id}`);
     showToast({ message: `Sistema eliminado · ${sys?.name ?? id}`, tone: 'discarded' });
   };
@@ -846,7 +841,6 @@ export default function App() {
   }
 
   const rail = railItems(project, stage, induction.status === 'running');
-  const detailSystem = stage === 'synthesis' ? project.systems.find(s => s.id === systemDetailId) ?? null : null;
   const applySystem = overlay?.kind === 'apply' ? project.systems.find(s => s.id === overlay.systemId) ?? null : null;
   const guidelinesSystem = overlay?.kind === 'guidelines' ? project.systems.find(s => s.id === overlay.systemId) ?? null : null;
 

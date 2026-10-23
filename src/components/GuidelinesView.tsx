@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { Copy, FileDown, FileJson, Printer } from 'lucide-react';
-import { Project, Rule, RuleField, VisualSystem } from '../types';
+import { Copy, FileDown, FileJson, Printer, Sparkles } from 'lucide-react';
+import { Project, VisualSystem } from '../types';
+import { PaletteBand } from './synthesis/PaletteBand';
+import { RULE_FAMILY, RuleCard } from './synthesis/RuleCard';
+import { RULE_FIELDS } from '../utils/rules';
 import { Button, CategoryTag, Swatch } from './ui';
 import { FullView } from './shell/FullView';
 import { buildSystemMarkdown, downloadSystemMarkdown, exportVisualSystemAsJSON } from '../utils/exportHelpers';
@@ -29,18 +32,13 @@ function Traced({ items, sources }: { items?: string[]; sources?: string[][] }) 
       {items.map((it, i) => (
         <li key={i} className="flex flex-col gap-1">
           <span className="font-serif text-lg leading-snug text-ink">{it}</span>
-          {sources?.[i]?.length ? <span className="font-mono text-xs text-ink-2">← {sources[i].join(', ')}</span> : null}
+          {sources?.[i]?.length ? <span className="font-mono text-xs text-signal-ink">← {sources[i].join(' ')}</span> : null}
         </li>
       ))}
     </ul>
   );
 }
 
-const RULES: [RuleField, string][] = [
-  ['typographyRules', 'Tipografía'],
-  ['textureRules', 'Textura y materialidad'],
-  ['compositionRules', 'Composición y retícula'],
-];
 
 /** Manual del sistema a pantalla completa (antes ExportBrandGuidelinesModal) con la exportación unificada. */
 export function GuidelinesView({ project, system: s, onBack, onTryPiece }: GuidelinesViewProps) {
@@ -68,6 +66,9 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
       backLabel="Síntesis"
       actions={
         <>
+          <Button size="sm" variant="signal" icon={<Sparkles />} onClick={onTryPiece} title="Verificación externa: no forma parte del sistema">
+            Probar en una pieza
+          </Button>
           <Button size="sm" variant="ghost" icon={<Printer />} onClick={() => window.print()}>
             PDF
           </Button>
@@ -106,10 +107,13 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
 
         <Section n="02" title="Paleta">
           {s.colorPalette?.length ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
-              {s.colorPalette.map((c, i) => (
-                <Swatch key={`${c.hex}-${i}`} hex={c.hex} name={c.name} role={c.role} source={c.source} />
-              ))}
+            <div className="flex flex-col gap-3">
+              <PaletteBand palette={s.colorPalette} className="overflow-hidden rounded-card print:break-inside-avoid" />
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
+                {s.colorPalette.map((c, i) => (
+                  <Swatch key={`${c.hex}-${i}`} hex={c.hex} name={c.name} role={c.role} source={c.source} />
+                ))}
+              </div>
             </div>
           ) : (
             <p className="m-0 text-13 text-ink-2">Sin paleta inferida.</p>
@@ -117,12 +121,36 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
         </Section>
 
         <Section n="03" title="Reglas">
-          {RULES.map(([f, label]) => (
-            <div key={f} className="flex flex-col gap-3">
-              <h3 className="m-0 text-13 font-medium text-ink-2">{label}</h3>
-              <Traced items={(s[f] as Rule[] | undefined)?.map(r => r.title)} sources={(s[f] as Rule[] | undefined)?.map(r => r.patternIds)} />
-            </div>
-          ))}
+          {RULE_FIELDS.map(({ field, label }) => {
+            const rules = s[field] ?? [];
+            return (
+              <div key={field} className="flex flex-col gap-3">
+                <h3 className="m-0 flex items-center gap-2 text-13 font-medium text-ink-2">
+                  <span aria-hidden="true" className="size-2 rounded-[2px]" style={{ background: RULE_FAMILY[field].color }} />
+                  {label}
+                </h3>
+                {rules.length ? (
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+                    {rules.map(r => (
+                      <div key={r.code} className="print:break-inside-avoid">
+                        <RuleCard
+                          rule={r}
+                          family={RULE_FAMILY[field]}
+                          palette={s.colorPalette ?? []}
+                          references={project.references}
+                          fallbackRefIds={r.patternIds.flatMap(pid => project.patterns.find(p => p.id === pid)?.evidence ?? [])}
+                          specimenText={project.name.split(/\s[—–-]\s/)[0].trim() || s.name}
+                          showWhy
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="m-0 text-13 text-ink-2">Sin reglas de esta familia.</p>
+                )}
+              </div>
+            );
+          })}
         </Section>
 
         <Section n="04" title="Patrones">
@@ -186,7 +214,7 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
         <section className="no-print flex flex-col gap-3 rounded-card border border-dashed border-line-strong p-5">
           <span className="font-mono text-xs text-ink-2">VERIFICACIÓN EXTERNA · no forma parte del sistema</span>
           <p className="m-0 text-13 text-ink-2">
-            Generá una pieza con DALL·E a partir de estos lineamientos para ver si el sistema se sostiene fuera del corpus.
+            Generá piezas con OpenAI a partir de estos lineamientos para ver si el sistema se sostiene fuera del corpus. También está en la cabecera.
           </p>
           <div>
             <Button size="sm" variant="secondary" onClick={onTryPiece}>
