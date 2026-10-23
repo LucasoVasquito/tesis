@@ -281,8 +281,9 @@
     resize: vertical;
     line-height: 1.5;
   }
+  /* Placeholder: más tenue que el valor pero con contraste AA (5.6:1 sobre --bg) */
   .field-input::placeholder {
-    color: var(--color-ink-3);
+    color: #8a8a93;
   }
   .field-input:hover {
     border-color: var(--color-line-strong);
@@ -343,6 +344,22 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes em-stage {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Cambio de etapa: 240ms, solo opacidad y transform */
+.stage-enter {
+  animation: em-stage 240ms var(--ease-emergent);
 }
 
 /* ---------- Movimiento reducido: todo a 0ms ---------- */

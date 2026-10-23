@@ -6,7 +6,7 @@ import { compressImageString, compressReferences } from './utils/imageCompressor
 import { clearCachedBreakdown, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
 import { downloadProjectMarkdown, exportProjectAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid } from './utils/project';
-import { MIN_REFERENCES, canEnter, initialStage, isBriefComplete, railItems } from './utils/stages';
+import { MIN_REFERENCES, STAGE_LABEL, canEnter, initialStage, isBriefComplete, railItems } from './utils/stages';
 
 import { Button } from './components/ui';
 import { TopBar } from './components/shell/TopBar';
@@ -53,6 +53,8 @@ function loadProjects(): Project[] {
   }
   return [createEmptyProject()];
 }
+
+const STAGE_NUM: Record<VisitableStage, string> = { brief: '01', corpus: '02', audit: '04', synthesis: '05' };
 
 const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100) : 0);
 
@@ -861,7 +863,11 @@ export default function App() {
         isLogOpen={isLogOpen}
       />
 
+      <p className="sr-only" aria-live="polite">
+        Etapa {STAGE_NUM[stage]} de 05: {STAGE_LABEL[stage]}
+      </p>
       <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none ${overlay ? 'print:hidden' : ''}`}>
+        <div key={`${project.id}-${stage}`} className="stage-enter h-full">
         {stage === 'brief' && (
           <BriefStage
             project={project}
@@ -941,6 +947,7 @@ export default function App() {
             </DockPanel>
           </div>
         )}
+        </div>
       </main>
 
       <ActionBar status={status} notice={notice} toast={toast} onDismissToast={dismissToast} secondary={secondary} primary={primary} />
