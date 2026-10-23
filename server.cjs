@@ -704,234 +704,332 @@ Generate JSON containing:
         });
     }
 });
-/** Detecta el soporte pedido para elegir formato y tamaño. */
-function detectFormat(text) {
-    const t = text.toLowerCase();
-    const has = (re) => re.test(t);
-    if (has(/\b(logo|logotipo|isotipo|isologo|monograma|emblema|sello)\b/))
-        return { id: "logo", size: "1024x1024", phrase: "a flat 2D logo mark presented alone on a plain background, crisp vector-like edges" };
-    if (has(/\b(afiche|poster|póster|flyer|volante|cartel publicitario)\b/))
-        return { id: "poster", size: "1024x1536", phrase: "a vertical printed poster, flat 2D graphic layout seen straight on, edge to edge" };
-    if (has(/\b(fachada|frente|marquesina|vidriera|local|interior|mostrador|señalética|senaletica|pared|mural)\b/))
-        return { id: "space", size: "1536x1024", phrase: "a natural-light architectural photograph of the physical space, eye-level, realistic materials" };
-    if (has(/\b(web|website|sitio|landing|home ?page)\b/))
-        return { id: "web", size: "1536x1024", phrase: "a desktop website hero section shown as a flat screen capture" };
-    if (has(/\b(story|stories|historia)\b/))
-        return { id: "story", size: "1024x1536", phrase: "a vertical social media story, flat 2D layout" };
-    if (has(/\b(instagram|post|redes|feed)\b/))
-        return { id: "post", size: "1024x1024", phrase: "a square social media post, flat 2D layout" };
-    if (has(/\b(packaging|envase|envoltorio|caja|bolsa|vaso|etiqueta|servilleta|lata|botella)\b/))
-        return { id: "packaging", size: "1024x1024", phrase: "a product packaging photograph on a plain studio surface, soft natural light, real printed materials" };
-    if (has(/\b(menú|menu|carta|folleto|editorial|revista|libro|tapa)\b/))
-        return { id: "print", size: "1024x1536", phrase: "a printed editorial piece photographed flat from above on a plain surface" };
-    return { id: "piece", size: "1024x1024", phrase: "a single brand application presented clearly on a plain background" };
-}
-const firstOf = (arr) => (Array.isArray(arr) && arr.length ? String(arr[0]).trim() : "");
-const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s);
-/**
- * Prompt en inglés, corto y descriptivo:
- * sujeto · soporte · paleta HEX (3-4) · una regla tipográfica · una de textura · composición.
- * Las restricciones se expresan en positivo.
- */
-function buildImagePrompt(opts) {
-    const { system, resources, patterns } = opts;
-    const lines = [];
-    lines.push(`${clip(opts.subject, 220)}, for the brand "${opts.projectName || system?.name}".`);
-    lines.push(`Format: ${opts.format.phrase}.`);
-    const palette = (system?.colorPalette || []).map((c) => String(c.hex || "").toUpperCase()).filter(Boolean).slice(0, 4);
-    if (resources.palette !== false && palette.length)
-        lines.push(`Color palette limited to ${palette.join(", ")}, used as flat solid colors.`);
-    const typo = firstOf(system?.typographyRules) || patterns.find((p) => p.category === "typography")?.description || "";
-    if (resources.typography !== false && typo)
-        lines.push(`Typography: ${clip(typo, 180)}.`);
-    const texture = firstOf(system?.textureRules) || patterns.find((p) => p.category === "texture")?.description || "";
-    if (resources.texture !== false && texture)
-        lines.push(`Surface and texture: ${clip(texture, 160)}.`);
-    const comp = firstOf(system?.compositionRules) || patterns.find((p) => p.category === "composition")?.description || "";
-    if (resources.composition !== false && comp)
-        lines.push(`Composition: ${clip(comp, 160)}.`);
-    if (resources.graphic_elements) {
-        const g = patterns.filter((p) => p.category === "graphic_elements" || p.category === "logo_identity").map((p) => p.name).slice(0, 2);
-        if (g.length)
-            lines.push(`Graphic elements: ${g.join("; ")}.`);
-    }
-    if (resources.photography) {
-        const ph = system?.systemDetails?.photographyStyle || patterns.find((p) => p.category === "photography_treatment")?.description;
-        if (ph)
-            lines.push(`Image treatment: ${clip(ph, 140)}.`);
-    }
-    if (resources.illustration) {
-        const il = system?.systemDetails?.mascotAndIllustration || patterns.find((p) => p.category === "mascot_illustration")?.description;
-        if (il)
-            lines.push(`Illustration: ${clip(il, 140)}.`);
-    }
-    if (opts.revision) {
-        lines.push(`Revise the first attached image: ${clip(opts.revision, 200)}. Keep everything else as it is.`);
-    }
-    else if (opts.hasAnchor) {
-        lines.push("Keep the same visual language, materials and lighting as the first attached image.");
-    }
-    if (opts.hasReferences) {
-        lines.push("The attached reference images are style evidence: match their palette, materials, textures and graphic language, with a new composition and original content.");
-    }
-    lines.push("Text in the image, if any, is short, legible and spelled exactly as given.");
-    return lines.join("\n");
-}
-/** data URL o http(s) → Blob para multipart. */
-async function imageToBlob(src, name) {
-    const part = await resolveImagePart(src, name);
-    if (!part)
-        return null;
-    const ext = part.mimeType.split("/")[1] || "png";
-    const type = ["image/png", "image/jpeg", "image/webp"].includes(part.mimeType) ? part.mimeType : "image/png";
-    return { blob: new Blob([Buffer.from(part.data, "base64")], { type }), name: `${name}.${ext === "jpeg" ? "jpg" : ext}` };
+const PIECES = {
+    logo: {
+        label: "Logotipo",
+        size: "1024x1024",
+        spec: "A final, production-ready logo as a senior brand identity designer would present it in a brand book: flat vector-style artwork presented alone and centered on a plain solid background, with generous clear space. Precise geometry, deliberate custom letterforms, optically balanced spacing, clean edges, legible at small sizes, built from at most two or three colors of the palette. Flat solid fills only. The brand text is spelled exactly as given.",
+        detailKeys: ["logoAndIdentity", "typographySystem", "brandEssence"],
+        directions: [
+            "Direction A — a typographic wordmark: the brand name drawn as custom lettering that embodies the typography rules.",
+            "Direction B — a symbol or monogram paired with a wordmark, in a horizontal lockup.",
+            "Direction C — an emblem or seal that contains the name, drawing on the graphic resources of the system.",
+            "Direction D — a bold, reduced mark: the most minimal expression of the system that still feels ownable.",
+        ],
+    },
+    poster: {
+        label: "Afiche",
+        size: "1024x1536",
+        spec: "A finished printed poster designed by a professional graphic designer, seen straight on and filling the frame: clear typographic hierarchy, a strong focal point, deliberate grid, real print finish. Any text is short, legible and spelled exactly as given.",
+        detailKeys: ["graphicApplications", "typographySystem", "brandEssence"],
+        directions: [
+            "Direction A — typography-led: the headline is the image.",
+            "Direction B — image-led: one strong visual with restrained type.",
+            "Direction C — graphic and systematic: built from the system's graphic resources and grid.",
+            "Direction D — the most daring interpretation that still respects the rules.",
+        ],
+    },
+    packaging: {
+        label: "Packaging",
+        size: "1024x1024",
+        spec: "A real, finished packaging design photographed as a product shot on a plain studio surface with soft natural light: believable printed materials and finishes, the brand applied with care, label hierarchy that reads instantly.",
+        detailKeys: ["packagingSystem", "brandEssence"],
+        directions: [
+            "Direction A — faithful to the reference materials and finishes.",
+            "Direction B — bolder graphics covering the whole surface.",
+            "Direction C — minimal and premium: mostly material, small precise brand marks.",
+            "Direction D — a family of two or three coordinated pieces.",
+        ],
+    },
+    post: {
+        label: "Post",
+        size: "1024x1024",
+        spec: "A finished square social media post for the brand: flat 2D layout, clear hierarchy, platform-ready, any text short and spelled exactly.",
+        detailKeys: ["digitalAndSocialMedia", "brandEssence"],
+        directions: ["Direction A — typography-led.", "Direction B — image-led.", "Direction C — graphic pattern-led.", "Direction D — the most daring."],
+    },
+    story: {
+        label: "Story",
+        size: "1024x1536",
+        spec: "A finished vertical social media story for the brand: flat 2D layout, clear hierarchy, safe margins, any text short and spelled exactly.",
+        detailKeys: ["digitalAndSocialMedia", "brandEssence"],
+        directions: ["Direction A — typography-led.", "Direction B — image-led.", "Direction C — graphic pattern-led.", "Direction D — the most daring."],
+    },
+    facade: {
+        label: "Fachada",
+        size: "1536x1024",
+        spec: "An eye-level, natural-light architectural photograph of the storefront or space with the identity applied: realistic materials, signage built as it would really be fabricated, believable scale.",
+        detailKeys: ["graphicApplications", "logoAndIdentity", "brandEssence"],
+        directions: ["Direction A — signage-led.", "Direction B — material and color-led.", "Direction C — graphic resources applied to the architecture.", "Direction D — the most daring."],
+    },
+    web: {
+        label: "Web",
+        size: "1536x1024",
+        spec: "A desktop website hero section shown as a flat screen capture: real layout, navigation, clear hierarchy, any text short and spelled exactly.",
+        detailKeys: ["digitalAndSocialMedia", "typographySystem", "brandEssence"],
+        directions: ["Direction A — typography-led.", "Direction B — image-led.", "Direction C — grid and graphic resources.", "Direction D — the most daring."],
+    },
+    other: {
+        label: "Pieza",
+        size: "auto",
+        spec: "A finished, professional brand application presented clearly, exactly as requested.",
+        detailKeys: ["graphicApplications", "brandEssence"],
+        directions: ["Direction A — faithful.", "Direction B — bolder.", "Direction C — more minimal.", "Direction D — the most daring."],
+    },
+};
+const DETAIL_LABEL = {
+    brandEssence: "Brand essence",
+    logoAndIdentity: "Logo and identity",
+    packagingSystem: "Packaging",
+    photographyStyle: "Photography",
+    typographySystem: "Typography system",
+    graphicApplications: "Graphic applications",
+    mascotAndIllustration: "Illustration",
+    digitalAndSocialMedia: "Digital and social",
+};
+const ART_DIRECTOR_INSTRUCTIONS = `You are a senior art director and brand identity designer.
+You receive a visual system that a designer built from their own reference corpus (the attached images are evidence of the confirmed patterns), and a request for one piece.
+Your job: translate the system into ONE finished, professional piece and generate it with the image_generation tool, exactly once.
+- Read every rule. The palette HEX values, typography, texture and composition rules are constraints, not suggestions.
+- The attached reference images are style evidence: inherit their palette, materials, textures and graphic language. Never copy their subject, layout or content.
+- Before calling the tool, write a detailed image prompt in English: subject, medium and format, exact palette, typography treatment, texture, composition, lighting when relevant, and the exact text to render.
+- Aim for the quality of a real agency deliverable, never a sketch or a generic stock image.
+After the image, reply with two or three short sentences in Spanish explaining which rules of the system you applied and how.`;
+function buildBrief(b, piece) {
+    const s = b.system || {};
+    const project = b.project || {};
+    const list = (title, items) => (Array.isArray(items) && items.length ? `${title}:\n${items.map((x) => `- ${x}`).join("\n")}` : "");
+    const palette = (s.colorPalette || []).map((c) => `- ${String(c.hex).toUpperCase()}${c.name ? ` · ${c.name}` : ""}${c.role ? ` (${c.role})` : ""}`).join("\n");
+    const r = b.resources || {};
+    const details = piece.detailKeys
+        .map(k => (s.systemDetails?.[k] ? `${DETAIL_LABEL[k]}: ${s.systemDetails[k]}` : ""))
+        .filter(Boolean)
+        .join("\n");
+    const patterns = (b.patterns || []).map((p) => `- [${p.id}] ${p.name} (${p.category}): ${p.description}`).join("\n");
+    return [
+        `# Request`,
+        `Piece: ${piece.label}.`,
+        b.brandText ? `Brand text to render exactly: "${b.brandText}".` : "",
+        b.details ? `Designer's notes: ${b.details}` : "",
+        `Deliverable standard: ${piece.spec}`,
+        b.transparent ? "Background: transparent, with the artwork alone." : "",
+        ``,
+        `# Brand`,
+        `Project: ${project.name || ""}`,
+        project.objective ? `Objective: ${project.objective}` : "",
+        project.description ? `Context: ${project.description}` : "",
+        ``,
+        `# Visual system: ${s.name}`,
+        s.description || "",
+        list("Aesthetic pillars", s.aestheticPillars),
+        r.palette !== false && palette ? `Color palette (inferred from the corpus; use only these):\n${palette}` : "",
+        r.typography !== false ? list("Typography rules", s.typographyRules) : "",
+        r.texture !== false ? list("Texture and material rules", s.textureRules) : "",
+        r.composition !== false ? list("Composition rules", s.compositionRules) : "",
+        details,
+        patterns ? `Confirmed patterns (evidence attached as images):\n${patterns}` : "",
+    ]
+        .filter(x => x !== "")
+        .join("\n");
 }
 function friendlyOpenAIError(msg) {
     const m = msg.toLowerCase();
     if (m.includes("incorrect api key") || m.includes("invalid api key"))
         return "La OPENAI_API_KEY del archivo .env no es válida.";
     if (m.includes("verif"))
-        return "Tu organización de OpenAI tiene que estar verificada para usar los modelos GPT Image (platform.openai.com → Settings → Organization → Verify).";
+        return "Tu organización de OpenAI tiene que estar verificada para generar imágenes (platform.openai.com → Settings → Organization → Verify).";
     if (m.includes("billing") || m.includes("quota") || m.includes("credit"))
         return "La cuenta de OpenAI no tiene saldo o alcanzó su límite (platform.openai.com → Billing).";
     if (m.includes("safety") || m.includes("moderation") || m.includes("rejected"))
-        return "OpenAI rechazó el pedido por sus políticas de contenido. Probá reformular la descripción.";
+        return "OpenAI rechazó el pedido por sus políticas de contenido. Probá reformular los detalles.";
     return msg;
 }
-async function callOpenAIImage(opts) {
-    const { key, model, prompt, size, quality, images } = opts;
-    let response;
-    if (images.length) {
-        const form = new FormData();
-        form.append("model", model);
-        form.append("prompt", prompt);
-        form.append("size", size);
-        form.append("quality", quality);
-        form.append("n", "1");
-        // gpt-image-1 admite fidelidad alta a las imágenes de entrada; gpt-image-2 la aplica siempre.
-        if (model === "gpt-image-1")
-            form.append("input_fidelity", "high");
-        images.forEach(img => form.append("image[]", img.blob, img.name));
-        response = await fetch("https://api.openai.com/v1/images/edits", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${key}` },
-            body: form,
-        });
-    }
-    else {
-        response = await fetch("https://api.openai.com/v1/images/generations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-            body: JSON.stringify({ model, prompt, size, quality, n: 1 }),
-        });
-    }
+/** data URL o http(s) → data URL (para enviar como input_image). */
+async function toDataUrl(src, id) {
+    if (!src)
+        return null;
+    if (src.startsWith("data:"))
+        return src;
+    const part = await resolveImagePart(src, id);
+    return part ? `data:${part.mimeType};base64,${part.data}` : null;
+}
+const isModelProblem = (err) => {
+    const m = String(err?.message || "").toLowerCase();
+    return err?.status === 404 || m.includes("model") || m.includes("does not exist") || m.includes("not found") || m.includes("unsupported");
+};
+async function callResponses(key, body) {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify(body),
+    });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.error) {
         const err = new Error(data?.error?.message || `HTTP ${response.status}`);
         err.status = response.status;
-        err.code = data?.error?.code;
+        err.param = data?.error?.param;
         throw err;
     }
-    const b64 = data?.data?.[0]?.b64_json;
-    if (b64)
-        return `data:image/png;base64,${b64}`;
-    const url = data?.data?.[0]?.url;
-    if (url) {
-        const img = await fetch(url);
-        return `data:image/png;base64,${Buffer.from(await img.arrayBuffer()).toString("base64")}`;
+    const output = Array.isArray(data.output) ? data.output : [];
+    const call = output.find(o => o.type === "image_generation_call" && o.result);
+    if (!call) {
+        const text = output.flatMap(o => (o.content || []).map((c) => c.text).filter(Boolean)).join(" ");
+        throw new Error(`El modelo no generó una imagen.${text ? ` Respondió: ${text.slice(0, 300)}` : ""}`);
     }
-    throw new Error("OpenAI no devolvió ninguna imagen.");
+    const rationale = output
+        .filter(o => o.type === "message")
+        .flatMap(o => (o.content || []).filter((c) => c.type === "output_text").map((c) => c.text))
+        .join("\n")
+        .trim();
+    const format = call.output_format || "png";
+    return {
+        imageUrl: `data:image/${format};base64,${call.result}`,
+        responseId: data.id,
+        revisedPrompt: call.revised_prompt || "",
+        rationale,
+    };
+}
+/**
+ * Una generación con la Responses API. Si el modelo de imagen o de texto configurado no está
+ * disponible para la cuenta, reintenta con alternativas; si tool_choice no se admite, lo omite.
+ */
+async function generateWithResponses(key, opts) {
+    const textModels = Array.from(new Set([opts.textModel, "gpt-5", "gpt-4.1"]));
+    const imageModels = Array.from(new Set([opts.imageModel, "gpt-image-2", "gpt-image-1"]));
+    let lastErr = null;
+    for (const textModel of textModels) {
+        for (const imageModel of imageModels) {
+            for (const forceTool of [true, false]) {
+                try {
+                    const body = {
+                        model: textModel,
+                        instructions: ART_DIRECTOR_INSTRUCTIONS,
+                        input: opts.input,
+                        tools: [{ ...opts.tool, type: "image_generation", model: imageModel }],
+                    };
+                    if (forceTool)
+                        body.tool_choice = { type: "image_generation" };
+                    if (opts.previousResponseId)
+                        body.previous_response_id = opts.previousResponseId;
+                    const result = await callResponses(key, body);
+                    return { ...result, textModel, imageModel };
+                }
+                catch (err) {
+                    lastErr = err;
+                    console.warn(`[Imagen] ${textModel} + ${imageModel}${forceTool ? "" : " (sin tool_choice)"} falló: ${err?.message}`);
+                    if (forceTool && String(err?.param || err?.message || "").includes("tool_choice"))
+                        continue;
+                    if (!isModelProblem(err))
+                        throw err; // saldo, verificación, contenido: no se resuelve cambiando de modelo
+                    break;
+                }
+            }
+        }
+    }
+    throw lastErr;
 }
 app.post("/api/generate-application", async (req, res) => {
     dotenv_1.default.config({ override: true });
+    const b = req.body || {};
     try {
-        const { system, projectName = "", confirmedPatterns = [], selectedResources = {}, references = [], userDescription = "", iterationPrompt = "", previousImageUrl = "", anchorImageUrl = "", } = req.body || {};
-        if (!system || !system.name) {
+        if (!b.system || !b.system.name)
             return res.status(400).json({ error: "Se requiere un sistema visual para generar la pieza." });
-        }
         const key = (process.env.OPENAI_API_KEY || "").trim();
-        if (!key) {
+        if (!key)
             return res.status(400).json({ error: "Falta OPENAI_API_KEY en el archivo .env del servidor." });
-        }
-        const subject = String(userDescription || "").trim() || `A key brand piece for ${system.name}`;
-        const format = detectFormat(`${subject} ${iterationPrompt}`);
-        const revision = String(iterationPrompt || "").trim();
-        // Imágenes de entrada: primero la pieza a revisar (o el ancla de estilo), luego hasta 3 referencias de evidencia.
-        const inputs = [];
-        const base = revision ? previousImageUrl : anchorImageUrl;
-        if (base) {
-            const b = await imageToBlob(base, revision ? "pieza_anterior" : "ancla_estilo");
-            if (b)
-                inputs.push(b);
-        }
-        const usedRefs = [];
-        for (const r of (references || []).slice(0, 3)) {
-            if (!r?.image)
-                continue;
-            const b = await imageToBlob(r.image, r.id || "ref");
-            if (b) {
-                inputs.push(b);
-                usedRefs.push(r.id);
-            }
-        }
-        const prompt = buildImagePrompt({
-            subject,
-            projectName,
-            system,
-            patterns: confirmedPatterns,
-            resources: selectedResources,
-            format,
-            hasReferences: usedRefs.length > 0,
-            revision: revision || undefined,
-            hasAnchor: !revision && !!anchorImageUrl && inputs.length > usedRefs.length,
-        });
-        const preferred = (process.env.OPENAI_IMAGE_MODEL || "gpt-image-2").trim();
+        const pieceType = PIECES[b.pieceType] ? b.pieceType : "other";
+        const piece = PIECES[pieceType];
+        const textModel = (process.env.OPENAI_TEXT_MODEL || "gpt-5").trim();
+        const imageModel = (process.env.OPENAI_IMAGE_MODEL || "gpt-image-2").trim();
         const quality = (process.env.OPENAI_IMAGE_QUALITY || "high").trim();
-        const models = Array.from(new Set([preferred, "gpt-image-1"]));
-        let imageUrl = "";
-        let modelUsed = "";
-        let lastErr = null;
-        for (const model of models) {
+        const tool = { size: piece.size, quality };
+        if (b.transparent)
+            tool.background = "transparent";
+        // ---------- Iteración sobre una variante ----------
+        if (b.revision?.text) {
+            const text = `Revise the last image: ${b.revision.text}. Keep everything else as it is, and keep following the visual system.`;
+            let result;
             try {
-                console.log(`[Imagen] ${model} · ${format.size} · ${inputs.length} imágenes de entrada`);
-                imageUrl = await callOpenAIImage({ key, model, prompt, size: format.size, quality, images: inputs });
-                modelUsed = model;
-                break;
+                result = await generateWithResponses(key, {
+                    input: [{ role: "user", content: [{ type: "input_text", text }] }],
+                    previousResponseId: b.revision.responseId,
+                    tool: { ...tool, action: "edit" },
+                    textModel,
+                    imageModel,
+                });
             }
             catch (err) {
-                lastErr = err;
-                const msg = String(err?.message || "").toLowerCase();
-                const modelProblem = err?.status === 404 || msg.includes("model") || msg.includes("does not exist") || msg.includes("not found");
-                console.warn(`[Imagen] ${model} falló: ${err?.message}`);
-                if (!modelProblem)
-                    break; // errores de contenido, saldo o verificación no se resuelven cambiando de modelo
+                // Si la conversación anterior ya no está disponible, se envía la imagen a editar.
+                const image = b.revision.imageUrl ? await toDataUrl(b.revision.imageUrl, "pieza") : null;
+                if (!image || !String(err?.message || "").toLowerCase().includes("previous"))
+                    throw err;
+                result = await generateWithResponses(key, {
+                    input: [{ role: "user", content: [{ type: "input_text", text: `${buildBrief(b, piece)}\n\n${text}` }, { type: "input_image", image_url: image }] }],
+                    tool: { ...tool, action: "edit" },
+                    textModel,
+                    imageModel,
+                });
             }
-        }
-        if (!imageUrl) {
-            return res.status(502).json({
-                error: friendlyOpenAIError(String(lastErr?.message || "No se pudo generar la imagen.")),
-                details: lastErr?.message,
-                promptUsed: prompt,
+            return res.json({
+                success: true,
+                data: {
+                    variants: [{ ...result, direction: `Iteración: ${b.revision.text}` }],
+                    brief: text,
+                    size: piece.size,
+                    pieceType,
+                },
             });
+        }
+        // ---------- Variantes nuevas ----------
+        const brief = buildBrief(b, piece);
+        const refImages = [];
+        for (const r of (b.references || []).slice(0, 4)) {
+            const url = r?.image ? await toDataUrl(r.image, r.id) : null;
+            if (url)
+                refImages.push({ id: r.id, url });
+        }
+        const anchor = b.anchorImageUrl ? await toDataUrl(b.anchorImageUrl, "ancla") : null;
+        const count = Math.max(1, Math.min(4, Number(b.variants) || 1));
+        const directions = piece.directions.slice(0, count);
+        console.log(`[Imagen] ${piece.label} · ${count} variantes · ${refImages.length} referencias · ${textModel} + ${imageModel}`);
+        const settled = await Promise.allSettled(directions.map(direction => generateWithResponses(key, {
+            input: [
+                {
+                    role: "user",
+                    content: [
+                        { type: "input_text", text: `${brief}\n\n# This variant\n${count > 1 ? direction : "Choose the strongest direction."}${anchor ? "\nKeep the visual language of the first attached image (approved earlier piece)." : ""}` },
+                        ...(anchor ? [{ type: "input_image", image_url: anchor }] : []),
+                        ...refImages.map(r => ({ type: "input_image", image_url: r.url })),
+                    ],
+                },
+            ],
+            tool,
+            textModel,
+            imageModel,
+        }).then(r => ({ ...r, direction: count > 1 ? direction : "" }))));
+        const variants = settled.filter(s => s.status === "fulfilled").map(s => s.value);
+        const failures = settled.filter(s => s.status === "rejected").map(s => s.reason);
+        if (!variants.length) {
+            const msg = String(failures[0]?.message || "No se pudo generar la pieza.");
+            return res.status(502).json({ error: friendlyOpenAIError(msg), details: msg, promptUsed: brief });
         }
         return res.json({
             success: true,
             data: {
-                imageUrl,
-                modelUsed,
-                size: format.size,
-                format: format.id,
-                referencesUsed: usedRefs,
-                appliedResources: Object.keys(selectedResources).filter(k => selectedResources[k]),
-                systemName: system.name,
-                promptUsed: prompt,
-                timestamp: new Date().toISOString(),
+                variants,
+                failed: failures.length,
+                failureMessage: failures.length ? friendlyOpenAIError(String(failures[0]?.message || "")) : undefined,
+                brief,
+                referencesUsed: refImages.map(r => r.id),
+                size: piece.size,
+                pieceType,
             },
         });
     }
     catch (error) {
         console.error("Error en /api/generate-application:", error);
-        return res.status(500).json({ error: "Error interno al generar la pieza.", details: error?.message });
+        const msg = String(error?.message || error);
+        return res.status(502).json({ error: friendlyOpenAIError(msg), details: msg });
     }
 });
 // Vite middleware & Static Serving
