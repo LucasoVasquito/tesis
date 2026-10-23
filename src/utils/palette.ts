@@ -108,5 +108,7 @@ export function inferPalette(patterns: Pattern[], references: Reference[], opts:
     })
     .sort((a, b) => b.frequency - a.frequency || b.weight - a.weight);
 
-  return ranked.slice(0, max).map(r => r.color);
+  const top = ranked.slice(0, max);
+  const total = top.reduce((a, r) => a + r.weight, 0) || 1;
+  return top.map(r => ({ ...r.color, share: Math.round((r.weight / total) * 100) / 100 }));
 }

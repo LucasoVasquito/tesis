@@ -553,6 +553,22 @@ No inventes nada que no esté presente en la imagen. Devuelve el resultado en JS
 // ==========================================
 // Synthesize / Update Visual System Details with Gemini
 // ==========================================
+/** Esquema de una ficha de regla para la respuesta estructurada de Gemini. */
+const RULE_SCHEMA = {
+    type: genai_1.Type.OBJECT,
+    properties: {
+        title: { type: genai_1.Type.STRING },
+        detail: { type: genai_1.Type.STRING },
+        use: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
+        avoid: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
+        patternIds: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
+        refIds: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
+        exampleText: { type: genai_1.Type.STRING },
+        gridCols: { type: genai_1.Type.NUMBER },
+        gridRows: { type: genai_1.Type.NUMBER },
+    },
+    required: ["title", "detail", "patternIds"],
+};
 app.post("/api/synthesize-system", async (req, res) => {
     dotenv_1.default.config({ override: true });
     try {
@@ -586,10 +602,16 @@ Generate JSON containing:
 2. "description": A comprehensive conceptual narrative (2-3 paragraphs) explaining how colors, typography, textures, and grid composition interact.
 3. "aestheticPillars": Array of 3 to 5 synthetic, impactful conceptual pillars (e.g. "Tensión Tipográfica Hipercondensada", "Sustratos Kraft & Tactilidad", "Reticulado Perimetral").
 4. "colorPalette": Array of 4 to 6 color swatches extracted from evidence: {"hex": "#HEX", "name": "Nombre evocador", "role": "Rol en el sistema"}.
-5. "typographyRules": Array of 2-4 key typography guidelines.
-6. "textureRules": Array of 2-4 key texture/finish guidelines.
-7. "compositionRules": Array of 2-4 key layout/grid guidelines.
-8. "sources": Traceability. For each item of aestheticPillars, typographyRules, textureRules and compositionRules, list the IDs (in square brackets above, e.g. "pat_bc_02") of the validated patterns that support it. Use only IDs from the list. Shape: {"aestheticPillars": [["pat_x"], ...], "typographyRules": [[...]], "textureRules": [[...]], "compositionRules": [[...]]}, one inner array per item, same order.
+5. "typographyRules", 6. "textureRules", 7. "compositionRules": each an array of 1 to 3 RULE CARDS. Every rule card has:
+   - "title": an imperative rule in Spanish of at most 6 words (e.g. "Display estirada en el eje vertical").
+   - "detail": the rationale in 1-2 Spanish sentences.
+   - "use": 0-3 short contexts where it applies (e.g. "títulos", "afiches").
+   - "avoid": 0-2 short contexts where it must not be used (e.g. "textos de lectura").
+   - "patternIds": IDs (in square brackets above) of the validated patterns that support it.
+   - "refIds": IDs of the references that show it best (from the reference list).
+   - Typography rules also have "exampleText": 1 to 3 words to render as a type specimen (the brand name or a short headline).
+   - Composition rules also have "gridCols" and "gridRows": integers from 2 to 6 describing the underlying grid.
+8. "pillarSources": for each aesthetic pillar, in the same order, the IDs of the validated patterns that support it.
 9. "systemDetails": Object with rich text descriptions for:
    - "brandEssence"
    - "logoAndIdentity"
@@ -628,27 +650,10 @@ Generate JSON containing:
                                 required: ["hex", "name", "role"],
                             },
                         },
-                        typographyRules: {
-                            type: genai_1.Type.ARRAY,
-                            items: { type: genai_1.Type.STRING },
-                        },
-                        textureRules: {
-                            type: genai_1.Type.ARRAY,
-                            items: { type: genai_1.Type.STRING },
-                        },
-                        compositionRules: {
-                            type: genai_1.Type.ARRAY,
-                            items: { type: genai_1.Type.STRING },
-                        },
-                        sources: {
-                            type: genai_1.Type.OBJECT,
-                            properties: {
-                                aestheticPillars: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
-                                typographyRules: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
-                                textureRules: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
-                                compositionRules: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
-                            },
-                        },
+                        typographyRules: { type: genai_1.Type.ARRAY, items: RULE_SCHEMA },
+                        textureRules: { type: genai_1.Type.ARRAY, items: RULE_SCHEMA },
+                        compositionRules: { type: genai_1.Type.ARRAY, items: RULE_SCHEMA },
+                        pillarSources: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
                         systemDetails: {
                             type: genai_1.Type.OBJECT,
                             properties: {
@@ -679,16 +684,34 @@ Generate JSON containing:
         const rawText = response.text || "{}";
         const parsed = parseModelJsonResponse(rawText);
         if (parsed && parsed.description) {
-            // Trazabilidad: solo IDs de patrones que realmente se enviaron, alineados con cada ítem.
-            const validIds = new Set((patterns || []).map((p) => p.id));
-            const fields = ["aestheticPillars", "typographyRules", "textureRules", "compositionRules"];
-            const sources = {};
-            for (const f of fields) {
-                const items = Array.isArray(parsed[f]) ? parsed[f] : [];
-                const raw = Array.isArray(parsed.sources?.[f]) ? parsed.sources[f] : [];
-                sources[f] = items.map((_, i) => (Array.isArray(raw[i]) ? raw[i] : []).map(String).filter((id) => validIds.has(id)));
-            }
-            parsed.sources = sources;
+            // Trazabilidad: solo IDs que realmente se enviaron.
+            const validPatterns = new Set((patterns || []).map((p) => String(p.id)));
+            const validRefs = new Set((references || []).map((r) => String(r.id)));
+            const ids = (v, valid) => (Array.isArray(v) ? v.map(String).filter(id => valid.has(id)) : []);
+            const pillars = Array.isArray(parsed.aestheticPillars) ? parsed.aestheticPillars : [];
+            parsed.sources = { aestheticPillars: pillars.map((_, i) => ids(parsed.pillarSources?.[i], validPatterns)) };
+            const toRules = (raw, prefix, kind) => (Array.isArray(raw) ? raw : []).map((r, i) => {
+                const refIds = ids(r?.refIds, validRefs);
+                const clamp = (n) => Math.min(6, Math.max(2, Math.round(Number(n) || 4)));
+                return {
+                    code: `${prefix}${i + 1}`,
+                    title: String(r?.title || "").trim(),
+                    detail: String(r?.detail || "").trim(),
+                    use: Array.isArray(r?.use) ? r.use.map(String) : [],
+                    avoid: Array.isArray(r?.avoid) ? r.avoid.map(String) : [],
+                    patternIds: ids(r?.patternIds, validPatterns),
+                    refIds,
+                    example: kind === "type"
+                        ? { kind, text: String(r?.exampleText || "").trim() || undefined }
+                        : kind === "grid"
+                            ? { kind, cols: clamp(r?.gridCols), rows: clamp(r?.gridRows) }
+                            : { kind, refIds },
+                };
+            });
+            parsed.typographyRules = toRules(parsed.typographyRules, "T", "type");
+            parsed.textureRules = toRules(parsed.textureRules, "X", "evidence");
+            parsed.compositionRules = toRules(parsed.compositionRules, "C", "grid");
+            delete parsed.pillarSources;
             return res.json({
                 success: true,
                 data: parsed,
@@ -798,7 +821,12 @@ After the image, reply with two or three short sentences in Spanish explaining w
 function buildBrief(b, piece) {
     const s = b.system || {};
     const project = b.project || {};
-    const list = (title, items) => (Array.isArray(items) && items.length ? `${title}:\n${items.map((x) => `- ${x}`).join("\n")}` : "");
+    const asText = (x) => typeof x === "string"
+        ? x
+        : [x?.title, x?.detail && x.detail !== x.title ? x.detail : "", x?.use?.length ? `Use for: ${x.use.join(", ")}.` : "", x?.avoid?.length ? `Avoid for: ${x.avoid.join(", ")}.` : ""]
+            .filter(Boolean)
+            .join(" — ");
+    const list = (title, items) => (Array.isArray(items) && items.length ? `${title}:\n${items.map((x) => `- ${asText(x)}`).join("\n")}` : "");
     const palette = (s.colorPalette || []).map((c) => `- ${String(c.hex).toUpperCase()}${c.name ? ` · ${c.name}` : ""}${c.role ? ` (${c.role})` : ""}`).join("\n");
     const r = b.resources || {};
     const details = piece.detailKeys

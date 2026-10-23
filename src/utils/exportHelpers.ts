@@ -1,4 +1,5 @@
-import { Project, TraceableField, VisualSystem, VisualSystemExportData } from '../types';
+import { Project, Rule, VisualSystem, VisualSystemExportData } from '../types';
+import { RULE_FIELDS } from './rules';
 import { mergedLog } from './log';
 
 const slug = (s: string) =>
@@ -77,18 +78,24 @@ export function exportProjectAsJSON(project: Project) {
 const traced = (items: string[] | undefined, sources: string[][] | undefined) =>
   (items ?? []).map((it, i) => `- ${it}${sources?.[i]?.length ? ` \`← ${sources[i].join(', ')}\`` : ''}`).join('\n');
 
-const RULES: [TraceableField, string][] = [
-  ['typographyRules', 'Tipografía'],
-  ['textureRules', 'Textura y materialidad'],
-  ['compositionRules', 'Composición y retícula'],
-];
+const ruleMd = (r: Rule) => {
+  const lines = [`- **${r.code} · ${r.title}**`];
+  if (r.use?.length) lines.push(`  - Sí: ${r.use.join(', ')}`);
+  if (r.avoid?.length) lines.push(`  - No: ${r.avoid.join(', ')}`);
+  if (r.detail && r.detail !== r.title) lines.push(`  - Fundamento: ${r.detail}`);
+  const trace = [...r.patternIds, ...r.refIds];
+  if (trace.length) lines.push(`  - \`← ${trace.join(' ')}\``);
+  return lines.join('\n');
+};
 
 /** Lineamientos de un sistema, con trazabilidad a patrones y referencias. */
 export function buildSystemMarkdown(project: Project, system: VisualSystem): string {
   const patterns = project.patterns.filter(p => system.patternIds.includes(p.id));
-  const palette = (system.colorPalette ?? []).map(c => `| \`${c.hex}\` | ${c.name || ''} | ${c.role || ''} | ${c.source ? `\`${c.source}\`` : '—'} |`).join('\n');
-  const rules = RULES.filter(([f]) => system[f]?.length)
-    .map(([f, label]) => `### ${label}\n${traced(system[f] as string[], system.sources?.[f])}`)
+  const palette = (system.colorPalette ?? [])
+    .map(c => `| \`${c.hex}\` | ${c.name || ''} | ${c.role || ''} | ${c.share ? `${Math.round(c.share * 100)}%` : '—'} | ${c.source ? `\`${c.source}\`` : '—'} |`)
+    .join('\n');
+  const rules = RULE_FIELDS.filter(({ field }) => system[field]?.length)
+    .map(({ field, label }) => `### ${label}\n${(system[field] as Rule[]).map(ruleMd).join('\n')}`)
     .join('\n\n');
   const pats = patterns
     .map(
@@ -111,7 +118,7 @@ ${system.description || '_Sin descripción redactada._'}
 ${traced(system.aestheticPillars, system.sources?.aestheticPillars) || '_Sin pilares._'}
 
 ## 2. Paleta inferida del corpus
-${palette ? `| HEX | Nombre | Rol | Origen |\n|---|---|---|---|\n${palette}` : '_Sin paleta inferida._'}
+${palette ? `| HEX | Nombre | Rol | Proporción | Origen |\n|---|---|---|---|---|\n${palette}` : '_Sin paleta inferida._'}
 
 ## 3. Reglas
 ${rules || '_Sin reglas redactadas._'}

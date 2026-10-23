@@ -101,10 +101,33 @@ export interface PaletteColor {
   role: string;
   /** Trazabilidad: ID de la referencia o del patrón de donde sale el color. */
   source?: string;
+  /** Proporción del color en la evidencia (0..1), para la banda de paleta. */
+  share?: number;
 }
 
-/** Campos redactados por la IA que llevan trazabilidad a patrones. */
-export type TraceableField = 'aestheticPillars' | 'typographyRules' | 'textureRules' | 'compositionRules';
+/** Ejemplo visual de una regla: espécimen tipográfico, recorte de evidencia o diagrama de retícula. */
+export interface RuleExample {
+  kind: 'type' | 'evidence' | 'grid';
+  text?: string;
+  refIds?: string[];
+  cols?: number;
+  rows?: number;
+}
+
+/** Regla del sistema como ficha: título imperativo corto, fundamento, usos y trazabilidad. */
+export interface Rule {
+  code: string;
+  title: string;
+  detail: string;
+  use?: string[];
+  avoid?: string[];
+  example?: RuleExample;
+  patternIds: string[];
+  refIds: string[];
+}
+
+export type RuleField = 'typographyRules' | 'textureRules' | 'compositionRules';
+
 
 export interface VisualSystem {
   id: string;
@@ -114,12 +137,12 @@ export interface VisualSystem {
   referenceIds: string[]; // Supporting reference IDs
   status: 'active' | 'archived';
   colorPalette?: PaletteColor[];
-  typographyRules?: string[];
-  textureRules?: string[];
-  compositionRules?: string[];
+  typographyRules?: Rule[];
+  textureRules?: Rule[];
+  compositionRules?: Rule[];
   aestheticPillars?: string[];
-  /** IDs de patrones que sostienen cada pilar o regla, en el mismo orden que el campo. */
-  sources?: Partial<Record<TraceableField, string[][]>>;
+  /** IDs de patrones que sostienen cada pilar, en el mismo orden. */
+  sources?: { aestheticPillars?: string[][] };
   /** Si el sistema nació de una sugerencia de la IA, su ID. */
   adoptedFrom?: string;
   systemDetails?: VisualSystemDetails;
@@ -267,9 +290,9 @@ export interface VisualSystemExportData {
     description: string;
     aestheticPillars: string[];
     colorPalette?: PaletteColor[];
-    typographyRules?: string[];
-    textureRules?: string[];
-    compositionRules?: string[];
+    typographyRules?: Rule[] | string[];
+    textureRules?: Rule[] | string[];
+    compositionRules?: Rule[] | string[];
     graphicResources?: string[];
   };
   projectContext: {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Copy, FileDown, FileJson, Printer } from 'lucide-react';
-import { Project, TraceableField, VisualSystem } from '../types';
+import { Project, Rule, RuleField, VisualSystem } from '../types';
 import { Button, CategoryTag, Swatch } from './ui';
 import { FullView } from './shell/FullView';
 import { buildSystemMarkdown, downloadSystemMarkdown, exportVisualSystemAsJSON } from '../utils/exportHelpers';
@@ -36,7 +36,7 @@ function Traced({ items, sources }: { items?: string[]; sources?: string[][] }) 
   );
 }
 
-const RULES: [TraceableField, string][] = [
+const RULES: [RuleField, string][] = [
   ['typographyRules', 'Tipografía'],
   ['textureRules', 'Textura y materialidad'],
   ['compositionRules', 'Composición y retícula'],
@@ -120,7 +120,7 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
           {RULES.map(([f, label]) => (
             <div key={f} className="flex flex-col gap-3">
               <h3 className="m-0 text-13 font-medium text-ink-2">{label}</h3>
-              <Traced items={s[f] as string[] | undefined} sources={s.sources?.[f]} />
+              <Traced items={(s[f] as Rule[] | undefined)?.map(r => r.title)} sources={(s[f] as Rule[] | undefined)?.map(r => r.patternIds)} />
             </div>
           ))}
         </Section>

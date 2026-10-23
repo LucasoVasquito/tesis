@@ -1,3 +1,4 @@
+import { normalizeSystemRules } from './rules';
 import { FeedbackItem, LogItem, LogKind, Pattern, Project, Reference } from '../types';
 
 let seq = 0;
@@ -17,7 +18,7 @@ export function migrateProject(raw: any): Project {
     uiStage: raw?.uiStage,
     references: Array.isArray(raw?.references) ? raw.references : [],
     patterns: Array.isArray(raw?.patterns) ? raw.patterns : [],
-    systems: Array.isArray(raw?.systems) ? raw.systems.map((s: any) => ({ ...s, isSynthesizing: false })) : [],
+    systems: Array.isArray(raw?.systems) ? raw.systems.map((s: any) => normalizeSystemRules({ ...s, isSynthesizing: false })) : [],
     feedback: Array.isArray(raw?.feedback) ? raw.feedback : [],
     suggestedSystems: Array.isArray(raw?.suggestedSystems) ? raw.suggestedSystems : [],
     log: Array.isArray(raw?.log) ? raw.log : [],

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LogItem, LogKind, Pattern, Project, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
 import { evidenceReferences, inferPalette } from './utils/palette';
+import { normalizeRules } from './utils/rules';
 import { createEmptyProject } from './data/emptyProject';
 import { compressImageString, compressReferences } from './utils/imageCompressor';
 import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
@@ -581,11 +582,11 @@ export default function App() {
                   aestheticPillars: d.aestheticPillars || s.aestheticPillars,
                   // Se conserva la paleta inferida del corpus (con trazabilidad).
                   colorPalette: s.colorPalette,
-                  typographyRules: d.typographyRules || s.typographyRules,
-                  textureRules: d.textureRules || s.textureRules,
-                  compositionRules: d.compositionRules || s.compositionRules,
+                  typographyRules: d.typographyRules ? normalizeRules(d.typographyRules, 'T', 'type') : s.typographyRules,
+                  textureRules: d.textureRules ? normalizeRules(d.textureRules, 'X', 'evidence') : s.textureRules,
+                  compositionRules: d.compositionRules ? normalizeRules(d.compositionRules, 'C', 'grid') : s.compositionRules,
                   systemDetails: d.systemDetails || s.systemDetails,
-                  sources: d.sources || s.sources,
+                  sources: d.sources?.aestheticPillars ? { aestheticPillars: d.sources.aestheticPillars } : s.sources,
                   isSynthesizing: false,
                   updatedAt: new Date().toISOString(),
                 },
@@ -647,9 +648,9 @@ export default function App() {
             referenceIds: [...refIds],
             aestheticPillars: data.system.aestheticPillars || [],
             colorPalette: data.system.colorPalette,
-            typographyRules: data.system.typographyRules,
-            textureRules: data.system.textureRules,
-            compositionRules: data.system.compositionRules,
+            typographyRules: normalizeRules(data.system.typographyRules, 'T', 'type'),
+            textureRules: normalizeRules(data.system.textureRules, 'X', 'evidence'),
+            compositionRules: normalizeRules(data.system.compositionRules, 'C', 'grid'),
             status: 'active',
             createdAt: new Date().toISOString(),
           },

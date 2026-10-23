@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { FileUp, GripVertical, Pipette, Sparkles, Trash2, X } from 'lucide-react';
-import { Pattern, Project, SuggestedSystem, TraceableField, VisualSystem } from '../types';
+import { Pattern, Project, Rule, SuggestedSystem, VisualSystem } from '../types';
 import { Button, CategoryTag, EmptyState, IconButton, StatusDot, Swatch } from '../components/ui';
 
 const DND_TYPE = 'application/x-emergent-pattern';
@@ -179,7 +179,7 @@ function SystemColumn(props: {
   }, [props.autoFocusName]);
 
   const assigned = s.patternIds.map(id => patterns.find(p => p.id === id)).filter(Boolean) as Pattern[];
-  const field = (f: TraceableField) => s.sources?.[f];
+  const rulesOf = (rs?: Rule[]) => ({ items: rs?.map(r => r.title), sources: rs?.map(r => r.patternIds) });
 
   return (
     <section
@@ -300,10 +300,10 @@ function SystemColumn(props: {
         {s.description ? (
           <p className="m-0 line-clamp-6 font-serif text-15 leading-normal text-ink-2">{s.description}</p>
         ) : null}
-        <TracedList title="Pilares" items={s.aestheticPillars} sources={field('aestheticPillars')} />
-        <TracedList title="Tipografía" items={s.typographyRules} sources={field('typographyRules')} />
-        <TracedList title="Textura" items={s.textureRules} sources={field('textureRules')} />
-        <TracedList title="Composición" items={s.compositionRules} sources={field('compositionRules')} />
+        <TracedList title="Pilares" items={s.aestheticPillars} sources={s.sources?.aestheticPillars} />
+        <TracedList title="Tipografía" {...rulesOf(s.typographyRules)} />
+        <TracedList title="Textura" {...rulesOf(s.textureRules)} />
+        <TracedList title="Composición" {...rulesOf(s.compositionRules)} />
         {props.error && (
           <p role="alert" className="m-0 text-xs text-error-ink">
             No se pudo redactar: {props.error}
