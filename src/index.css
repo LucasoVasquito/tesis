@@ -35,6 +35,8 @@
   --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-serif: "Newsreader", Georgia, serif;
+  /* Display condensada genérica para los especímenes de reglas tipográficas (no es tipografía de interfaz) */
+  --font-specimen: "Anton", "Arial Narrow", Impact, sans-serif;
 
   --text-13: 13px;
   --text-13--line-height: 1.45;

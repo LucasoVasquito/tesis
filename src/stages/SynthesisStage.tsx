@@ -1,44 +1,51 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { FileUp, GripVertical, Pipette, Sparkles, Trash2, X } from 'lucide-react';
-import { Pattern, Project, Rule, SuggestedSystem, VisualSystem } from '../types';
-import { Button, CategoryTag, EmptyState, IconButton, StatusDot, Swatch } from '../components/ui';
-
-const DND_TYPE = 'application/x-emergent-pattern';
+import { FileUp, GripVertical } from 'lucide-react';
+import { PaletteColor, Pattern, Project, VisualSystem } from '../types';
+import { Button, EmptyState, StatusDot } from '../components/ui';
+import { familyOf } from '../utils/families';
+import { DND_TYPE, SystemBoard } from '../components/synthesis/SystemBoard';
+import { SuggestionCard } from '../components/synthesis/SuggestionCard';
+import { CompareView, FamilyBar } from '../components/synthesis/CompareView';
 
 interface SynthesisStageProps {
   project: Project;
   onRenameSystem: (id: string, name: string) => void;
+  onUpdateSystem: (s: VisualSystem) => void;
   onAssign: (patternId: string, systemId: string) => void;
   onUnassign: (patternId: string, systemId: string) => void;
   onCreateSystemWithPattern: (patternId: string) => void;
   onSynthesize: (id: string) => void;
   onOpenGuidelines: (id: string) => void;
-  onOpenDetail: (id: string) => void;
+  onTryPiece: (id: string) => void;
+  onExportSystem: (id: string) => void;
   onDeleteSystem: (id: string) => void;
   onInferPalette: (id: string) => void;
   onAdoptSuggestion: (id: string) => void;
   onDismissSuggestion: (id: string) => void;
   onImportFile: (file: File) => void;
-  /** ID del sistema recién creado, para enfocar su nombre. */
+  /** ID del sistema recién creado o adoptado: se abre su pestaña y se enfoca el nombre. */
   focusSystemId?: string | null;
   synthesisErrors: Record<string, string>;
   inferringIds: string[];
 }
 
-/* ---------- Patrón confirmado (arrastrable / asignable con teclado) ---------- */
-function ConfirmedPattern({ pattern, systems, onAssign, onCreate }: { pattern: Pattern; systems: VisualSystem[]; onAssign: (sysId: string) => void; onCreate: () => void }) {
+const letter = (i: number) => String.fromCharCode(65 + i);
+
+/* ---------- Patrón confirmado: arrastrable o asignable con Enter ---------- */
+function ConfirmedPattern({ pattern, project, onAssign, onCreate }: { pattern: Pattern; project: Project; onAssign: (sysId: string) => void; onCreate: () => void }) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const wrapRef = useRef<HTMLLIElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const systems = project.systems;
   const inSystems = systems.filter(s => s.patternIds.includes(pattern.id));
+  const f = familyOf(pattern.category);
+  const thumb = pattern.evidence.map(id => project.references.find(r => r.id === id)).find(Boolean);
 
   useEffect(() => {
     if (!open) return;
     wrapRef.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
-    const onDoc = (e: MouseEvent) => {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
-    };
+    const onDoc = (e: MouseEvent) => !wrapRef.current?.contains(e.target as Node) && setOpen(false);
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
@@ -56,7 +63,6 @@ function ConfirmedPattern({ pattern, systems, onAssign, onCreate }: { pattern: P
       items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
     }
   };
-
   const pick = (fn: () => void) => () => {
     fn();
     setOpen(false);
@@ -79,22 +85,27 @@ function ConfirmedPattern({ pattern, systems, onAssign, onCreate }: { pattern: P
         aria-expanded={open}
         aria-controls={menuId}
         aria-describedby={`${menuId}-hint`}
-        className="group flex w-full cursor-grab items-start gap-2 rounded-card border border-line bg-surface p-3 text-left transition-colors duration-120 ease-emergent hover:border-line-strong active:cursor-grabbing"
+        className="group flex w-full cursor-grab overflow-hidden rounded-card border border-line bg-surface text-left transition-colors duration-120 ease-emergent hover:border-line-strong active:cursor-grabbing"
       >
-        <GripVertical aria-hidden="true" className="mt-0.5 size-4 shrink-0 stroke-[1.5] text-ink-3 group-hover:text-ink-2" />
-        <span className="flex min-w-0 flex-1 flex-col gap-2">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-xs text-ink-2">{pattern.id}</span>
-            <CategoryTag category={pattern.category} />
-          </span>
-          <span className="text-13 font-medium leading-[1.35] text-ink">{pattern.name}</span>
-          <span className="text-xs text-ink-2">
-            {inSystems.length ? `En: ${inSystems.map(s => s.name).join(', ')}` : 'Sin asignar'}
+        <span aria-hidden="true" className="w-[3px] shrink-0" style={{ background: f.color }} />
+        <span className="flex min-w-0 flex-1 gap-3 p-3">
+          {thumb ? (
+            <img src={thumb.image} alt="" className="size-11 shrink-0 rounded-ctrl object-cover" referrerPolicy="no-referrer" loading="lazy" />
+          ) : (
+            <span className="size-11 shrink-0 rounded-ctrl bg-raised" />
+          )}
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="font-mono text-xs" style={{ color: f.ink }}>
+              {pattern.id} · {f.label}
+            </span>
+            <span className="text-13 font-medium leading-[1.35] text-ink">{pattern.name}</span>
+            <span className="text-xs text-ink-2">{inSystems.length ? `En ${inSystems.map(s => letter(systems.indexOf(s))).join(', ')}` : 'Sin asignar'}</span>
           </span>
         </span>
+        <GripVertical aria-hidden="true" className="m-3 ml-0 size-4 shrink-0 stroke-[1.5] text-ink-3 group-hover:text-ink-2" />
       </button>
       <span id={`${menuId}-hint`} className="sr-only">
-        Enter para elegir un sistema, o arrastrá a una columna.
+        Enter para elegir un sistema, o arrastrá al tablero.
       </span>
       {open && (
         <ul
@@ -104,7 +115,7 @@ function ConfirmedPattern({ pattern, systems, onAssign, onCreate }: { pattern: P
           onKeyDown={onMenuKey}
           className="absolute left-0 right-0 top-full z-30 mt-1 rounded-card border border-line-mid bg-raised p-1 shadow-float"
         >
-          {systems.map(s => {
+          {systems.map((s, i) => {
             const has = s.patternIds.includes(pattern.id);
             return (
               <li key={s.id} role="none">
@@ -116,6 +127,7 @@ function ConfirmedPattern({ pattern, systems, onAssign, onCreate }: { pattern: P
                   className="flex min-h-9 w-full items-center gap-2 rounded-ctrl px-3 text-left text-13 text-ink hover:bg-white/5 focus-visible:bg-white/5"
                 >
                   <StatusDot tone={has ? 'confirmed' : 'neutral'} glow={false} />
+                  <span className="font-mono text-xs text-ink-2">{letter(i)}</span>
                   <span className="truncate">{s.name}</span>
                   {has && <span className="ml-auto font-mono text-xs text-ink-2">asignado</span>}
                 </button>
@@ -138,274 +150,50 @@ function ConfirmedPattern({ pattern, systems, onAssign, onCreate }: { pattern: P
   );
 }
 
-/* ---------- Lista con trazabilidad ---------- */
-function TracedList({ title, items, sources }: { title: string; items?: string[]; sources?: string[][] }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="text-xs text-ink-2">{title}</span>
-      <ul className="m-0 flex list-none flex-col gap-3 p-0">
-        {items.map((it, i) => (
-          <li key={i} className="flex flex-col gap-0.5">
-            <span className="font-serif text-15 leading-snug text-ink">{it}</span>
-            {sources?.[i]?.length ? <span className="font-mono text-xs text-ink-2">← {sources[i].join(', ')}</span> : null}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/* ---------- Columna de sistema ---------- */
-function SystemColumn(props: {
-  system: VisualSystem;
-  patterns: Pattern[];
-  autoFocusName: boolean;
-  error?: string;
-  inferring: boolean;
-} & Pick<SynthesisStageProps, 'onRenameSystem' | 'onAssign' | 'onUnassign' | 'onSynthesize' | 'onOpenGuidelines' | 'onOpenDetail' | 'onDeleteSystem' | 'onInferPalette'>) {
-  const { system: s, patterns } = props;
-  const [name, setName] = useState(s.name);
-  const [over, setOver] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const nameRef = useRef<HTMLInputElement>(null);
-  const nameId = useId();
-  useEffect(() => setName(s.name), [s.name]);
-  useEffect(() => {
-    if (props.autoFocusName) {
-      nameRef.current?.focus();
-      nameRef.current?.select();
-    }
-  }, [props.autoFocusName]);
-
-  const assigned = s.patternIds.map(id => patterns.find(p => p.id === id)).filter(Boolean) as Pattern[];
-  const rulesOf = (rs?: Rule[]) => ({ items: rs?.map(r => r.title), sources: rs?.map(r => r.patternIds) });
-
-  return (
-    <section
-      aria-labelledby={nameId}
-      className={`flex min-w-0 flex-col rounded-card border bg-surface transition-colors duration-120 ease-emergent ${over ? 'border-ink/60' : 'border-line'}`}
-      onDragOver={e => {
-        if (Array.from(e.dataTransfer.types).includes(DND_TYPE)) {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'copy';
-          setOver(true);
-        }
-      }}
-      onDragLeave={e => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
-      }}
-      onDrop={e => {
-        const id = e.dataTransfer.getData(DND_TYPE);
-        setOver(false);
-        if (id) {
-          e.preventDefault();
-          props.onAssign(id, s.id);
-        }
-      }}
-    >
-      <header className="flex flex-col gap-2 border-b border-line p-4">
-        <span className="font-mono text-xs text-ink-2">
-          {s.id}
-          {s.adoptedFrom ? ' · sugerencia adoptada' : ''}
-        </span>
-        <label htmlFor={`${nameId}-input`} className="sr-only">
-          Nombre del sistema
-        </label>
-        <h3 id={nameId} className="m-0">
-          <input
-            id={`${nameId}-input`}
-            ref={nameRef}
-            value={name}
-            onChange={e => setName(e.target.value)}
-            onBlur={() => {
-              const v = name.trim();
-              if (!v) setName(s.name);
-              else if (v !== s.name) props.onRenameSystem(s.id, v);
-            }}
-            onKeyDown={e => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                setName(s.name);
-              }
-            }}
-            className="w-full rounded-ctrl border border-transparent bg-transparent px-1 py-0.5 text-lg font-medium tracking-[-0.01em] text-ink outline-none hover:border-line-mid focus:border-white/40 focus:shadow-[0_0_0_3px_rgba(255,255,255,.08)]"
-          />
-        </h3>
-      </header>
-
-      {/* Zona de soltado */}
-      <div className="flex flex-col gap-2 border-b border-line p-4">
-        <span className="text-xs text-ink-2">Patrones · {assigned.length}</span>
-        {assigned.length === 0 ? (
-          <div className="rounded-ctrl border border-dashed border-line-strong px-3 py-4 text-center text-13 text-ink-2">
-            Arrastrá patrones confirmados acá, o elegí este sistema desde la lista con Enter.
-          </div>
-        ) : (
-          <ul className="m-0 flex list-none flex-col gap-1 p-0">
-            {assigned.map(p => (
-              <li key={p.id} className="flex items-center gap-2 rounded-ctrl bg-white/[.03] py-1 pl-3 pr-1">
-                <span className="font-mono text-xs text-ink-2">{p.id}</span>
-                <span className="min-w-0 flex-1 truncate text-13 text-ink" title={p.name}>
-                  {p.name}
-                </span>
-                <IconButton label={`Quitar ${p.id} de ${s.name}`} size="sm" bare onClick={() => props.onUnassign(p.id, s.id)}>
-                  <X className="size-4 stroke-[1.5]" />
-                </IconButton>
-              </li>
-            ))}
-          </ul>
-        )}
-        {over && <span className="text-xs text-ink">Soltá para asignar</span>}
-      </div>
-
-      {/* Paleta inferida */}
-      <div className="flex flex-col gap-2 border-b border-line p-4">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-ink-2">Paleta inferida del corpus</span>
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<Pipette />}
-            loading={props.inferring}
-            loadingText="Infiriendo…"
-            onClick={() => props.onInferPalette(s.id)}
-            disabled={assigned.length === 0}
-          >
-            {s.colorPalette?.length ? 'Recalcular' : 'Inferir'}
-          </Button>
-        </div>
-        {s.colorPalette?.length ? (
-          <>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
-              {s.colorPalette.map((c, i) => (
-                <Swatch key={`${c.hex}-${i}`} hex={c.hex} name={c.name} source={c.source} />
-              ))}
-            </div>
-            {s.colorPalette.length < 4 && (
-              <p className="m-0 text-xs text-ink-2">La evidencia solo aporta {s.colorPalette.length} colores distintos.</p>
-            )}
-            {s.colorPalette.some(c => !c.source) && (
-              <p className="m-0 text-xs text-pending-ink">Hay colores sin origen en el corpus. Recalculá para obtener trazabilidad.</p>
-            )}
-          </>
-        ) : (
-          <p className="m-0 text-13 text-ink-2">Se calcula con los colores de la evidencia de los patrones asignados.</p>
-        )}
-      </div>
-
-      {/* Contenido redactado */}
-      <div className="flex flex-1 flex-col gap-5 p-4">
-        {s.description ? (
-          <p className="m-0 line-clamp-6 font-serif text-15 leading-normal text-ink-2">{s.description}</p>
-        ) : null}
-        <TracedList title="Pilares" items={s.aestheticPillars} sources={s.sources?.aestheticPillars} />
-        <TracedList title="Tipografía" {...rulesOf(s.typographyRules)} />
-        <TracedList title="Textura" {...rulesOf(s.textureRules)} />
-        <TracedList title="Composición" {...rulesOf(s.compositionRules)} />
-        {props.error && (
-          <p role="alert" className="m-0 text-xs text-error-ink">
-            No se pudo redactar: {props.error}
-          </p>
-        )}
-      </div>
-
-      <footer className="flex flex-col gap-2 border-t border-line p-4">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={<Sparkles />}
-            loading={!!s.isSynthesizing}
-            loadingText="Redactando…"
-            disabled={assigned.length === 0}
-            onClick={() => props.onSynthesize(s.id)}
-            title={assigned.length === 0 ? 'Asigná al menos un patrón' : undefined}
-          >
-            Redactar con IA
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => props.onOpenGuidelines(s.id)}>
-            Ver lineamientos
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => props.onOpenDetail(s.id)}>
-            Detalle
-          </Button>
-          {!confirmDelete && (
-            <IconButton label={`Eliminar ${s.name}`} size="sm" bare className="ml-auto" onClick={() => setConfirmDelete(true)}>
-              <Trash2 className="size-4 stroke-[1.5]" />
-            </IconButton>
-          )}
-        </div>
-        {confirmDelete && (
-          <div role="alert" className="flex flex-col gap-2 rounded-ctrl border border-discarded/35 bg-discarded/5 p-3">
-            <span className="text-13 text-ink">¿Eliminar “{s.name}”? Los patrones siguen confirmados.</span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="discard" autoFocus onClick={() => props.onDeleteSystem(s.id)}>
-                Eliminar sistema
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)}>
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        )}
-      </footer>
-    </section>
-  );
-}
-
-/* ---------- Sugerencia de la IA (columna fantasma) ---------- */
-function SuggestionColumn({ s, patterns, onAdopt, onDismiss }: { s: SuggestedSystem; patterns: Pattern[]; onAdopt: () => void; onDismiss: () => void }) {
-  const names = new Set((s.associatedPatternNames ?? []).map(n => n.toLowerCase()));
-  const matched = patterns.filter(p => names.has(p.name.toLowerCase()));
-  const confirmed = matched.filter(p => p.status === 'confirmed');
-  return (
-    <section aria-label={`Sugerencia de la IA: ${s.name}`} className="flex min-w-0 flex-col gap-4 rounded-card border border-dashed border-line-strong p-4">
-      <span className="font-mono text-xs text-ink-2">Sugerencia de la IA</span>
-      <h3 className="m-0 text-lg font-medium tracking-[-0.01em] text-ink">{s.name}</h3>
-      <p className="m-0 line-clamp-5 font-serif text-15 text-ink-2">{s.description}</p>
-      {s.aestheticPillars?.length > 0 && (
-        <ul className="m-0 flex list-disc flex-col gap-1 pl-[18px] text-13 text-ink-2">
-          {s.aestheticPillars.slice(0, 4).map((p, i) => (
-            <li key={i}>{p}</li>
-          ))}
-        </ul>
-      )}
-      <span className="text-xs text-ink-2">
-        {matched.length
-          ? `${confirmed.length} de ${matched.length} patrones asociados están confirmados${confirmed.length < matched.length ? '; solo esos se incorporan.' : '.'}`
-          : 'Sin patrones asociados reconocibles.'}
-      </span>
-      <div className="mt-auto flex gap-2">
-        <Button size="sm" variant="secondary" onClick={onAdopt}>
-          Adoptar
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onDismiss}>
-          Descartar
-        </Button>
-      </div>
-    </section>
-  );
-}
-
 export function SynthesisStage(props: SynthesisStageProps) {
   const { project } = props;
   const confirmed = project.patterns.filter(p => p.status === 'confirmed');
-  const fileRef = useRef<HTMLInputElement>(null);
   const suggestions = project.suggestedSystems ?? [];
+  const fileRef = useRef<HTMLInputElement>(null);
+  const tabsId = useId();
+  const [active, setActive] = useState<string>(() => project.systems[0]?.id ?? 'compare');
+
+  // Abrir la pestaña del sistema recién creado o adoptado.
+  useEffect(() => {
+    if (props.focusSystemId && project.systems.some(s => s.id === props.focusSystemId)) setActive(props.focusSystemId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.focusSystemId, project.systems.length]);
+  // Si la pestaña activa dejó de existir, volver a la primera.
+  useEffect(() => {
+    if (active !== 'compare' && !project.systems.some(s => s.id === active)) setActive(project.systems[0]?.id ?? 'compare');
+    if (active === 'compare' && project.systems.length < 2 && project.systems[0]) setActive(project.systems[0].id);
+  }, [active, project.systems]);
+
+  const current = project.systems.find(s => s.id === active) ?? null;
+  const tabs = [
+    ...project.systems.map((s, i) => ({ id: s.id, label: s.name, letter: letter(i), palette: s.colorPalette ?? [] })),
+    ...(project.systems.length >= 2 ? [{ id: 'compare', label: 'Comparar', letter: '', palette: [] as PaletteColor[] }] : []),
+  ];
+
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+    setActive(next.id);
+    document.getElementById(`${tabsId}-${next.id}`)?.focus();
+  };
 
   return (
     <div className="h-full overflow-y-auto lg:overflow-hidden">
       <div className="flex min-h-full flex-col lg:h-full lg:flex-row">
         {/* Izquierda: patrones confirmados */}
-        <aside aria-labelledby="confirmed-title" className="flex shrink-0 flex-col border-b border-line lg:w-[320px] lg:border-b-0 lg:border-r">
-          <div className="flex flex-col gap-1 border-b border-line px-4 py-4">
-            <span className="font-mono text-xs text-ink-2">05 · Síntesis</span>
-            <h2 id="confirmed-title" className="m-0 text-15 font-medium text-ink">
+        <aside aria-labelledby="confirmed-title" className="flex shrink-0 flex-col border-b border-line lg:w-[300px] lg:border-b-0 lg:border-r">
+          <div className="flex flex-col gap-3 border-b border-line px-4 py-5">
+            <h2 id="confirmed-title" className="m-0 font-mono text-xs font-normal text-ink-2">
               Patrones confirmados · {confirmed.length}
             </h2>
-            <p className="m-0 text-13 text-ink-2">Arrastralos a un sistema, o enfocalos y presioná Enter.</p>
+            <FamilyBar patterns={confirmed} />
+            <p className="m-0 text-xs text-ink-2">Arrastralos al tablero, o enfocalos y presioná Enter.</p>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             {confirmed.length === 0 ? (
@@ -416,7 +204,7 @@ export function SynthesisStage(props: SynthesisStageProps) {
                   <ConfirmedPattern
                     key={p.id}
                     pattern={p}
-                    systems={project.systems}
+                    project={project}
                     onAssign={sysId =>
                       project.systems.find(s => s.id === sysId)?.patternIds.includes(p.id) ? props.onUnassign(p.id, sysId) : props.onAssign(p.id, sysId)
                     }
@@ -428,73 +216,108 @@ export function SynthesisStage(props: SynthesisStageProps) {
           </div>
         </aside>
 
-        {/* Derecha: sistemas */}
-        <section aria-labelledby="systems-title" className="flex min-w-0 flex-1 flex-col">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-4 lg:px-6">
-            <div className="flex flex-col gap-1">
-              <h2 id="systems-title" className="m-0 text-2xl font-medium tracking-[-0.01em] text-ink">
-                Sistemas y lineamientos
-              </h2>
-              <p className="m-0 text-13 text-ink-2">Armá sistemas divergentes con los patrones confirmados y comparalos lado a lado.</p>
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json,.json"
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden="true"
-              onChange={e => {
-                const f = e.target.files?.[0];
-                if (f) props.onImportFile(f);
-                e.target.value = '';
-              }}
-            />
-            <Button size="sm" variant="ghost" icon={<FileUp />} onClick={() => fileRef.current?.click()}>
-              Importar sistema (.json)
-            </Button>
-          </div>
+        {/* Derecha: sugerencias, pestañas de sistemas y tablero */}
+        <section aria-label="Sistemas" className="flex min-w-0 flex-1 flex-col lg:overflow-y-auto">
+          <div className="flex flex-col gap-6 p-4 lg:p-6">
+            {suggestions.length > 0 && (
+              // Sin sistemas, las sugerencias son el punto de partida; con sistemas, quedan plegadas.
+              <details className="group flex flex-col" open={project.systems.length === 0}>
+                <summary className="flex cursor-pointer list-none items-center gap-2 font-mono text-xs text-signal-ink hover:text-ink [&::-webkit-details-marker]:hidden">
+                  <StatusDot tone="signal" glow={false} />
+                  Sugerencias de la IA · {suggestions.length}
+                  <span className="text-ink-2 group-open:hidden">· ver</span>
+                </summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  {suggestions.map(s => (
+                    <SuggestionCard key={s.id} s={s} project={project} onAdopt={() => props.onAdoptSuggestion(s.id)} onDismiss={() => props.onDismissSuggestion(s.id)} />
+                  ))}
+                </div>
+              </details>
+            )}
 
-          <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto p-4 lg:p-6">
-            {project.systems.length === 0 && suggestions.length === 0 ? (
-              <div className="mx-auto max-w-md">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {tabs.length > 0 ? (
+                <div role="tablist" aria-label="Sistemas" className="flex max-w-full gap-1 overflow-x-auto rounded-[8px] border border-line bg-bg p-1">
+                  {tabs.map((t, i) => (
+                    <button
+                      key={t.id}
+                      id={`${tabsId}-${t.id}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={active === t.id}
+                      aria-controls={`${tabsId}-panel`}
+                      tabIndex={active === t.id ? 0 : -1}
+                      onClick={() => setActive(t.id)}
+                      onKeyDown={e => onTabKey(e, i)}
+                      className={`flex h-9 shrink-0 items-center gap-2 rounded-ctrl px-3 text-13 font-medium transition-colors duration-120 ${
+                        active === t.id ? 'bg-raised text-ink' : 'text-ink-2 hover:text-ink'
+                      }`}
+                    >
+                      {t.letter && <span className="font-mono text-xs text-ink-2">{t.letter}</span>}
+                      {t.palette.length > 0 && (
+                        <span aria-hidden="true" className="flex h-2.5 w-6 overflow-hidden rounded-[2px]">
+                          {t.palette.slice(0, 4).map((c, k) => (
+                            <span key={k} className="flex-1" style={{ background: c.hex }} />
+                          ))}
+                        </span>
+                      )}
+                      <span className="max-w-[220px] truncate">{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span />
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="application/json,.json"
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden="true"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) props.onImportFile(f);
+                  e.target.value = '';
+                }}
+              />
+              <Button size="sm" variant="ghost" icon={<FileUp />} onClick={() => fileRef.current?.click()}>
+                Importar sistema (.json)
+              </Button>
+            </div>
+
+            <div id={`${tabsId}-panel`} role="tabpanel" aria-labelledby={tabs.length ? `${tabsId}-${active}` : undefined}>
+              {project.systems.length === 0 ? (
                 <EmptyState
                   meta="0 sistemas"
                   title="Todavía no hay sistemas"
-                  body="Creá uno con “Nuevo sistema” o desde un patrón confirmado."
+                  body={suggestions.length ? 'Adoptá una sugerencia de la IA o creá uno con “Nuevo sistema”.' : 'Creá uno con “Nuevo sistema” o desde un patrón confirmado.'}
+                  className="mx-auto max-w-md"
                 />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 items-start gap-4 lg:auto-cols-[minmax(300px,1fr)] lg:grid-flow-col lg:grid-cols-none">
-                {project.systems.map(s => (
-                  <SystemColumn
-                    key={s.id}
-                    system={s}
-                    patterns={project.patterns}
-                    autoFocusName={props.focusSystemId === s.id}
-                    error={props.synthesisErrors[s.id]}
-                    inferring={props.inferringIds.includes(s.id)}
-                    onRenameSystem={props.onRenameSystem}
-                    onAssign={props.onAssign}
-                    onUnassign={props.onUnassign}
-                    onSynthesize={props.onSynthesize}
-                    onOpenGuidelines={props.onOpenGuidelines}
-                    onOpenDetail={props.onOpenDetail}
-                    onDeleteSystem={props.onDeleteSystem}
-                    onInferPalette={props.onInferPalette}
-                  />
-                ))}
-                {suggestions.map(s => (
-                  <SuggestionColumn
-                    key={s.id}
-                    s={s}
-                    patterns={project.patterns}
-                    onAdopt={() => props.onAdoptSuggestion(s.id)}
-                    onDismiss={() => props.onDismissSuggestion(s.id)}
-                  />
-                ))}
-              </div>
-            )}
+              ) : active === 'compare' ? (
+                <CompareView project={project} onOpen={setActive} />
+              ) : current ? (
+                <SystemBoard
+                  key={current.id}
+                  project={project}
+                  system={current}
+                  letter={letter(project.systems.indexOf(current))}
+                  autoFocusName={props.focusSystemId === current.id}
+                  inferring={props.inferringIds.includes(current.id)}
+                  error={props.synthesisErrors[current.id]}
+                  onRename={name => props.onRenameSystem(current.id, name)}
+                  onUpdate={props.onUpdateSystem}
+                  onAssign={pid => props.onAssign(pid, current.id)}
+                  onUnassign={pid => props.onUnassign(pid, current.id)}
+                  onSynthesize={() => props.onSynthesize(current.id)}
+                  onOpenGuidelines={() => props.onOpenGuidelines(current.id)}
+                  onTryPiece={() => props.onTryPiece(current.id)}
+                  onInferPalette={() => props.onInferPalette(current.id)}
+                  onExportJson={() => props.onExportSystem(current.id)}
+                  onDelete={() => props.onDeleteSystem(current.id)}
+                />
+              ) : null}
+            </div>
           </div>
         </section>
       </div>

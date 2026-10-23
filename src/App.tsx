@@ -5,7 +5,7 @@ import { normalizeRules } from './utils/rules';
 import { createEmptyProject } from './data/emptyProject';
 import { compressImageString, compressReferences } from './utils/imageCompressor';
 import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
-import { downloadProjectMarkdown, exportProjectAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
+import { downloadProjectMarkdown, exportProjectAsJSON, exportVisualSystemAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid } from './utils/project';
 import { MIN_REFERENCES, STAGE_LABEL, canEnter, initialStage, isBriefComplete, railItems } from './utils/stages';
 
@@ -17,7 +17,6 @@ import { CorpusView } from './components/canvas/CanvasArea';
 import { UploadModal } from './components/UploadModal';
 import { LightboxModal } from './components/LightboxModal';
 import { AboutView } from './components/AboutView';
-import { SystemDetail } from './components/synthesis/SystemDetail';
 import { SystemApplicationView } from './components/SystemApplicationView';
 import { GuidelinesView } from './components/GuidelinesView';
 import { LogDrawer } from './components/LogDrawer';
@@ -731,6 +730,7 @@ export default function App() {
       patterns: x.patterns.map(pt => (patternIds.includes(pt.id) ? { ...pt, assignedSystemId: sysId } : pt)),
     }));
     addLog('system_adopt', sysId, `Sugerencia adoptada · ${sug.name}`, patternIds.length ? `Con ${patternIds.join(', ')}` : 'Sin patrones confirmados asociados');
+    setFocusSystemId(sysId);
     showToast({ message: `Sugerencia adoptada · ${sug.name} (${patternIds.length} patrones confirmados)`, tone: 'confirmed' });
     // La paleta se infiere del corpus; no se toma la propuesta por la IA.
     if (patternIds.length) setTimeout(() => handleInferPalette(sysId, true), 0);
@@ -926,33 +926,29 @@ export default function App() {
           />
         )}
         {stage === 'synthesis' && (
-          <div className="flex h-full min-h-0">
-            <div className="min-w-0 flex-1">
-              <SynthesisStage
-                project={project}
-                focusSystemId={focusSystemId}
-                synthesisErrors={synthesisErrors}
-                onRenameSystem={(id, name) => updateSystem(id, s => ({ ...s, name, updatedAt: new Date().toISOString() }))}
-                onAssign={handleAssign}
-                onUnassign={handleUnassign}
-                onCreateSystemWithPattern={pid => createSystem([pid])}
-                onSynthesize={handleSynthesize}
-                onOpenGuidelines={id => setOverlay({ kind: 'guidelines', systemId: id })}
-                onOpenDetail={setSystemDetailId}
-                onDeleteSystem={handleDeleteSystem}
-                onInferPalette={handleInferPalette}
-                onAdoptSuggestion={handleAdoptSuggestion}
-                onDismissSuggestion={handleDismissSuggestion}
-                onImportFile={handleImportSystemFile}
-                inferringIds={inferringIds}
-              />
-            </div>
-            <DockPanel open={!!detailSystem} title={detailSystem?.name ?? ''} meta={detailSystem ? `Sistema · ${detailSystem.id}` : undefined} onClose={() => setSystemDetailId(null)}>
-              {detailSystem && (
-                <SystemDetail project={project} system={detailSystem} onUpdate={s => updateSystem(s.id, () => s)} onFocusReference={() => {}} />
-              )}
-            </DockPanel>
-          </div>
+          <SynthesisStage
+            project={project}
+            focusSystemId={focusSystemId}
+            synthesisErrors={synthesisErrors}
+            inferringIds={inferringIds}
+            onRenameSystem={(id, name) => updateSystem(id, s => ({ ...s, name, updatedAt: new Date().toISOString() }))}
+            onUpdateSystem={sys => updateSystem(sys.id, () => sys)}
+            onAssign={handleAssign}
+            onUnassign={handleUnassign}
+            onCreateSystemWithPattern={pid => createSystem([pid])}
+            onSynthesize={handleSynthesize}
+            onOpenGuidelines={id => setOverlay({ kind: 'guidelines', systemId: id })}
+            onTryPiece={id => setOverlay({ kind: 'apply', systemId: id })}
+            onExportSystem={id => {
+              const sys = project.systems.find(x => x.id === id);
+              if (sys) exportVisualSystemAsJSON(sys, project);
+            }}
+            onDeleteSystem={handleDeleteSystem}
+            onInferPalette={handleInferPalette}
+            onAdoptSuggestion={handleAdoptSuggestion}
+            onDismissSuggestion={handleDismissSuggestion}
+            onImportFile={handleImportSystemFile}
+          />
         )}
         </div>
       </main>
