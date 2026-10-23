@@ -71,8 +71,8 @@ export function AboutView({ onBack }: { onBack: () => void }) {
             Coexistencia de sistemas
           </h3>
           <p className="m-0 font-serif text-lg leading-normal text-ink-2">
-            La inducción no asume que todas las imágenes pertenecen al mismo sistema. En el caso Badder pueden emerger a la vez una línea editorial oscura
-            y una urbana disruptiva. Las propuestas de la IA quedan como sugerencias: un sistema existe solo cuando el diseñador lo arma o lo adopta.
+            La inducción no asume que todas las imágenes pertenecen al mismo sistema. En un mismo corpus pueden emerger a la vez, por ejemplo, una línea
+            editorial oscura y una urbana disruptiva. Las propuestas de la IA quedan como sugerencias: un sistema existe solo cuando el diseñador lo arma o lo adopta.
           </p>
         </section>
       </article>

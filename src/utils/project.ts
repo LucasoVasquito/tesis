@@ -1,9 +1,4 @@
 import { FeedbackItem, LogItem, LogKind, Pattern, Project, Reference } from '../types';
-import {
-  LEGACY_PLACEHOLDER_DESCRIPTION_PREFIX,
-  LEGACY_PLACEHOLDER_NAME,
-  LEGACY_PLACEHOLDER_OBJECTIVE_PREFIX,
-} from '../data/sampleProjects';
 
 let seq = 0;
 /** ID único y ordenable por tiempo. */
@@ -27,10 +22,6 @@ export function migrateProject(raw: any): Project {
     suggestedSystems: Array.isArray(raw?.suggestedSystems) ? raw.suggestedSystems : [],
     log: Array.isArray(raw?.log) ? raw.log : [],
   };
-  // El proyecto vacío anterior traía textos de relleno: se limpian para que arranque en el Brief.
-  if (p.name === LEGACY_PLACEHOLDER_NAME) p.name = '';
-  if (p.objective.startsWith(LEGACY_PLACEHOLDER_OBJECTIVE_PREFIX)) p.objective = '';
-  if (p.description.startsWith(LEGACY_PLACEHOLDER_DESCRIPTION_PREFIX)) p.description = '';
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';
   return p;
 }

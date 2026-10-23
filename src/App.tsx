@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LogItem, LogKind, Pattern, Project, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
 import { evidenceReferences, inferPalette } from './utils/palette';
-import { SAMPLE_PROJECTS, createEmptyProject } from './data/sampleProjects';
+import { createEmptyProject } from './data/emptyProject';
 import { compressImageString, compressReferences } from './utils/imageCompressor';
-import { clearCachedBreakdown, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
+import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
 import { downloadProjectMarkdown, exportProjectAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid } from './utils/project';
 import { MIN_REFERENCES, STAGE_LABEL, canEnter, initialStage, isBriefComplete, railItems } from './utils/stages';
@@ -20,33 +20,42 @@ import { SystemDetail } from './components/synthesis/SystemDetail';
 import { SystemApplicationView } from './components/SystemApplicationView';
 import { GuidelinesView } from './components/GuidelinesView';
 import { LogDrawer } from './components/LogDrawer';
+import { Modal } from './components/shell/Modal';
 
 import { BriefDraft, BriefStage } from './stages/BriefStage';
 import { CorpusStage, InductionState } from './stages/CorpusStage';
 import { AuditFilter, AuditStage, filterPatterns } from './stages/AuditStage';
 import { SynthesisStage } from './stages/SynthesisStage';
 
-const LIST_KEY = 'emergent_projects_list_v4';
-const ACTIVE_KEY = 'emergent_active_project_v4';
-const LEGACY_SINGLE_KEY = 'emergent_visual_system_project_v3';
+const LIST_KEY = 'emergent_projects_list_v5';
+const ACTIVE_KEY = 'emergent_active_project_v5';
+
+/**
+ * Datos de versiones anteriores. Al pasar a v5 se descartan una sola vez
+ * (proyectos de prueba y ejemplos) y la app arranca vacía.
+ */
+const DISCARDED_KEYS = [
+  'emergent_projects_list_v4',
+  'emergent_active_project_v4',
+  'emergent_visual_system_project_v3',
+  'emergent_visual_system_project_v2',
+  'emergent_visual_system_project_v1',
+  'emergent_visual_system_project',
+  'emergent_user_brief_confirmed',
+  'emergent_visual_system_projects_store_v4',
+];
 
 type Overlay = null | { kind: 'about' } | { kind: 'guidelines'; systemId: string } | { kind: 'apply'; systemId: string };
 
-/** Claves que usaba el onboarding anterior (fuera de React). Ya no se leen. */
-const LEGACY_ONBOARDING_KEYS = ['emergent_user_brief_confirmed', 'emergent_visual_system_projects_store_v4'];
-
 function loadProjects(): Project[] {
   try {
-    LEGACY_ONBOARDING_KEYS.forEach(k => localStorage.removeItem(k));
     const saved = localStorage.getItem(LIST_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(migrateProject);
-    }
-    const single = localStorage.getItem(LEGACY_SINGLE_KEY);
-    if (single) {
-      const parsed = JSON.parse(single);
-      if (parsed && typeof parsed === 'object') return [migrateProject(parsed)];
+    } else if (DISCARDED_KEYS.some(k => localStorage.getItem(k) !== null)) {
+      DISCARDED_KEYS.forEach(k => localStorage.removeItem(k));
+      clearBreakdownCache();
     }
   } catch (e) {
     console.error('No se pudo leer la lista de proyectos', e);
@@ -99,6 +108,7 @@ export default function App() {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
+  const [deleteRequest, setDeleteRequest] = useState<null | 'current' | 'all'>(null);
   const [lightboxRef, setLightboxRef] = useState<Reference | null>(null);
   const [briefDraft, setBriefDraft] = useState<BriefDraft>({ name: project.name, objective: project.objective, description: project.description });
 
@@ -183,20 +193,18 @@ export default function App() {
     resetUiForProject(p);
   };
 
-  const handleOpenSample = (id: string) => {
-    const existing = projectsList.find(p => p.id === id);
-    if (existing) return handleSelectProject(id);
-    const sample = SAMPLE_PROJECTS.find(s => s.id === id);
-    if (!sample) return;
-    const copy = migrateProject(structuredClone(sample));
-    setProjectsList(list => {
-      // Si el proyecto activo está vacío y sin nombre, el ejemplo lo reemplaza.
-      const active = list.find(p => p.id === activeProjectId);
-      const isBlank = active && !active.name && !active.objective && !active.references.length;
-      return isBlank ? list.map(p => (p.id === activeProjectId ? copy : p)) : [...list, copy];
-    });
-    setActiveProjectId(copy.id);
-    resetUiForProject(copy);
+  /** Elimina proyectos (y sus desgloses en caché). Si no queda ninguno, se crea uno vacío. */
+  const handleDeleteProjects = (ids: string[]) => {
+    const remaining = projectsList.filter(p => !ids.includes(p.id));
+    const next = remaining.length ? remaining : [createEmptyProject()];
+    ids.forEach(clearProjectBreakdowns);
+    setProjectsList(next);
+    if (ids.includes(activeProjectId)) {
+      setActiveProjectId(next[0].id);
+      resetUiForProject(next[0]);
+    }
+    setDeleteRequest(null);
+    showToast({ message: ids.length === 1 ? 'Proyecto eliminado' : `${ids.length} proyectos eliminados`, tone: 'discarded' });
   };
 
   const handleSubmitBrief = () => {
@@ -849,13 +857,13 @@ export default function App() {
       <TopBar
         project={project}
         projects={projectsList}
-        samples={SAMPLE_PROJECTS}
         rail={rail}
         onSelectStage={id => goToStage(id as VisitableStage)}
         onSelectProject={handleSelectProject}
         onNewProject={handleNewProject}
         onEditBrief={() => goToStage('brief')}
-        onOpenSample={handleOpenSample}
+        onDeleteProject={() => setDeleteRequest('current')}
+        onDeleteAllProjects={() => setDeleteRequest('all')}
         onExportProjectJson={() => exportProjectAsJSON(project)}
         onDownloadDossier={() => downloadProjectMarkdown(project)}
         onOpenLog={() => setIsLogOpen(o => !o)}
@@ -871,11 +879,9 @@ export default function App() {
         {stage === 'brief' && (
           <BriefStage
             project={project}
-            samples={SAMPLE_PROJECTS}
             draft={briefDraft}
             onDraftChange={setBriefDraft}
             onSubmit={handleSubmitBrief}
-            onOpenSample={handleOpenSample}
           />
         )}
         {stage === 'corpus' && (
@@ -954,6 +960,35 @@ export default function App() {
 
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} />
       <LightboxModal reference={lightboxRef} onClose={() => setLightboxRef(null)} />
+
+      <Modal
+        open={!!deleteRequest}
+        title={deleteRequest === 'all' ? 'Eliminar todos los proyectos' : 'Eliminar proyecto'}
+        meta="No se puede deshacer"
+        width={440}
+        onClose={() => setDeleteRequest(null)}
+      >
+        <div className="flex flex-col gap-4 p-5">
+          <p className="m-0 text-13 text-ink">
+            {deleteRequest === 'all'
+              ? `Se borran los ${projectsList.length} proyectos de este navegador, con sus referencias, patrones, sistemas y bitácora.`
+              : `Se borra “${project.name.trim() || 'Proyecto sin nombre'}” con sus ${project.references.length} referencias, ${project.patterns.length} patrones, ${project.systems.length} sistemas y su bitácora.`}
+          </p>
+          <p className="m-0 text-13 text-ink-2">Si querés conservar una copia, exportá antes el proyecto en .json desde este mismo menú.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="discard"
+              data-autofocus
+              onClick={() => handleDeleteProjects(deleteRequest === 'all' ? projectsList.map(p => p.id) : [project.id])}
+            >
+              {deleteRequest === 'all' ? 'Eliminar todos' : 'Eliminar proyecto'}
+            </Button>
+            <Button variant="ghost" onClick={() => setDeleteRequest(null)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <LogDrawer open={isLogOpen} project={project} onClose={() => setIsLogOpen(false)} onAddRule={handleAddRule} />
 

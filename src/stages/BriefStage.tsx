@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Project } from '../types';
 import { TextArea, TextInput } from '../components/ui';
-import { SAMPLE_SHORT_NAME } from '../data/sampleProjects';
 
 export interface BriefDraft {
   name: string;
@@ -11,15 +10,13 @@ export interface BriefDraft {
 
 interface BriefStageProps {
   project: Project;
-  samples: Project[];
   /** El formulario es controlado desde App para que el CTA de la ActionBar pueda enviarlo. */
   draft: BriefDraft;
   onDraftChange: (d: BriefDraft) => void;
   onSubmit: () => void;
-  onOpenSample: (id: string) => void;
 }
 
-export function BriefStage({ project, samples, draft, onDraftChange, onSubmit, onOpenSample }: BriefStageProps) {
+export function BriefStage({ project, draft, onDraftChange, onSubmit }: BriefStageProps) {
   // El error aparece al salir de un campo que se editó, o al intentar continuar; nunca al cargar.
   const [touched, setTouched] = useState<{ name?: boolean; objective?: boolean }>({});
   const [dirty, setDirty] = useState<{ name?: boolean; objective?: boolean }>({});
@@ -32,7 +29,6 @@ export function BriefStage({ project, samples, draft, onDraftChange, onSubmit, o
 
   const nameError = touched.name && !draft.name.trim() ? 'Escribí un nombre para el proyecto.' : null;
   const objectiveError = touched.objective && !draft.objective.trim() ? 'Escribí el objetivo: orienta la lectura del corpus.' : null;
-  const isEmptyProject = project.references.length === 0 && project.patterns.length === 0;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -92,22 +88,6 @@ export function BriefStage({ project, samples, draft, onDraftChange, onSubmit, o
           </button>
         </form>
 
-        {isEmptyProject && (
-          <section aria-labelledby="examples-title" className="flex flex-col gap-2 border-t border-line pt-6">
-            <h2 id="examples-title" className="m-0 text-13 font-normal text-ink-2">
-              ¿Querés ver el método funcionando? Abrir un proyecto de ejemplo:
-            </h2>
-            <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
-              {samples.map(s => (
-                <li key={s.id}>
-                  <button type="button" className="btn btn-ghost btn-sm px-2 text-ink underline decoration-white/30 underline-offset-4 hover:decoration-ink" onClick={() => onOpenSample(s.id)}>
-                    {SAMPLE_SHORT_NAME[s.id] ?? s.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
       </div>
     </div>
   );

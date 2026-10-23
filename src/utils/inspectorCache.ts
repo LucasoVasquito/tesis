@@ -44,3 +44,13 @@ export function clearBreakdownCache(): void {
     console.warn('Error limpiando el caché de desgloses:', err);
   }
 }
+
+/** Borra los desgloses en caché de un proyecto. */
+export function clearProjectBreakdowns(projectId: string): void {
+  try {
+    const prefix = `${CACHE_PREFIX}${projectId}_`;
+    Object.keys(localStorage).forEach(key => key.startsWith(prefix) && localStorage.removeItem(key));
+  } catch {
+    /* noop */
+  }
+}

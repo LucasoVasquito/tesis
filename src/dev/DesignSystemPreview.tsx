@@ -23,12 +23,32 @@ import {
   PatternCardMode,
   StageRailItem,
 } from '../components/ui';
-import { SAMPLE_PROJECT_BURGER_CLUB } from '../data/sampleProjects';
+import { Pattern, Reference } from '../types';
+
+// Datos mínimos de prueba para la vista de verificación (no se guardan en ningún proyecto).
+const img = (id: string) => `https://images.unsplash.com/${id}?q=70&w=500&auto=format&fit=crop`;
+const DEMO_REFS: Reference[] = [
+  { id: 'ref_01', name: 'Envoltorio kraft con sello', image: img('photo-1568901346375-23c9450c58cd'), position: { x: 0, y: 0 }, createdAt: '', notes: 'Papel kraft con estampa monocroma.', tags: ['Packaging', 'Kraft'] },
+  { id: 'ref_02', name: 'Póster tipográfico condensado', image: img('photo-1541701494587-cb58502866ab'), position: { x: 0, y: 0 }, createdAt: '', notes: 'Caja alta hipercondensada y acentos naranja.', tags: ['Tipografía'] },
+  { id: 'ref_03', name: 'Grilla y recursos gráficos', image: img('photo-1586717791821-3f44a563fa4c'), position: { x: 0, y: 0 }, createdAt: '', notes: 'Composición perimetral con sellos.', tags: ['Grilla'] },
+];
+const DEMO_PATTERN: Pattern = {
+  id: 'pat_01',
+  name: 'Tipografía sans condensada en bloque compacto',
+  category: 'typography',
+  description: 'Titulares en caja alta hipercondensada con tracking cerrado y micro-interlínea.',
+  evidence: ['ref_02', 'ref_03'],
+  confidence: 0.94,
+  status: 'detected',
+  relatedObservations: ['Jerarquía dominante de gran escala', 'Legibilidad en envoltorios y letreros'],
+  systemHypothesis: 'Subsistema tipográfico para titulares en soportes físicos y digitales.',
+  trend: 'strengthened',
+};
 
 /** Vista de verificación del sistema visual. Solo en desarrollo: abrir con #ds. */
 export default function DesignSystemPreview() {
-  const refs = SAMPLE_PROJECT_BURGER_CLUB.references;
-  const pattern = { ...SAMPLE_PROJECT_BURGER_CLUB.patterns[1], status: 'detected' as const };
+  const refs = DEMO_REFS;
+  const pattern = DEMO_PATTERN;
   const [zoom, setZoom] = useState<ZoomLevel>('mid');
   const [mode, setMode] = useState<PatternCardMode>('idle');
   const stages: StageRailItem[] = [
@@ -81,7 +101,7 @@ export default function DesignSystemPreview() {
             </IconButton>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
-            <TextInput label="Nombre del proyecto" defaultValue="Burger Club" required />
+            <TextInput label="Nombre del proyecto" defaultValue="KROM" required />
             <TextInput label="Objetivo" hint="Foco" />
             <TextInput label="Motivo del descarte" placeholder="Requerido" error="Escribí por qué descartás este patrón." />
           </div>

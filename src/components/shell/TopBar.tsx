@@ -6,13 +6,13 @@ import { IconButton, StageRail, StageRailCompact, StageRailItem } from '../ui';
 interface TopBarProps {
   project: Project;
   projects: Project[];
-  samples: Project[];
   rail: StageRailItem[];
   onSelectStage: (id: string) => void;
   onSelectProject: (id: string) => void;
   onNewProject: () => void;
   onEditBrief: () => void;
-  onOpenSample: (id: string) => void;
+  onDeleteProject: () => void;
+  onDeleteAllProjects: () => void;
   onExportProjectJson: () => void;
   onDownloadDossier: () => void;
   onOpenLog: () => void;
@@ -45,7 +45,7 @@ function MenuItem({ children, onSelect, current, hint }: { children: React.React
 }
 
 export function TopBar(props: TopBarProps) {
-  const { project, projects, samples, rail } = props;
+  const { project, projects, rail } = props;
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -86,9 +86,6 @@ export function TopBar(props: TopBarProps) {
   };
 
   const name = project.name.trim() || 'Proyecto sin nombre';
-  const sampleIds = new Set(samples.map(s => s.id));
-  const own = projects.filter(p => !sampleIds.has(p.id));
-  const openSamples = projects.filter(p => sampleIds.has(p.id));
 
   return (
     <header className="no-print flex h-14 shrink-0 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-3 lg:gap-6 lg:px-4">
@@ -119,26 +116,12 @@ export function TopBar(props: TopBarProps) {
           >
             <MenuItem onSelect={run(props.onEditBrief)}>Editar brief</MenuItem>
             <MenuItem onSelect={run(props.onNewProject)}>Nuevo proyecto</MenuItem>
-            {own.length > 0 && <MenuLabel>Mis proyectos</MenuLabel>}
-            {own.map(p => (
+            <MenuLabel>Mis proyectos</MenuLabel>
+            {projects.map(p => (
               <MenuItem key={p.id} current={p.id === project.id} onSelect={run(() => props.onSelectProject(p.id))} hint={`${p.references.length} refs`}>
                 {p.name.trim() || 'Proyecto sin nombre'}
               </MenuItem>
             ))}
-            <MenuLabel>Proyectos de ejemplo</MenuLabel>
-            {samples.map(s => {
-              const opened = openSamples.find(p => p.id === s.id);
-              return (
-                <MenuItem
-                  key={s.id}
-                  current={s.id === project.id}
-                  onSelect={run(() => props.onOpenSample(s.id))}
-                  hint={opened ? 'abierto' : 'ejemplo'}
-                >
-                  {s.name}
-                </MenuItem>
-              );
-            })}
             <MenuLabel>Exportar proyecto</MenuLabel>
             <MenuItem onSelect={run(props.onDownloadDossier)} hint=".md">
               Dossier académico
@@ -146,6 +129,9 @@ export function TopBar(props: TopBarProps) {
             <MenuItem onSelect={run(props.onExportProjectJson)} hint=".json">
               Proyecto completo
             </MenuItem>
+            <MenuLabel>Eliminar</MenuLabel>
+            <MenuItem onSelect={run(props.onDeleteProject)}>Eliminar este proyecto</MenuItem>
+            {projects.length > 1 && <MenuItem onSelect={run(props.onDeleteAllProjects)}>Eliminar todos los proyectos</MenuItem>}
           </ul>
         )}
       </div>
