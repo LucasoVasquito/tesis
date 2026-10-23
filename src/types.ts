@@ -95,6 +95,17 @@ export interface VisualSystemDetails {
   digitalAndSocialMedia?: string;
 }
 
+export interface PaletteColor {
+  hex: string;
+  name: string;
+  role: string;
+  /** Trazabilidad: ID de la referencia o del patrón de donde sale el color. */
+  source?: string;
+}
+
+/** Campos redactados por la IA que llevan trazabilidad a patrones. */
+export type TraceableField = 'aestheticPillars' | 'typographyRules' | 'textureRules' | 'compositionRules';
+
 export interface VisualSystem {
   id: string;
   name: string;
@@ -102,11 +113,15 @@ export interface VisualSystem {
   patternIds: string[]; // Confirmed pattern IDs
   referenceIds: string[]; // Supporting reference IDs
   status: 'active' | 'archived';
-  colorPalette?: Array<{ hex: string; name: string; role: string }>;
+  colorPalette?: PaletteColor[];
   typographyRules?: string[];
   textureRules?: string[];
   compositionRules?: string[];
   aestheticPillars?: string[];
+  /** IDs de patrones que sostienen cada pilar o regla, en el mismo orden que el campo. */
+  sources?: Partial<Record<TraceableField, string[][]>>;
+  /** Si el sistema nació de una sugerencia de la IA, su ID. */
+  adoptedFrom?: string;
   systemDetails?: VisualSystemDetails;
   isSynthesizing?: boolean;
   createdAt: string;
@@ -122,6 +137,50 @@ export interface FeedbackItem {
   createdAt: string;
 }
 
+/** Sistema propuesto por la IA en la inducción. No es un sistema real hasta que el diseñador lo adopta. */
+export interface SuggestedSystem {
+  id: string;
+  name: string;
+  description: string;
+  associatedPatternNames?: string[];
+  referenceIds: string[];
+  aestheticPillars: string[];
+  systemDetails?: VisualSystemDetails;
+  suggestedPalette?: PaletteColor[];
+}
+
+export type LogKind =
+  | 'brief'
+  | 'induce'
+  | 'confirm'
+  | 'discard'
+  | 'restore'
+  | 'note'
+  | 'assign'
+  | 'unassign'
+  | 'system_create'
+  | 'system_adopt'
+  | 'system_dismiss'
+  | 'system_delete'
+  | 'synthesize'
+  | 'import'
+  | 'feedback';
+
+export interface LogItem {
+  id: string;
+  at: string;
+  kind: LogKind;
+  targetId: string;
+  label: string;
+  reason?: string;
+  /** Si la entrada corresponde a un FeedbackItem, su ID (evita duplicados en la bitácora). */
+  feedbackId?: string;
+}
+
+export type Stage = 'brief' | 'corpus' | 'induction' | 'audit' | 'synthesis';
+/** Etapas que se pueden visitar (Inducción es un estado transitorio). */
+export type VisitableStage = Exclude<Stage, 'induction'>;
+
 export interface Project {
   id: string;
   name: string;
@@ -134,9 +193,11 @@ export interface Project {
   feedback: FeedbackItem[];
   createdAt: string;
   lastAnalyzedAt?: string;
+  /** Última etapa visitada, para recuperarla al recargar. */
+  uiStage?: VisitableStage;
+  suggestedSystems?: SuggestedSystem[];
+  log?: LogItem[];
 }
-
-export type RightPanelTab = 'patterns' | 'systems' | 'breakdown' | 'feedback' | 'export';
 
 export type ApplicationType =
   | 'wrapper'
@@ -209,7 +270,7 @@ export interface VisualSystemExportData {
     name: string;
     description: string;
     aestheticPillars: string[];
-    colorPalette?: Array<{ hex: string; name: string; role: string }>;
+    colorPalette?: PaletteColor[];
     typographyRules?: string[];
     textureRules?: string[];
     compositionRules?: string[];

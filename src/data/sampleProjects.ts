@@ -58,7 +58,7 @@ export const SAMPLE_PROJECT_BURGER_CLUB: Project = {
       id: 'ref_bc_05',
       name: 'Fotografía Cenital con Fondo de Hormigón',
       image: 'https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=800&auto=format&fit=crop',
-      position: { x: 80, y: 460 },
+      position: { x: 80, y: 620 },
       width: 260,
       height: 330,
       createdAt: new Date().toISOString(),
@@ -69,7 +69,7 @@ export const SAMPLE_PROJECT_BURGER_CLUB: Project = {
       id: 'ref_bc_06',
       name: 'Caja de Hamburguesa Kraft y Estampado',
       image: 'https://images.unsplash.com/photo-1521305916504-4a1121188589?q=80&w=800&auto=format&fit=crop',
-      position: { x: 370, y: 450 },
+      position: { x: 370, y: 610 },
       width: 270,
       height: 340,
       createdAt: new Date().toISOString(),
@@ -80,7 +80,7 @@ export const SAMPLE_PROJECT_BURGER_CLUB: Project = {
       id: 'ref_bc_07',
       name: 'Interior Industrial con Cartelería Tipográfica',
       image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800&auto=format&fit=crop',
-      position: { x: 670, y: 460 },
+      position: { x: 670, y: 620 },
       width: 270,
       height: 340,
       createdAt: new Date().toISOString(),
@@ -91,7 +91,7 @@ export const SAMPLE_PROJECT_BURGER_CLUB: Project = {
       id: 'ref_bc_08',
       name: 'Detalle de Textura de Tinta y Papel Rugoso',
       image: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?q=80&w=800&auto=format&fit=crop',
-      position: { x: 970, y: 460 },
+      position: { x: 970, y: 620 },
       width: 260,
       height: 330,
       createdAt: new Date().toISOString(),
@@ -277,7 +277,7 @@ export const SAMPLE_PROJECT_BADDER: Project = {
       id: 'ref_05',
       name: 'Afiche Urbano Cyberpunk / Acid',
       image: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=800&auto=format&fit=crop',
-      position: { x: 100, y: 500 },
+      position: { x: 100, y: 660 },
       width: 270,
       height: 350,
       createdAt: new Date().toISOString(),
@@ -288,7 +288,7 @@ export const SAMPLE_PROJECT_BADDER: Project = {
       id: 'ref_06',
       name: 'Gráfica Experimental Alto Contraste',
       image: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=800&auto=format&fit=crop',
-      position: { x: 420, y: 490 },
+      position: { x: 420, y: 650 },
       width: 260,
       height: 330,
       createdAt: new Date().toISOString(),
@@ -299,7 +299,7 @@ export const SAMPLE_PROJECT_BADDER: Project = {
       id: 'ref_07',
       name: 'Portada Libro Tipografía Display',
       image: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?q=80&w=800&auto=format&fit=crop',
-      position: { x: 730, y: 480 },
+      position: { x: 730, y: 640 },
       width: 260,
       height: 340,
       createdAt: new Date().toISOString(),
@@ -310,7 +310,7 @@ export const SAMPLE_PROJECT_BADDER: Project = {
       id: 'ref_08',
       name: 'Fotografía de Moda Noir con Luz Cenital',
       image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=800&auto=format&fit=crop',
-      position: { x: 1040, y: 480 },
+      position: { x: 1040, y: 640 },
       width: 270,
       height: 350,
       createdAt: new Date().toISOString(),
@@ -320,15 +320,28 @@ export const SAMPLE_PROJECT_BADDER: Project = {
   ]
 };
 
-export const INITIAL_EMPTY_PROJECT: Project = {
-  id: 'proj_new',
-  name: 'Nuevo Proyecto de Identidad',
-  objective: 'Definir el objetivo del universo visual (ej. sistema visual para indumentaria técnica, editorial contemporánea o plataforma digital).',
-  description: 'Agrega referencias visuales arrastrándolas al canvas o usando el botón para cargar imágenes.',
-  status: 'draft',
-  createdAt: new Date().toISOString(),
-  feedback: [],
-  systems: [],
-  patterns: [],
-  references: []
-};
+/** Proyecto vacío: nombre y objetivo en blanco para que arranque en la Etapa 1 (Brief). */
+export function createEmptyProject(): Project {
+  return {
+    id: `proj_${Date.now()}`,
+    name: '',
+    objective: '',
+    description: '',
+    status: 'draft',
+    createdAt: new Date().toISOString(),
+    feedback: [],
+    systems: [],
+    patterns: [],
+    references: [],
+    suggestedSystems: [],
+    log: [],
+  };
+}
+
+export const SAMPLE_PROJECTS: Project[] = [SAMPLE_PROJECT_BURGER_CLUB, SAMPLE_PROJECT_BADDER];
+export const SAMPLE_SHORT_NAME: Record<string, string> = { proj_burger_club: 'Burger Club', proj_badder: 'Badder' };
+
+/** Textos de relleno que tenía el proyecto vacío antes del rework (se limpian al migrar). */
+export const LEGACY_PLACEHOLDER_NAME = 'Nuevo Proyecto de Identidad';
+export const LEGACY_PLACEHOLDER_OBJECTIVE_PREFIX = 'Definir el objetivo del universo visual';
+export const LEGACY_PLACEHOLDER_DESCRIPTION_PREFIX = 'Agrega referencias visuales arrastrándolas';

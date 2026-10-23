@@ -397,3 +397,13 @@
 .animate-fade-in {
   animation: em-fade-in 180ms var(--ease-emergent);
 }
+
+/* Áreas táctiles de 44px como mínimo en pantallas táctiles */
+@media (pointer: coarse) {
+  .btn {
+    min-height: 44px;
+  }
+  .btn-icon {
+    min-width: 44px;
+  }
+}

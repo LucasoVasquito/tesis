@@ -1,550 +1,502 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Navbar } from './components/Navbar';
-import { Sidebar } from './components/Sidebar';
-import { Canvas } from './components/Canvas';
-import { RightPanel } from './components/RightPanel';
-import { SystemApplicationView } from './components/SystemApplicationView';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pattern, Project, Reference, VisitableStage, VisualSystem } from './types';
+import { SAMPLE_PROJECTS, createEmptyProject } from './data/sampleProjects';
+import { compressImageString, compressReferences } from './utils/imageCompressor';
+import { clearCachedBreakdown, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
+import { downloadProjectMarkdown, exportProjectAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
+import { filesToReferences, makeFeedback, migrateProject, uid } from './utils/project';
+import { MIN_REFERENCES, canEnter, initialStage, railItems } from './utils/stages';
+
+import { Button } from './components/ui';
+import { TopBar } from './components/shell/TopBar';
+import { ActionBar, Toast } from './components/shell/ActionBar';
+import { DockPanel } from './components/shell/DockPanel';
+import { CorpusView } from './components/canvas/CanvasArea';
 import { UploadModal } from './components/UploadModal';
 import { LightboxModal } from './components/LightboxModal';
-import { AssignSystemModal } from './components/AssignSystemModal';
-import { FeedbackModal } from './components/FeedbackModal';
-import { ThesisConceptModal } from './components/ThesisConceptModal';
-import { NewProjectModal } from './components/NewProjectModal';
-import { AnalysisProgressModal } from './components/AnalysisProgressModal';
+import { AboutView } from './components/AboutView';
+import { SystemDetail } from './components/synthesis/SystemDetail';
+import { SystemApplicationView } from './components/SystemApplicationView';
 
-import { 
-  Project, 
-  Reference, 
-  Pattern, 
-  VisualSystem, 
-  FeedbackItem, 
-  RightPanelTab,
-  VisualSystemExportData
-} from './types';
-import { 
-  SAMPLE_PROJECT_BURGER_CLUB, 
-  SAMPLE_PROJECT_BADDER, 
-  INITIAL_EMPTY_PROJECT 
-} from './data/sampleProjects';
-import { compressReferences, compressImageString } from './utils/imageCompressor';
-import { getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
+import { BriefDraft, BriefStage } from './stages/BriefStage';
+import { CorpusStage, InductionState } from './stages/CorpusStage';
+import { AuditFilter, AuditStage, filterPatterns } from './stages/AuditStage';
+import { SynthesisStage } from './stages/SynthesisStage';
 
-const STORAGE_KEY = 'emergent_visual_system_project_v3';
-const LEGACY_STORAGE_KEYS = [
-  'emergent_visual_system_project_v2',
-  'emergent_visual_system_project_v1',
-  'emergent_visual_system_project'
-];
+const LIST_KEY = 'emergent_projects_list_v4';
+const ACTIVE_KEY = 'emergent_active_project_v4';
+const LEGACY_SINGLE_KEY = 'emergent_visual_system_project_v3';
+
+type Overlay = null | { kind: 'about' } | { kind: 'apply'; systemId: string };
+
+function loadProjects(): Project[] {
+  try {
+    const saved = localStorage.getItem(LIST_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(migrateProject);
+    }
+    const single = localStorage.getItem(LEGACY_SINGLE_KEY);
+    if (single) {
+      const parsed = JSON.parse(single);
+      if (parsed && typeof parsed === 'object') return [migrateProject(parsed)];
+    }
+  } catch (e) {
+    console.error('No se pudo leer la lista de proyectos', e);
+  }
+  return [createEmptyProject()];
+}
+
+const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100) : 0);
 
 export default function App() {
-  // 1. Core Projects State
-  const [projectsList, setProjectsList] = useState<Project[]>(() => {
-    const savedList = localStorage.getItem('emergent_projects_list_v4');
-    if (savedList) {
-      try {
-        const parsed = JSON.parse(savedList);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch (e) {
-        console.error("Error loading projects list", e);
-      }
-    }
-
-    const savedSingle = localStorage.getItem(STORAGE_KEY);
-    if (savedSingle) {
-      try {
-        const parsedSingle = JSON.parse(savedSingle);
-        if (parsedSingle && typeof parsedSingle === 'object') {
-          return [{
-            ...INITIAL_EMPTY_PROJECT,
-            ...parsedSingle,
-            references: Array.isArray(parsedSingle.references) ? parsedSingle.references : [],
-            patterns: Array.isArray(parsedSingle.patterns) ? parsedSingle.patterns : [],
-            systems: Array.isArray(parsedSingle.systems) ? parsedSingle.systems : [],
-            feedback: Array.isArray(parsedSingle.feedback) ? parsedSingle.feedback : [],
-          }];
-        }
-      } catch (e) {}
-    }
-
-    return [INITIAL_EMPTY_PROJECT];
-  });
-
+  /* ========== Proyectos ========== */
+  const [projectsList, setProjectsList] = useState<Project[]>(loadProjects);
   const [activeProjectId, setActiveProjectId] = useState<string>(() => {
-    return projectsList[0]?.id || INITIAL_EMPTY_PROJECT.id;
+    const saved = localStorage.getItem(ACTIVE_KEY);
+    return saved && projectsList.some(p => p.id === saved) ? saved : projectsList[0].id;
   });
+  const project = projectsList.find(p => p.id === activeProjectId) ?? projectsList[0];
+  const projectRef = useRef(project);
+  projectRef.current = project;
 
-  const project = projectsList.find(p => p.id === activeProjectId) || projectsList[0] || INITIAL_EMPTY_PROJECT;
-
-  const setProject = (action: Project | ((prev: Project) => Project)) => {
-    setProjectsList(prevList => {
-      const currentActive = prevList.find(p => p.id === activeProjectId) || prevList[0] || INITIAL_EMPTY_PROJECT;
-      const updated = typeof action === 'function' ? action(currentActive) : action;
-      
-      const exists = prevList.some(p => p.id === updated.id);
-      if (exists) {
-        return prevList.map(p => p.id === updated.id ? updated : p);
-      } else {
-        return [...prevList, updated];
-      }
-    });
-  };
+  /** Actualiza un proyecto por ID (por defecto el activo). */
+  const updateProject = useCallback(
+    (fn: (p: Project) => Project, id?: string) => {
+      const target = id ?? activeProjectId;
+      setProjectsList(list => list.map(p => (p.id === target ? fn(p) : p)));
+    },
+    [activeProjectId],
+  );
 
   useEffect(() => {
     try {
-      localStorage.setItem('emergent_projects_list_v4', JSON.stringify(projectsList));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+      localStorage.setItem(LIST_KEY, JSON.stringify(projectsList));
+      localStorage.setItem(ACTIVE_KEY, activeProjectId);
     } catch (e) {
-      console.warn("Could not save to localStorage", e);
+      console.warn('No se pudo guardar en localStorage (¿espacio lleno?)', e);
     }
-  }, [projectsList, project]);
+  }, [projectsList, activeProjectId]);
 
-  // 2. UI Navigation & Selection State
-  const [activeTab, setActiveTab] = useState<RightPanelTab>('systems');
-  const [selectedReferenceIds, setSelectedReferenceIds] = useState<string[]>([]);
-  const [activeEvidencePatternId, setActiveEvidencePatternId] = useState<string | null>(null);
-  // Active Applying System View Mode (SISTEMA VISUAL CONFIRMADO → APLICARLO)
-  const [activeApplyingSystem, setActiveApplyingSystem] = useState<VisualSystem | null>(null);
+  /* ========== UI ========== */
 
-  // Panel collapse / minimize state (for maximum screen space & reduced visual noise)
-  const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [stage, setStage] = useState<VisitableStage>(() => initialStage(project));
+  const [view, setView] = useState<CorpusView>('canvas');
+  const [selectedRefId, setSelectedRefId] = useState<string | null>(null);
+  const [auditIndex, setAuditIndex] = useState(0);
+  const [auditFilter, setAuditFilter] = useState<AuditFilter>('pending');
+  const [systemDetailId, setSystemDetailId] = useState<string | null>(null);
+  const [focusSystemId, setFocusSystemId] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<Overlay>(null);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [lightboxRef, setLightboxRef] = useState<Reference | null>(null);
+  const [briefDraft, setBriefDraft] = useState<BriefDraft>({ name: project.name, objective: project.objective, description: project.description });
 
-  // 3. Modals State
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [isThesisGuideOpen, setIsThesisGuideOpen] = useState(false);
-  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
-  const [patternToAssign, setPatternToAssign] = useState<Pattern | null>(null);
-  const [feedbackContext, setFeedbackContext] = useState<{ pattern?: Pattern; ref?: Reference } | null>(null);
-  const [lightboxReference, setLightboxReference] = useState<Reference | null>(null);
+  /* ========== Asincronía ========== */
+  const [induction, setInduction] = useState<InductionState>({ status: 'idle', tick: 0 });
+  const abortRef = useRef<AbortController | null>(null);
+  const [inspectingIds, setInspectingIds] = useState<string[]>([]);
+  const [inspectErrors, setInspectErrors] = useState<Record<string, string>>({});
+  const [synthesisErrors, setSynthesisErrors] = useState<Record<string, string>>({});
 
-  // 4. Async Operation State
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisStepIndex, setAnalysisStepIndex] = useState(0);
-  const [isInspectingRef, setIsInspectingRef] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /* ========== Toast ========== */
+  const [toast, setToast] = useState<Toast | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((t: Omit<Toast, 'id'>, ms = 3000) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ ...t, id: Date.now() });
+    toastTimer.current = setTimeout(() => setToast(null), ms);
+  }, []);
+  const dismissToast = useCallback(() => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(null);
+  }, []);
 
-  // Reference selection helpers
-  const handleSelectReference = useCallback((id: string, multi = false) => {
-    setSelectedReferenceIds(prev => {
-      if (multi) {
-        return prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id];
-      }
-      return [id];
+  /* ========== Etapas ========== */
+  // Persistir la etapa en el proyecto para recuperarla al recargar.
+  useEffect(() => {
+    if (project.uiStage !== stage) updateProject(p => ({ ...p, uiStage: stage }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, project.id]);
+
+  // Si la etapa actual deja de ser válida (p. ej. se borró el último patrón), volver a una válida.
+  useEffect(() => {
+    if (!canEnter(project, stage)) setStage(initialStage({ ...project, uiStage: undefined }));
+  }, [project, stage]);
+
+  const goToStage = useCallback(
+    (s: VisitableStage) => {
+      const p = projectRef.current;
+      if (!canEnter(p, s) || induction.status === 'running') return;
+      if (s === 'brief') setBriefDraft({ name: p.name, objective: p.objective, description: p.description });
+      setSystemDetailId(null);
+      setStage(s);
+    },
+    [induction.status],
+  );
+
+  const resetUiForProject = (p: Project) => {
+    abortRef.current?.abort();
+    setInduction({ status: 'idle', tick: 0 });
+    setSelectedRefId(null);
+    setSystemDetailId(null);
+    setAuditIndex(0);
+    setAuditFilter('pending');
+    setOverlay(null);
+    setBriefDraft({ name: p.name, objective: p.objective, description: p.description });
+    setStage(initialStage(p));
+  };
+
+  /* ========== Proyectos: acciones ========== */
+  const handleSelectProject = (id: string) => {
+    const p = projectsList.find(x => x.id === id);
+    if (!p) return;
+    setActiveProjectId(id);
+    resetUiForProject(p);
+  };
+
+  const handleNewProject = () => {
+    const p = createEmptyProject();
+    setProjectsList(list => [...list, p]);
+    setActiveProjectId(p.id);
+    resetUiForProject(p);
+  };
+
+  const handleOpenSample = (id: string) => {
+    const existing = projectsList.find(p => p.id === id);
+    if (existing) return handleSelectProject(id);
+    const sample = SAMPLE_PROJECTS.find(s => s.id === id);
+    if (!sample) return;
+    const copy = migrateProject(structuredClone(sample));
+    setProjectsList(list => {
+      // Si el proyecto activo está vacío y sin nombre, el ejemplo lo reemplaza.
+      const active = list.find(p => p.id === activeProjectId);
+      const isBlank = active && !active.name && !active.objective && !active.references.length;
+      return isBlank ? list.map(p => (p.id === activeProjectId ? copy : p)) : [...list, copy];
     });
-  }, []);
+    setActiveProjectId(copy.id);
+    resetUiForProject(copy);
+  };
 
-  const handleClearSelection = useCallback(() => {
-    setSelectedReferenceIds([]);
-  }, []);
+  const handleSubmitBrief = () => {
+    const d = { name: briefDraft.name.trim(), objective: briefDraft.objective.trim(), description: briefDraft.description.trim() };
+    if (!d.name || !d.objective) return;
+    updateProject(p => ({ ...p, ...d }));
+    setStage('corpus');
+  };
 
-  // Selected Reference object for Inspector
-  const selectedReference = selectedReferenceIds.length > 0
-    ? project.references.find(r => r.id === selectedReferenceIds[0]) || null
-    : null;
+  /* ========== Corpus ========== */
+  const handleAddReferences = useCallback(
+    (refs: Reference[]) => {
+      if (!refs.length) return;
+      updateProject(p => ({ ...p, references: [...p.references, ...refs] }));
+      showToast({ message: refs.length === 1 ? `Referencia agregada · ${refs[0].id}` : `${refs.length} referencias agregadas`, tone: 'pending' });
+    },
+    [updateProject, showToast],
+  );
 
-  // 5. Trigger Multimodal Multi-Reference Analysis
-  const handleTriggerAnalysis = async () => {
-    if (project.references.length === 0) return;
+  const handleAddFiles = useCallback(
+    async (files: File[], at?: { x: number; y: number }) => {
+      const refs = await filesToReferences(files, projectRef.current.references, { at });
+      if (!refs.length) {
+        showToast({ message: 'Solo se aceptan imágenes', tone: 'discarded' });
+        return;
+      }
+      handleAddReferences(refs);
+      if (refs.length === 1) setSelectedRefId(refs[0].id);
+    },
+    [handleAddReferences, showToast],
+  );
 
-    setIsAnalyzing(true);
-    setAnalysisStepIndex(0);
-    setErrorMessage(null);
+  const handleUpdateReference = useCallback(
+    (id: string, updates: Partial<Reference>) => updateProject(p => ({ ...p, references: p.references.map(r => (r.id === id ? { ...r, ...updates } : r)) })),
+    [updateProject],
+  );
 
-    const confirmed = project.patterns.filter(p => p.status === 'confirmed');
-    const discarded = project.patterns.filter(p => p.status === 'discarded');
+  const handleMoveReference = useCallback((id: string, position: { x: number; y: number }) => handleUpdateReference(id, { position }), [handleUpdateReference]);
+  const handleResizeReference = useCallback((id: string, width: number) => handleUpdateReference(id, { width }), [handleUpdateReference]);
 
+  const handleDeleteReference = (id: string) => {
+    updateProject(p => ({
+      ...p,
+      references: p.references.filter(r => r.id !== id),
+      patterns: p.patterns.map(pt => ({ ...pt, evidence: pt.evidence.filter(e => e !== id) })),
+      systems: p.systems.map(s => ({ ...s, referenceIds: s.referenceIds.filter(r => r !== id) })),
+    }));
+    clearCachedBreakdown(project.id, id);
+    setSelectedRefId(null);
+    showToast({ message: `Referencia eliminada · ${id}`, tone: 'discarded' });
+  };
+
+  /** Desglose individual con caché por proyecto. `force` ignora el caché. */
+  const handleInspectReference = async (ref: Reference, force = false) => {
+    const projectId = project.id;
+    setInspectErrors(e => {
+      const { [ref.id]: _, ...rest } = e;
+      return rest;
+    });
+    if (!force) {
+      const cached = ref.breakdown ?? getCachedBreakdown(projectId, ref.id);
+      if (cached) {
+        if (!ref.breakdown) updateProject(p => ({ ...p, references: p.references.map(r => (r.id === ref.id ? { ...r, breakdown: cached } : r)) }), projectId);
+        return;
+      }
+    }
+    setInspectingIds(ids => [...ids, ref.id]);
     try {
-      // Step 0: Compress references client-side
-      const compressedReferences = await compressReferences(project.references, {
-        maxWidth: 1024,
-        maxHeight: 1024,
-        quality: 0.8,
-      });
-
-      // Step 1: Transmitting to API
-      setAnalysisStepIndex(1);
-
-      // Step 2 & 3 timers for progressive UI feedback while waiting for Gemini
-      const t2 = setTimeout(() => setAnalysisStepIndex(2), 1200);
-      const t3 = setTimeout(() => setAnalysisStepIndex(3), 3200);
-
-      const response = await fetch('/api/analyze-references', {
+      const image = await compressImageString(ref.image, { maxWidth: 1024, maxHeight: 1024, quality: 0.8 });
+      const res = await fetch('/api/inspect-reference', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: { ...ref, image } }),
+      });
+      const text = await res.text();
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw new Error(`El servidor no devolvió una respuesta válida (HTTP ${res.status}). ¿Está corriendo "npm run server"?`);
+      }
+      if (!res.ok || !result.success) throw new Error(result.error || result.details || 'Error al desglosar la referencia');
+      setCachedBreakdown(projectId, ref.id, result.data);
+      updateProject(p => ({ ...p, references: p.references.map(r => (r.id === ref.id ? { ...r, breakdown: result.data } : r)) }), projectId);
+    } catch (err: any) {
+      setInspectErrors(e => ({ ...e, [ref.id]: err?.message || String(err) }));
+    } finally {
+      setInspectingIds(ids => ids.filter(x => x !== ref.id));
+    }
+  };
+
+  /* ========== Inducción ========== */
+  useEffect(() => {
+    if (induction.status !== 'running') return;
+    const t = setInterval(() => setInduction(s => (s.status === 'running' ? { ...s, tick: s.tick + 1 } : s)), 900);
+    return () => clearInterval(t);
+  }, [induction.status]);
+
+  const handleInduce = async () => {
+    const p = projectRef.current;
+    if (p.references.length < MIN_REFERENCES || induction.status === 'running') return;
+    const projectId = p.id;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setSelectedRefId(null);
+    setInduction({ status: 'running', tick: 0 });
+    updateProject(x => ({ ...x, status: p.patterns.length ? 'updating' : 'analyzing' }), projectId);
+
+    try {
+      const compressed = await compressReferences(p.references, { maxWidth: 1024, maxHeight: 1024, quality: 0.8 });
+      const res = await fetch('/api/analyze-references', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
-          references: compressedReferences,
-          projectName: project.name,
-          objective: project.objective,
-          description: project.description,
-          previousPatterns: project.patterns,
-          confirmedPatterns: confirmed,
-          discardedPatterns: discarded,
-          feedback: project.feedback,
+          references: compressed,
+          projectName: p.name,
+          objective: p.objective,
+          description: p.description,
+          previousPatterns: p.patterns,
+          confirmedPatterns: p.patterns.filter(x => x.status === 'confirmed'),
+          discardedPatterns: p.patterns.filter(x => x.status === 'discarded'),
+          feedback: p.feedback,
         }),
       });
-
-      clearTimeout(t2);
-      clearTimeout(t3);
-      setAnalysisStepIndex(3);
-
-      const responseText = await response.text();
-      let result: any = null;
+      const text = await res.text();
+      let result: any;
       try {
-        result = JSON.parse(responseText);
+        result = JSON.parse(text);
       } catch {
-        throw new Error('El servidor de análisis tardó en responder. Por favor, reintenta.');
+        throw Object.assign(new Error('El servidor de análisis no devolvió una respuesta válida.'), { code: `HTTP ${res.status}`, detail: text.slice(0, 400) });
+      }
+      if (!res.ok || !result.success) {
+        throw Object.assign(new Error('Gemini no respondió'), { code: `ERROR ${res.status}`, detail: result.error || result.details || 'Error desconocido' });
       }
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || result.details || 'Error desconocido al analizar');
-      }
+      const { patterns: detected = [], suggestedSystems = [] } = result.data || {};
+      let newCount = 0;
+      updateProject(prev => {
+        const confirmed = prev.patterns.filter(x => x.status === 'confirmed');
+        const discarded = prev.patterns.filter(x => x.status === 'discarded');
+        const sameAs = (a: Pattern, b: any) => a.id === b.id || a.name.toLowerCase() === String(b.name || '').toLowerCase();
 
-      const { patterns: newDetectedPatterns = [], suggestedSystems = [] } = result.data || {};
-
-      // Merge new patterns with existing confirmed/discarded patterns
-      setProject(prev => {
-        // Retain confirmed decisions made by human
-        const preservedConfirmed = prev.patterns.filter(p => p.status === 'confirmed');
-        const preservedDiscarded = prev.patterns.filter(p => p.status === 'discarded');
-
-        // Formulate updated pattern list
-        const mergedPatterns: Pattern[] = newDetectedPatterns.map((p: any) => {
-          // Check if previously confirmed
-          const existingConfirmed = preservedConfirmed.find(c => c.id === p.id || c.name.toLowerCase() === p.name.toLowerCase());
-          if (existingConfirmed) {
-            return {
-              ...p,
-              id: existingConfirmed.id,
-              status: 'confirmed' as const,
-              assignedSystemId: existingConfirmed.assignedSystemId,
-              trend: 'strengthened' as const,
-            };
-          }
-
-          // Check if previously discarded
-          const existingDiscarded = preservedDiscarded.find(d => d.id === p.id || d.name.toLowerCase() === p.name.toLowerCase());
-          if (existingDiscarded) {
-            return {
-              ...p,
-              id: existingDiscarded.id,
-              status: 'discarded' as const,
-              discardReason: existingDiscarded.discardReason,
-              trend: 'stable' as const,
-            };
-          }
-
-          return {
-            ...p,
-            status: 'detected' as const,
-            trend: (p.trend || 'new') as any,
-          };
+        const merged: Pattern[] = detected.map((d: any) => {
+          const c = confirmed.find(x => sameAs(x, d));
+          if (c) return { ...d, id: c.id, status: 'confirmed' as const, assignedSystemId: c.assignedSystemId, designerNotes: c.designerNotes, trend: 'strengthened' as const };
+          const x = discarded.find(y => sameAs(y, d));
+          if (x) return { ...d, id: x.id, status: 'discarded' as const, discardReason: x.discardReason, designerNotes: x.designerNotes, trend: 'stable' as const };
+          newCount++;
+          return { ...d, status: 'detected' as const, trend: d.trend || 'new' };
         });
-
-        // Add any confirmed pattern not re-returned by AI to never lose human work
-        preservedConfirmed.forEach(cp => {
-          if (!mergedPatterns.some(mp => mp.id === cp.id)) {
-            mergedPatterns.unshift(cp);
-          }
-        });
-
-        // Initialize systems if none exist yet based on suggested systems
-        let updatedSystems = [...prev.systems];
-        if (updatedSystems.length === 0 && suggestedSystems.length > 0) {
-          updatedSystems = suggestedSystems.map((s: any, idx: number) => ({
-            id: s.id || `sys_${idx + 1}`,
-            name: s.name,
-            description: s.description,
-            patternIds: [],
-            referenceIds: s.referenceIds || [],
-            status: 'active' as const,
-            aestheticPillars: s.aestheticPillars || [],
-            colorPalette: s.suggestedPalette || [],
-            createdAt: new Date().toISOString(),
-          }));
-        }
-
-        // Mark all references as analyzed (not new)
-        const updatedReferences = prev.references.map(r => ({ ...r, isNew: false }));
+        // Las decisiones humanas nunca se pierden aunque la IA no vuelva a proponer el patrón.
+        confirmed.forEach(c => !merged.some(m => m.id === c.id) && merged.unshift({ ...c, trend: 'weakened' }));
+        discarded.forEach(d => !merged.some(m => m.id === d.id) && merged.push(d));
 
         return {
           ...prev,
-          status: 'analyzed' as const,
+          status: 'analyzed',
           lastAnalyzedAt: new Date().toISOString(),
-          patterns: mergedPatterns,
-          systems: updatedSystems,
-          references: updatedReferences,
+          patterns: merged,
+          // Las propuestas de la IA quedan como sugerencias; no se crean sistemas.
+          suggestedSystems: Array.isArray(suggestedSystems) ? suggestedSystems : [],
+          references: prev.references.map(r => ({ ...r, isNew: false })),
         };
-      });
+      }, projectId);
 
-      // Step 4: Full completion
-      setAnalysisStepIndex(4);
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      setActiveTab('patterns');
+      setInduction({ status: 'idle', tick: 0 });
+      if (projectRef.current.id === projectId) {
+        setAuditFilter('pending');
+        setAuditIndex(0);
+        setStage('audit');
+        showToast({ message: `Inducción · ${p.references.length} referencias, ${detected.length} patrones`, tone: 'evidence' }, 4000);
+      }
     } catch (err: any) {
-      console.error("Error analyzing references:", err);
-      setErrorMessage(err.message || 'Error al conectar con el servicio de análisis de Gemini.');
+      updateProject(x => ({ ...x, status: x.patterns.length ? 'analyzed' : 'draft' }), projectId);
+      if (err?.name === 'AbortError') {
+        setInduction({ status: 'idle', tick: 0 });
+        showToast({ message: 'Inducción cancelada. El corpus no cambió.' });
+        return;
+      }
+      const offline = err instanceof TypeError;
+      setInduction({
+        status: 'error',
+        tick: 0,
+        error: {
+          code: err?.code ?? (offline ? 'SIN CONEXIÓN' : 'ERROR'),
+          title: offline ? 'No se pudo conectar con el servidor' : err?.message || 'La inducción falló',
+          detail: err?.detail ?? (offline ? 'Verificá que "npm run server" esté corriendo en el puerto 3000.' : String(err?.message || err)),
+        },
+      });
     } finally {
-      setIsAnalyzing(false);
+      abortRef.current = null;
     }
   };
 
-  // 6. Deep Inspector for an Individual Reference (with caching)
-  const handleInspectReference = async (ref: Reference) => {
-    setIsInspectingRef(true);
-    setErrorMessage(null);
-    setIsLeftSidebarOpen(true);
-    setSelectedReferenceIds([ref.id]);
+  const handleCancelInduction = () => abortRef.current?.abort();
 
-    // Check if breakdown is already in state or in local cache first
-    const cachedBreakdown = ref.breakdown || getCachedBreakdown(ref.id);
-    if (cachedBreakdown) {
-      if (!ref.breakdown) {
-        setProject(prev => ({
-          ...prev,
-          references: prev.references.map(r => 
-            r.id === ref.id ? { ...r, breakdown: cachedBreakdown } : r
-          ),
-        }));
-      }
-      setIsInspectingRef(false);
+  /* ========== Auditoría ========== */
+  const advanceAfterDecision = (decidedId: string, after: Pattern[]) => {
+    const list = filterPatterns(after, auditFilter);
+    const pos = list.findIndex(p => p.id === decidedId);
+    if (pos === -1) {
+      // Salió del filtro (p. ej. "Pendientes"): el índice ya apunta al siguiente.
+      setAuditIndex(i => Math.min(i, Math.max(list.length - 1, 0)));
       return;
     }
-
-    try {
-      // Compress reference image client-side before sending
-      const compressedImage = await compressImageString(ref.image, {
-        maxWidth: 1024,
-        maxHeight: 1024,
-        quality: 0.8,
-      });
-
-      const compressedRef = { ...ref, image: compressedImage };
-
-      const response = await fetch('/api/inspect-reference', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reference: compressedRef }),
-      });
-
-      const responseText = await response.text();
-      let result: any = null;
-      try {
-        result = JSON.parse(responseText);
-      } catch {
-        throw new Error('El servidor no devolvió una respuesta válida.');
+    for (let k = 1; k <= list.length; k++) {
+      const cand = list[(pos + k) % list.length];
+      if (cand.status === 'detected') {
+        setAuditIndex((pos + k) % list.length);
+        return;
       }
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || result.details || 'Error al desglosar referencia');
-      }
-
-      // Save to client localStorage cache
-      setCachedBreakdown(ref.id, result.data);
-
-      setProject(prev => ({
-        ...prev,
-        references: prev.references.map(r => 
-          r.id === ref.id ? { ...r, breakdown: result.data } : r
-        ),
-      }));
-    } catch (err: any) {
-      console.error("Error inspecting reference:", err);
-      setErrorMessage(err.message || 'No se pudo completar el desglose individual.');
-    } finally {
-      setIsInspectingRef(false);
     }
   };
 
-  // 7. Human Decision Handlers
-  const handleStartConfirmPattern = (pattern: Pattern) => {
-    setPatternToAssign(pattern);
+  const setPatterns = (fn: (ps: Pattern[]) => Pattern[]) => {
+    const next = fn(projectRef.current.patterns);
+    updateProject(p => ({ ...p, patterns: fn(p.patterns) }));
+    return next;
   };
 
-  const handleCompleteConfirmPattern = (
-    patternId: string, 
-    systemId: string, 
-    newSystemData?: { name: string; description: string }
-  ) => {
-    setProject(prev => {
-      let systems = [...prev.systems];
-      let targetSystemId = systemId;
-
-      if (systemId === 'new' && newSystemData) {
-        targetSystemId = `sys_${Date.now()}`;
-        const newSystem: VisualSystem = {
-          id: targetSystemId,
-          name: newSystemData.name,
-          description: newSystemData.description,
-          patternIds: [patternId],
-          referenceIds: [],
-          status: 'active',
-          createdAt: new Date().toISOString(),
-        };
-        systems.push(newSystem);
-      } else {
-        systems = systems.map(s => {
-          if (s.id === targetSystemId) {
-            return {
-              ...s,
-              patternIds: Array.from(new Set([...s.patternIds, patternId])),
-            };
-          }
-          return s;
-        });
-      }
-
-      const patterns = prev.patterns.map(p => {
-        if (p.id === patternId) {
-          return {
-            ...p,
-            status: 'confirmed' as const,
-            assignedSystemId: targetSystemId,
-          };
-        }
-        return p;
-      });
-
-      return {
-        ...prev,
-        patterns,
-        systems,
-      };
-    });
+  const handleConfirmPattern = (pattern: Pattern) => {
+    const after = setPatterns(ps => ps.map(p => (p.id === pattern.id ? { ...p, status: 'confirmed' as const } : p)));
+    advanceAfterDecision(pattern.id, after);
+    showToast({ message: `Confirmado · ${pattern.id}`, tone: 'confirmed' });
   };
 
-  const handleDiscardPattern = (pattern: Pattern, reason = 'No se ajusta al objetivo de diseño') => {
-    setProject(prev => {
-      const patterns = prev.patterns.map(p => {
-        if (p.id === pattern.id) {
-          return {
-            ...p,
-            status: 'discarded' as const,
-            discardReason: reason,
-          };
-        }
-        return p;
-      });
+  const handleDiscardPattern = (pattern: Pattern, reason: string) => {
+    const fb = makeFeedback({ patternId: pattern.id, type: 'pattern_rejection', comment: `Patrón "${pattern.name}" descartado: ${reason}` });
+    const after = pattern.status === 'detected' ? projectRef.current.patterns.map(p => (p.id === pattern.id ? { ...p, status: 'discarded' as const } : p)) : projectRef.current.patterns;
+    updateProject(p => ({
+      ...p,
+      patterns: p.patterns.map(x => (x.id === pattern.id ? { ...x, status: 'discarded' as const, discardReason: reason, assignedSystemId: null } : x)),
+      systems: p.systems.map(s => ({ ...s, patternIds: s.patternIds.filter(id => id !== pattern.id) })),
+      feedback: [...p.feedback, fb],
+    }));
+    advanceAfterDecision(pattern.id, after);
+    showToast({ message: `Descartado · ${pattern.id}`, tone: 'discarded' });
+  };
 
-      const newFeedback: FeedbackItem = {
-        id: `fb_${Date.now()}`,
-        patternId: pattern.id,
-        type: 'pattern_rejection',
-        comment: `Patrón "${pattern.name}" descartado: ${reason}`,
-        createdAt: new Date().toISOString(),
-      };
-
-      return {
-        ...prev,
-        patterns,
-        feedback: [...prev.feedback, newFeedback],
-      };
-    });
-
-    if (activeEvidencePatternId === pattern.id) {
-      setActiveEvidencePatternId(null);
-    }
+  const handleSaveNote = (pattern: Pattern, note: string) => {
+    setPatterns(ps => ps.map(p => (p.id === pattern.id ? { ...p, designerNotes: note || undefined } : p)));
+    showToast({ message: note ? `Nota guardada · ${pattern.id}` : `Nota borrada · ${pattern.id}` });
   };
 
   const handleRestorePattern = (pattern: Pattern) => {
-    setProject(prev => ({
-      ...prev,
-      patterns: prev.patterns.map(p => 
-        p.id === pattern.id ? { ...p, status: 'detected' as const, assignedSystemId: null } : p
-      ),
+    updateProject(p => ({
+      ...p,
+      patterns: p.patterns.map(x => (x.id === pattern.id ? { ...x, status: 'detected' as const, assignedSystemId: null } : x)),
+      systems: p.systems.map(s => ({ ...s, patternIds: s.patternIds.filter(id => id !== pattern.id) })),
     }));
+    showToast({ message: `Restaurado a pendiente · ${pattern.id}`, tone: 'pending' });
   };
 
-  const handleExplorePatternEvidence = (pattern: Pattern) => {
-    setActiveEvidencePatternId(pattern.id);
-    setSelectedReferenceIds(pattern.evidence);
-  };
+  /* ========== Síntesis ========== */
+  const updateSystem = (id: string, fn: (s: VisualSystem) => VisualSystem) => updateProject(p => ({ ...p, systems: p.systems.map(s => (s.id === id ? fn(s) : s)) }));
 
-  const handleClearActiveEvidence = () => {
-    setActiveEvidencePatternId(null);
-  };
-
-  // Add references to canvas
-  const handleAddReferences = (newRefs: Reference[]) => {
-    setProject(prev => ({
-      ...prev,
-      references: [...prev.references, ...newRefs],
-    }));
-  };
-
-  const handleUpdateReferencePosition = (id: string, position: { x: number; y: number }) => {
-    setProject(prev => ({
-      ...prev,
-      references: prev.references.map(r => r.id === id ? { ...r, position } : r),
-    }));
-  };
-
-  const handleUpdateReference = (id: string, updates: Partial<Reference>) => {
-    setProject(prev => ({
-      ...prev,
-      references: prev.references.map(r => r.id === id ? { ...r, ...updates } : r),
-    }));
-  };
-
-  const handleDeleteReference = (id: string) => {
-    setProject(prev => ({
-      ...prev,
-      references: prev.references.filter(r => r.id !== id),
-      patterns: prev.patterns.map(p => ({
-        ...p,
-        evidence: p.evidence.filter(eId => eId !== id),
-      })),
-    }));
-    setSelectedReferenceIds(prev => prev.filter(i => i !== id));
-  };
-
-  const handleFocusReferenceOnCanvas = (id: string) => {
-    setSelectedReferenceIds([id]);
-    const ref = project.references.find(r => r.id === id);
-    if (ref) {
-      const el = document.getElementById(`ref-card-${id}`);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-    }
-  };
-
-  const handleUpdateProjectMeta = (updates: Partial<Pick<Project, 'name' | 'objective' | 'description'>>) => {
-    setProject(prev => ({ ...prev, ...updates }));
-  };
-
-  const handleCreateVisualSystem = (name: string, description: string) => {
-    const newSystem: VisualSystem = {
-      id: `sys_${Date.now()}`,
-      name,
-      description,
-      patternIds: [],
+  const createSystem = (patternIds: string[] = [], name?: string) => {
+    const id = uid('sys');
+    const n = projectRef.current.systems.length + 1;
+    const sys: VisualSystem = {
+      id,
+      name: name || `Sistema ${n}`,
+      description: '',
+      patternIds,
       referenceIds: [],
       status: 'active',
       createdAt: new Date().toISOString(),
     };
-    setProject(prev => ({ ...prev, systems: [...prev.systems, newSystem] }));
+    updateProject(p => ({
+      ...p,
+      systems: [...p.systems, sys],
+      patterns: p.patterns.map(x => (patternIds.includes(x.id) ? { ...x, assignedSystemId: id } : x)),
+    }));
+    setFocusSystemId(id);
+    return sys;
   };
 
-  const handleSynthesizeVisualSystem = async (systemId: string) => {
-    let targetSys: VisualSystem | undefined;
-    let currentProj: Project = project;
+  const handleAssign = (patternId: string, systemId: string) => {
+    const pat = projectRef.current.patterns.find(p => p.id === patternId);
+    if (!pat || pat.status !== 'confirmed') return;
+    updateProject(p => ({
+      ...p,
+      systems: p.systems.map(s => (s.id === systemId && !s.patternIds.includes(patternId) ? { ...s, patternIds: [...s.patternIds, patternId] } : s)),
+      patterns: p.patterns.map(x => (x.id === patternId ? { ...x, assignedSystemId: systemId } : x)),
+    }));
+    const sys = projectRef.current.systems.find(s => s.id === systemId);
+    showToast({ message: `${patternId} → ${sys?.name ?? systemId}`, tone: 'confirmed' });
+  };
 
-    setProject(prev => {
-      currentProj = prev;
-      targetSys = prev.systems.find(s => s.id === systemId);
-      if (!targetSys) return prev;
-      return {
-        ...prev,
-        systems: prev.systems.map(s => s.id === systemId ? { ...s, isSynthesizing: true } : s),
-      };
+  const handleUnassign = (patternId: string, systemId: string) => {
+    updateProject(p => {
+      const systems = p.systems.map(s => (s.id === systemId ? { ...s, patternIds: s.patternIds.filter(id => id !== patternId) } : s));
+      const still = systems.find(s => s.patternIds.includes(patternId));
+      return { ...p, systems, patterns: p.patterns.map(x => (x.id === patternId ? { ...x, assignedSystemId: still?.id ?? null } : x)) };
     });
+  };
 
-    const sys = currentProj.systems.find(s => s.id === systemId);
+  const handleDeleteSystem = (id: string) => {
+    const sys = projectRef.current.systems.find(s => s.id === id);
+    updateProject(p => ({
+      ...p,
+      systems: p.systems.filter(s => s.id !== id),
+      patterns: p.patterns.map(x => (x.assignedSystemId === id ? { ...x, assignedSystemId: null } : x)),
+    }));
+    if (systemDetailId === id) setSystemDetailId(null);
+    showToast({ message: `Sistema eliminado · ${sys?.name ?? id}`, tone: 'discarded' });
+  };
+
+  const handleSynthesize = async (systemId: string) => {
+    const p = projectRef.current;
+    const projectId = p.id;
+    const sys = p.systems.find(s => s.id === systemId);
     if (!sys) return;
-
-    const sysPatterns = currentProj.patterns.filter(p => sys.patternIds.includes(p.id) || p.assignedSystemId === systemId);
-    const sysReferences = currentProj.references.filter(r => sys.referenceIds.includes(r.id) || sysPatterns.some(p => p.evidence?.includes(r.id)));
-
+    const sysPatterns = p.patterns.filter(x => sys.patternIds.includes(x.id) && x.status === 'confirmed');
+    const sysRefs = p.references.filter(r => sysPatterns.some(x => x.evidence.includes(r.id)));
+    setSynthesisErrors(e => {
+      const { [systemId]: _, ...rest } = e;
+      return rest;
+    });
+    updateSystem(systemId, s => ({ ...s, isSynthesizing: true }));
     try {
       const res = await fetch('/api/synthesize-system', {
         method: 'POST',
@@ -552,457 +504,317 @@ export default function App() {
         body: JSON.stringify({
           system: sys,
           patterns: sysPatterns,
-          references: sysReferences,
-          projectName: currentProj.name,
-          projectObjective: currentProj.objective,
-          projectDescription: currentProj.description,
+          references: sysRefs.map(r => ({ id: r.id, name: r.name, notes: r.notes })),
+          projectName: p.name,
+          projectObjective: p.objective,
+          projectDescription: p.description,
         }),
       });
-
-      const result = await res.json();
-      if (result.success && result.data) {
-        const d = result.data;
-        setProject(prev => ({
-          ...prev,
-          systems: prev.systems.map(s => {
-            if (s.id !== systemId) return s;
-            return {
-              ...s,
-              name: d.name || s.name,
-              description: d.description || s.description,
-              aestheticPillars: d.aestheticPillars || s.aestheticPillars,
-              colorPalette: d.colorPalette || s.colorPalette,
-              typographyRules: d.typographyRules || s.typographyRules,
-              textureRules: d.textureRules || s.textureRules,
-              compositionRules: d.compositionRules || s.compositionRules,
-              systemDetails: d.systemDetails || s.systemDetails,
-              isSynthesizing: false,
-              updatedAt: new Date().toISOString(),
-            };
-          }),
-        }));
-      } else {
-        setProject(prev => ({
-          ...prev,
-          systems: prev.systems.map(s => s.id === systemId ? { ...s, isSynthesizing: false } : s),
-        }));
-      }
-    } catch (err) {
-      console.error('Error al sintetizar el sistema visual:', err);
-      setProject(prev => ({
-        ...prev,
-        systems: prev.systems.map(s => s.id === systemId ? { ...s, isSynthesizing: false } : s),
-      }));
+      const result = await res.json().catch(() => ({ success: false, error: `HTTP ${res.status}` }));
+      if (!result.success || !result.data) throw new Error(result.error || result.details || 'Respuesta vacía');
+      const d = result.data;
+      updateProject(
+        x => ({
+          ...x,
+          systems: x.systems.map(s =>
+            s.id !== systemId
+              ? s
+              : {
+                  ...s,
+                  name: s.name,
+                  description: d.description || s.description,
+                  aestheticPillars: d.aestheticPillars || s.aestheticPillars,
+                  // La paleta inferida del corpus tiene prioridad: la de la IA solo se usa si no hay ninguna.
+                  colorPalette: s.colorPalette?.length ? s.colorPalette : d.colorPalette || s.colorPalette,
+                  typographyRules: d.typographyRules || s.typographyRules,
+                  textureRules: d.textureRules || s.textureRules,
+                  compositionRules: d.compositionRules || s.compositionRules,
+                  systemDetails: d.systemDetails || s.systemDetails,
+                  sources: d.sources || s.sources,
+                  isSynthesizing: false,
+                  updatedAt: new Date().toISOString(),
+                },
+          ),
+        }),
+        projectId,
+      );
+      showToast({ message: `Sistema redactado · ${sys.name}`, tone: 'confirmed' });
+    } catch (err: any) {
+      updateProject(x => ({ ...x, systems: x.systems.map(s => (s.id === systemId ? { ...s, isSynthesizing: false } : s)) }), projectId);
+      setSynthesisErrors(e => ({ ...e, [systemId]: err?.message || String(err) }));
     }
   };
 
-  const handleConsolidateVisualSystem = (customName?: string) => {
-    let createdSysId: string | null = null;
-    setProject(prev => {
-      const confirmedPatterns = prev.patterns.filter(p => p.status === 'confirmed');
-      const targetPatterns = confirmedPatterns.length > 0 ? confirmedPatterns : prev.patterns;
-      
-      if (targetPatterns.length === 0) return prev;
-
-      const newSysId = `sys_${Date.now()}`;
-      createdSysId = newSysId;
-      const name = customName || (prev.name ? `Sistema Visual: ${prev.name}` : 'Sistema Visual Principal');
-      
-      // Collect reference IDs
-      const allRefIds: string[] = Array.from(new Set(targetPatterns.flatMap(p => p.evidence || [])));
-      
-      const typoPatterns = targetPatterns.filter(p => p.category === 'typography');
-      const texturePatterns = targetPatterns.filter(p => p.category === 'texture');
-      const compPatterns = targetPatterns.filter(p => p.category === 'composition');
-      
-      // Default pillars from patterns
-      const aestheticPillars = targetPatterns.map(p => p.name).slice(0, 5);
-
-      const colorPalette = [
-        { hex: '#18181b', name: 'Base Neutra', role: 'Fondos & Superficies' },
-        { hex: '#fafafa', name: 'Luz de Contraste', role: 'Tipografía & Lectura' },
-        { hex: '#10b981', name: 'Acento Primario', role: 'Identidad & Enfoque' },
-        { hex: '#6366f1', name: 'Acento Complementario', role: 'Detalles & Gráfica' },
-        { hex: '#f59e0b', name: 'Acento Cálido', role: 'Packaging & Destacados' },
-      ];
-
-      const newSystem: VisualSystem = {
-        id: newSysId,
-        name,
-        description: `Estructura visual coherente formada a partir de ${targetPatterns.length} patrones validados en el moodboard.`,
-        patternIds: targetPatterns.map(p => p.id),
-        referenceIds: allRefIds,
-        status: 'active',
-        aestheticPillars,
-        colorPalette,
-        typographyRules: typoPatterns.map(p => p.description),
-        textureRules: texturePatterns.map(p => p.description),
-        compositionRules: compPatterns.map(p => p.description),
-        systemDetails: {
-          brandEssence: `Identidad emergente construida sobre los patrones: ${targetPatterns.map(p => p.name).join(', ')}.`,
-          logoAndIdentity: 'Logotipos con alto contraste, legibilidad clara y alineación al tono del sistema.',
-          packagingSystem: 'Superficies y envoltorios con armonía tonal y jerarquía de marca.',
-          photographyStyle: 'Fotografía con iluminación cuidada y encuadres alineados al moodboard.',
-          mascotAndIllustration: 'Recursos ilustrativos y gráficos secundarios que complementan la marca.',
-          graphicApplications: 'Diseño editorial e impreso con jerarquía tipográfica y grilla balanceada.',
-          digitalAndSocialMedia: 'Soportes digitales consistentes con la paleta y pesos tipográficos del sistema.',
-        },
-        createdAt: new Date().toISOString(),
-      };
-
-      // Mark target patterns as confirmed and assigned
-      const updatedPatterns = prev.patterns.map(p => {
-        if (targetPatterns.some(tp => tp.id === p.id)) {
-          return {
-            ...p,
-            status: 'confirmed' as const,
-            assignedSystemId: newSysId,
-          };
-        }
-        return p;
-      });
-
-      return {
-        ...prev,
-        patterns: updatedPatterns,
-        systems: [...prev.systems, newSystem],
-      };
-    });
-
-    setActiveTab('systems');
-
-    if (createdSysId) {
-      const idToSynthesize = createdSysId;
-      setTimeout(() => {
-        handleSynthesizeVisualSystem(idToSynthesize);
-      }, 200);
+  const handleImportSystemFile = async (file: File) => {
+    const data = parseVisualSystemJSON(await file.text());
+    if (!data) {
+      showToast({ message: 'El archivo no tiene la estructura de un sistema exportado por Emergent', tone: 'discarded' }, 5000);
+      return;
     }
-  };
-
-  const handleUpdateVisualSystem = (updated: VisualSystem) => {
-    setProject(prev => ({
-      ...prev,
-      systems: prev.systems.map(s => s.id === updated.id ? updated : s),
-    }));
-  };
-
-  const handleDeleteVisualSystem = (systemId: string) => {
-    setProject(prev => ({
-      ...prev,
-      systems: prev.systems.filter(s => s.id !== systemId),
-      patterns: prev.patterns.map(p => 
-        p.assignedSystemId === systemId ? { ...p, assignedSystemId: null } : p
-      ),
-    }));
-    if (activeApplyingSystem?.id === systemId) {
-      setActiveApplyingSystem(null);
-    }
-  };
-
-  const handleCreateNewProject = (projectData: { name: string; objective: string; description: string }) => {
-    const newProj: Project = {
-      ...INITIAL_EMPTY_PROJECT,
-      id: `proj_${Date.now()}`,
-      name: projectData.name,
-      objective: projectData.objective,
-      description: projectData.description,
-      createdAt: new Date().toISOString(),
-    };
-    setProjectsList(prev => [...prev, newProj]);
-    setActiveProjectId(newProj.id);
-    setSelectedReferenceIds([]);
-    setActiveEvidencePatternId(null);
-    setActiveApplyingSystem(null);
-  };
-
-  const handleSelectProject = (projectId: string) => {
-    setActiveProjectId(projectId);
-    setSelectedReferenceIds([]);
-    setActiveEvidencePatternId(null);
-    setActiveApplyingSystem(null);
-  };
-
-  const handleApplyVisualSystem = (system: VisualSystem) => {
-    setActiveApplyingSystem(system);
-  };
-
-  const handleBackFromApplication = () => {
-    setActiveApplyingSystem(null);
-  };
-
-  const handleImportVisualSystemData = (data: VisualSystemExportData) => {
-    if (!data || !data.system) return;
-
-    setProject(prev => {
-      const newSysId = `sys_${Date.now()}`;
-      const confirmedPatIds = (data.confirmedPatterns || []).map(p => p.id);
-      const supportingRefIds = (data.supportingReferences || []).map(r => r.id);
-
-      const importedSystem: VisualSystem = {
-        id: newSysId,
-        name: data.system.name,
-        description: data.system.description,
-        patternIds: confirmedPatIds,
-        referenceIds: supportingRefIds,
-        aestheticPillars: data.system.aestheticPillars || [],
-        colorPalette: data.system.colorPalette,
-        typographyRules: data.system.typographyRules,
-        textureRules: data.system.textureRules,
-        compositionRules: data.system.compositionRules,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-      };
-
-      // Merge patterns
-      const importedPatterns: Pattern[] = (data.confirmedPatterns || []).map(p => ({
-        id: p.id,
-        name: p.name,
-        category: p.category,
-        description: p.description,
-        evidence: p.evidence,
+    const sysId = uid('sys');
+    updateProject(prev => {
+      const importedPatterns: Pattern[] = (data.confirmedPatterns || []).map(x => ({
+        id: x.id,
+        name: x.name,
+        category: x.category,
+        description: x.description,
+        evidence: x.evidence,
         confidence: 0.95,
-        status: 'confirmed' as const,
-        assignedSystemId: newSysId,
-        designerNotes: p.designerNotes,
-        relatedObservations: ['Importado desde sistema confirmado'],
-        trend: 'strengthened' as const,
+        status: 'confirmed',
+        assignedSystemId: sysId,
+        designerNotes: x.designerNotes,
+        relatedObservations: ['Importado desde un sistema confirmado'],
+        trend: 'strengthened',
       }));
-
-      const importedPatternIdsSet = new Set(importedPatterns.map(p => p.id));
-      const filteredPrevPatterns = prev.patterns.filter(p => !importedPatternIdsSet.has(p.id));
-      const updatedPatterns = [...filteredPrevPatterns, ...importedPatterns];
-
-      // Merge references
       const importedRefs: Reference[] = (data.supportingReferences || []).map((r, i) => ({
         id: r.id,
         name: r.name,
         image: r.image,
         tags: r.tags || ['Importado'],
         notes: r.notes,
-        position: { x: 80 + (i % 4) * 300, y: 80 + Math.floor(i / 4) * 360 },
+        position: { x: 80 + (i % 4) * 300, y: 80 + Math.floor(i / 4) * 420 },
         width: 260,
         height: 340,
         createdAt: new Date().toISOString(),
       }));
-
-      const importedRefIdsSet = new Set(importedRefs.map(r => r.id));
-      const filteredPrevRefs = prev.references.filter(r => !importedRefIdsSet.has(r.id));
-      const updatedReferences = [...filteredPrevRefs, ...importedRefs];
-
+      const patIds = new Set(importedPatterns.map(x => x.id));
+      const refIds = new Set(importedRefs.map(x => x.id));
       return {
         ...prev,
-        systems: [...prev.systems, importedSystem],
-        patterns: updatedPatterns,
-        references: updatedReferences,
-      };
-    });
-
-    setActiveTab('systems');
-    alert(`Sistema visual "${data.system.name}" importado exitosamente con ${data.confirmedPatterns?.length || 0} patrones y ${data.supportingReferences?.length || 0} referencias.`);
-  };
-
-  const handleDropFiles = (files: FileList) => {
-    const newRefs: Reference[] = [];
-    let processed = 0;
-
-    Array.from(files).forEach((file, index) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        if (dataUrl) {
-          const nextId = `ref_${String(project.references.length + index + 1).padStart(2, '0')}`;
-          const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-
-          newRefs.push({
-            id: nextId,
-            name: cleanName || `Referencia ${project.references.length + index + 1}`,
-            image: dataUrl,
-            position: {
-              x: 120 + (index % 4) * 310,
-              y: 120 + Math.floor(index / 4) * 380,
-            },
-            width: 260,
-            height: 340,
+        systems: [
+          ...prev.systems,
+          {
+            id: sysId,
+            name: data.system.name,
+            description: data.system.description,
+            patternIds: [...patIds],
+            referenceIds: [...refIds],
+            aestheticPillars: data.system.aestheticPillars || [],
+            colorPalette: data.system.colorPalette,
+            typographyRules: data.system.typographyRules,
+            textureRules: data.system.textureRules,
+            compositionRules: data.system.compositionRules,
+            status: 'active',
             createdAt: new Date().toISOString(),
-            tags: ['Drop Upload'],
-            isNew: true,
-          });
-        }
-
-        processed++;
-        if (processed === files.length) {
-          handleAddReferences(newRefs);
-        }
+          },
+        ],
+        patterns: [...prev.patterns.filter(x => !patIds.has(x.id)), ...importedPatterns],
+        references: [...prev.references.filter(x => !refIds.has(x.id)), ...importedRefs],
       };
-      reader.readAsDataURL(file);
     });
+    if (stage !== 'synthesis') setStage('synthesis');
+    showToast({ message: `Sistema importado · ${data.system.name} (${data.confirmedPatterns?.length || 0} patrones)`, tone: 'confirmed' }, 4000);
   };
 
-  const activeEvidencePattern = activeEvidencePatternId
-    ? project.patterns.find(p => p.id === activeEvidencePatternId) || null
-    : null;
+  // Se completan en el paso de síntesis por agrupación.
+  const handleInferPalette = (_systemId: string) => {};
+  const handleAdoptSuggestion = (_id: string) => {};
+  const handleDismissSuggestion = (_id: string) => {};
+
+  /* ========== ActionBar por etapa ========== */
+  const counts = useMemo(() => {
+    const ps = project.patterns;
+    return {
+      refs: project.references.length,
+      newRefs: project.references.filter(r => r.isNew).length,
+      pending: ps.filter(p => p.status === 'detected').length,
+      confirmed: ps.filter(p => p.status === 'confirmed').length,
+      discarded: ps.filter(p => p.status === 'discarded').length,
+    };
+  }, [project]);
+
+  let status: React.ReactNode = '';
+  let notice: React.ReactNode = null;
+  let primary: React.ReactNode = null;
+  let secondary: React.ReactNode = null;
+
+  if (stage === 'brief') {
+    const ok = !!briefDraft.name.trim() && !!briefDraft.objective.trim();
+    status = ok ? 'Brief listo' : 'Nombre y objetivo son obligatorios';
+    primary = (
+      <Button variant="primary" type="submit" form="brief-form" disabled={!ok}>
+        Continuar al corpus
+      </Button>
+    );
+  } else if (stage === 'corpus') {
+    const running = induction.status === 'running';
+    status = `${counts.refs} ${counts.refs === 1 ? 'referencia' : 'referencias'}${counts.newRefs && project.patterns.length ? ` · ${counts.newRefs} ${counts.newRefs === 1 ? 'nueva' : 'nuevas'}` : ''}`;
+    const missing = MIN_REFERENCES - counts.refs;
+    if (missing > 0) notice = `Faltan ${missing} para inducir`;
+    const hasPatterns = project.patterns.length > 0;
+    if (running) {
+      const n = (induction.tick % Math.max(counts.refs, 1)) + 1;
+      primary = (
+        <Button variant="primary" loading loadingText={`Induciendo ${n}/${counts.refs}`}>
+          Inducir patrones
+        </Button>
+      );
+      secondary = (
+        <Button variant="ghost" onClick={handleCancelInduction}>
+          Cancelar
+        </Button>
+      );
+    } else if (hasPatterns && counts.newRefs === 0) {
+      primary = (
+        <Button variant="primary" onClick={() => goToStage('audit')}>
+          Continuar a auditoría
+        </Button>
+      );
+      secondary = (
+        <Button variant="ghost" onClick={handleInduce} disabled={counts.refs < MIN_REFERENCES}>
+          Volver a inducir
+        </Button>
+      );
+    } else {
+      primary = (
+        <Button variant="primary" onClick={handleInduce} disabled={counts.refs < MIN_REFERENCES}>
+          {hasPatterns ? `Reinducir con ${counts.newRefs} ${counts.newRefs === 1 ? 'nueva' : 'nuevas'}` : 'Inducir patrones'}
+        </Button>
+      );
+    }
+  } else if (stage === 'audit') {
+    status = `${counts.confirmed} ${counts.confirmed === 1 ? 'confirmado' : 'confirmados'} · ${counts.discarded} ${counts.discarded === 1 ? 'descartado' : 'descartados'} · ${counts.pending} ${counts.pending === 1 ? 'pendiente' : 'pendientes'}`;
+    if (counts.pending > 0 && counts.confirmed > 0) notice = `Quedan ${counts.pending} sin juzgar`;
+    primary = (
+      <Button variant="primary" onClick={() => goToStage('synthesis')} disabled={counts.confirmed === 0}>
+        Pasar a síntesis
+      </Button>
+    );
+  } else if (stage === 'synthesis') {
+    const assigned = new Set(project.systems.flatMap(s => s.patternIds));
+    const confirmedIds = project.patterns.filter(p => p.status === 'confirmed').map(p => p.id);
+    const assignedCount = confirmedIds.filter(id => assigned.has(id)).length;
+    status = `${project.systems.length} ${project.systems.length === 1 ? 'sistema' : 'sistemas'} · ${assignedCount} de ${confirmedIds.length} patrones asignados (${pct(assignedCount, confirmedIds.length)}%)`;
+    secondary = (
+      <Button variant="ghost" onClick={() => downloadProjectMarkdown(project)}>
+        Dossier .md
+      </Button>
+    );
+    primary = (
+      <Button variant="primary" onClick={() => createSystem()}>
+        Nuevo sistema
+      </Button>
+    );
+  }
+
+  const rail = railItems(project, stage, induction.status === 'running');
+  const detailSystem = stage === 'synthesis' ? project.systems.find(s => s.id === systemDetailId) ?? null : null;
+  const applySystem = overlay?.kind === 'apply' ? project.systems.find(s => s.id === overlay.systemId) ?? null : null;
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-bg text-ink overflow-hidden font-sans">
-      {/* 1. Global Navigation Bar */}
-      <Navbar
+    <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink">
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-ctrl focus:bg-ink focus:px-3 focus:py-2 focus:text-bg">
+        Saltar al contenido
+      </a>
+      <TopBar
         project={project}
-        projectsList={projectsList}
+        projects={projectsList}
+        samples={SAMPLE_PROJECTS}
+        rail={rail}
+        onSelectStage={id => goToStage(id as VisitableStage)}
         onSelectProject={handleSelectProject}
-        onUpdateProjectMeta={handleUpdateProjectMeta}
-        onOpenUpload={() => setIsUploadModalOpen(true)}
-        onOpenThesisGuide={() => setIsThesisGuideOpen(true)}
-        onOpenNewProjectModal={() => setIsNewProjectModalOpen(true)}
-        onTriggerAnalysis={handleTriggerAnalysis}
-        isAnalyzing={isAnalyzing}
-        activeEvidencePatternId={activeEvidencePatternId}
-        onClearActiveEvidence={handleClearActiveEvidence}
-        isLeftSidebarOpen={isLeftSidebarOpen}
-        onToggleLeftSidebar={() => setIsLeftSidebarOpen(prev => !prev)}
-        isRightPanelOpen={isRightPanelOpen}
-        onToggleRightPanel={() => setIsRightPanelOpen(prev => !prev)}
+        onNewProject={handleNewProject}
+        onEditBrief={() => goToStage('brief')}
+        onOpenSample={handleOpenSample}
+        onExportProjectJson={() => exportProjectAsJSON(project)}
+        onDownloadDossier={() => downloadProjectMarkdown(project)}
+        onOpenLog={() => {}}
+        onOpenAbout={() => setOverlay({ kind: 'about' })}
+        isLogOpen={false}
       />
 
-      {/* Error notification banner if any */}
-      {errorMessage && (
-        <div className="bg-red-950/90 border-b border-red-800/80 px-4 py-2 text-xs text-red-200 flex items-center justify-between z-40 shrink-0">
-          <span>⚠️ {errorMessage}</span>
-          <button 
-            onClick={() => setErrorMessage(null)}
-            className="text-red-400 hover:text-white underline ml-4 text-[11px]"
-          >
-            Descartar
-          </button>
-        </div>
-      )}
-
-      {/* 2. Workspace: Either System Application View OR Moodboard Canvas + Panels */}
-      {activeApplyingSystem ? (
-        <SystemApplicationView
-          project={project}
-          system={activeApplyingSystem}
-          onBackToSystem={handleBackFromApplication}
-          onOpenLightbox={(ref) => setLightboxReference(ref)}
-        />
-      ) : (
-        <div className="flex-1 flex min-h-0 overflow-hidden relative">
-          {/* Left Sidebar */}
-          <Sidebar
+      <main id="main" tabIndex={-1} className="relative min-h-0 flex-1 outline-none">
+        {stage === 'brief' && (
+          <BriefStage
             project={project}
-            selectedReferenceIds={selectedReferenceIds}
-            onSelectReference={handleSelectReference}
-            onDeleteReference={handleDeleteReference}
-            onFocusReferenceOnCanvas={handleFocusReferenceOnCanvas}
-            onOpenInspectReference={(ref) => handleInspectReference(ref)}
-            isInspectingRef={isInspectingRef}
-            isOpen={isLeftSidebarOpen}
-            onToggle={() => setIsLeftSidebarOpen(prev => !prev)}
+            samples={SAMPLE_PROJECTS}
+            draft={briefDraft}
+            onDraftChange={setBriefDraft}
+            onSubmit={handleSubmitBrief}
+            onOpenSample={handleOpenSample}
           />
-
-          {/* Central Spatial Moodboard Canvas */}
-          <Canvas
-            references={project.references}
-            selectedReferenceIds={selectedReferenceIds}
-            onSelectReference={handleSelectReference}
-            onClearSelection={handleClearSelection}
-            onUpdateReferencePosition={handleUpdateReferencePosition}
+        )}
+        {stage === 'corpus' && (
+          <CorpusStage
+            key={project.id}
+            project={project}
+            view={view}
+            onViewChange={setView}
+            selectedId={selectedRefId}
+            onSelect={setSelectedRefId}
+            onAdd={() => setIsUploadOpen(true)}
+            onMove={handleMoveReference}
+            onResize={handleResizeReference}
+            onAddFiles={handleAddFiles}
             onUpdateReference={handleUpdateReference}
             onDeleteReference={handleDeleteReference}
-            onOpenInspectReference={handleInspectReference}
-            onOpenLightbox={(ref) => setLightboxReference(ref)}
-            onOpenUpload={() => setIsUploadModalOpen(true)}
-            onDropFiles={handleDropFiles}
-            onAddReferences={handleAddReferences}
-            activeEvidencePattern={activeEvidencePattern}
-            onClearActiveEvidence={handleClearActiveEvidence}
-            onTriggerAnalysis={handleTriggerAnalysis}
-            isAnalyzing={isAnalyzing}
+            onInspect={handleInspectReference}
+            onOpenLightbox={setLightboxRef}
+            inspectingIds={inspectingIds}
+            inspectErrors={inspectErrors}
+            induction={induction}
+            onRetryInduction={handleInduce}
+            onDismissInductionError={() => setInduction({ status: 'idle', tick: 0 })}
           />
-
-          {/* Right Discovery & Visual Systems Engine Panel */}
-          <RightPanel
+        )}
+        {stage === 'audit' && (
+          <AuditStage
+            key={project.id}
             project={project}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            onConfirmPattern={handleStartConfirmPattern}
-            onDiscardPattern={handleDiscardPattern}
-            onRestorePattern={handleRestorePattern}
-            onExplorePatternEvidence={handleExplorePatternEvidence}
-            onClearActiveEvidence={handleClearActiveEvidence}
-            activeEvidencePatternId={activeEvidencePatternId}
-            selectedReference={selectedReference}
-            onInspectReference={handleInspectReference}
-            isInspectingRef={isInspectingRef}
-            onOpenFeedbackModal={(pattern, ref) => setFeedbackContext({ pattern, ref })}
-            onCreateVisualSystem={handleCreateVisualSystem}
-            onConsolidateVisualSystem={handleConsolidateVisualSystem}
-            onSynthesizeVisualSystem={handleSynthesizeVisualSystem}
-            onUpdateVisualSystem={handleUpdateVisualSystem}
-            onDeleteVisualSystem={handleDeleteVisualSystem}
-            onApplyVisualSystem={handleApplyVisualSystem}
-            onImportVisualSystemData={handleImportVisualSystemData}
-            onTriggerAnalysis={handleTriggerAnalysis}
-            isAnalyzing={isAnalyzing}
-            isOpen={isRightPanelOpen}
-            onToggle={() => setIsRightPanelOpen(prev => !prev)}
+            filter={auditFilter}
+            onFilterChange={setAuditFilter}
+            index={auditIndex}
+            onIndexChange={setAuditIndex}
+            onConfirm={handleConfirmPattern}
+            onDiscard={handleDiscardPattern}
+            onSaveNote={handleSaveNote}
+            onRestore={handleRestorePattern}
+            onOpenReference={setLightboxRef}
+            view={view}
+            onViewChange={setView}
           />
+        )}
+        {stage === 'synthesis' && (
+          <div className="flex h-full min-h-0">
+            <div className="min-w-0 flex-1">
+              <SynthesisStage
+                project={project}
+                focusSystemId={focusSystemId}
+                synthesisErrors={synthesisErrors}
+                onRenameSystem={(id, name) => updateSystem(id, s => ({ ...s, name, updatedAt: new Date().toISOString() }))}
+                onAssign={handleAssign}
+                onUnassign={handleUnassign}
+                onCreateSystemWithPattern={pid => createSystem([pid])}
+                onSynthesize={handleSynthesize}
+                onOpenGuidelines={id => setOverlay({ kind: 'apply', systemId: id })}
+                onOpenDetail={setSystemDetailId}
+                onDeleteSystem={handleDeleteSystem}
+                onInferPalette={handleInferPalette}
+                onAdoptSuggestion={handleAdoptSuggestion}
+                onDismissSuggestion={handleDismissSuggestion}
+                onImportFile={handleImportSystemFile}
+              />
+            </div>
+            <DockPanel open={!!detailSystem} title={detailSystem?.name ?? ''} meta={detailSystem ? `Sistema · ${detailSystem.id}` : undefined} onClose={() => setSystemDetailId(null)}>
+              {detailSystem && (
+                <SystemDetail project={project} system={detailSystem} onUpdate={s => updateSystem(s.id, () => s)} onFocusReference={() => {}} />
+              )}
+            </DockPanel>
+          </div>
+        )}
+      </main>
+
+      <ActionBar status={status} notice={notice} toast={toast} onDismissToast={dismissToast} secondary={secondary} primary={primary} />
+
+      <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} />
+      <LightboxModal reference={lightboxRef} onClose={() => setLightboxRef(null)} />
+
+      {overlay?.kind === 'about' && <AboutView onBack={() => setOverlay(null)} />}
+      {applySystem && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-bg" data-overlay-open="true">
+          <SystemApplicationView project={project} system={applySystem} onBackToSystem={() => setOverlay(null)} onOpenLightbox={setLightboxRef} />
         </div>
       )}
-
-      {/* 3. Global Interactive Modals */}
-      <UploadModal
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onAddReferences={handleAddReferences}
-        existingCount={project.references.length}
-      />
-
-      <LightboxModal
-        isOpen={!!lightboxReference}
-        onClose={() => setLightboxReference(null)}
-        reference={lightboxReference}
-        onInspect={handleInspectReference}
-      />
-
-      <AssignSystemModal
-        isOpen={!!patternToAssign}
-        onClose={() => setPatternToAssign(null)}
-        pattern={patternToAssign}
-        systems={project.systems}
-        onConfirm={handleCompleteConfirmPattern}
-      />
-
-      <FeedbackModal
-        isOpen={!!feedbackContext}
-        onClose={() => setFeedbackContext(null)}
-        pattern={feedbackContext?.pattern || null}
-        reference={feedbackContext?.ref || null}
-        onSubmitFeedback={(fb) => {
-          const item: FeedbackItem = {
-            id: `fb_${Date.now()}`,
-            ...fb,
-            createdAt: new Date().toISOString(),
-          };
-          setProject(prev => ({ ...prev, feedback: [...prev.feedback, item] }));
-        }}
-      />
-
-      <ThesisConceptModal
-        isOpen={isThesisGuideOpen}
-        onClose={() => setIsThesisGuideOpen(false)}
-      />
-
-      <NewProjectModal
-        isOpen={isNewProjectModalOpen}
-        onClose={() => setIsNewProjectModalOpen(false)}
-        onCreateProject={handleCreateNewProject}
-      />
-
-      <AnalysisProgressModal
-        isOpen={isAnalyzing}
-        stepIndex={analysisStepIndex}
-        totalReferencesCount={project.references.length}
-      />
     </div>
   );
 }

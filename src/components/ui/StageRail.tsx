@@ -42,7 +42,7 @@ function isInteractive(s: StageRailItem) {
 export function StageRail({ stages, onSelect }: StageRailProps) {
   const baseId = useId();
   return (
-    <nav aria-label="Etapas del método" className="hidden min-w-0 flex-1 lg:flex">
+    <nav aria-label="Etapas del método" className="hidden min-w-0 max-w-[880px] flex-1 lg:flex">
       <ol className="flex w-full items-stretch overflow-x-auto rounded-card border border-line bg-surface">
         {stages.map((s, i) => {
           const interactive = isInteractive(s);
@@ -56,7 +56,7 @@ export function StageRail({ stages, onSelect }: StageRailProps) {
                 aria-current={s.state === 'current' ? 'step' : undefined}
                 aria-disabled={blocked || undefined}
                 aria-describedby={s.requirement && blocked ? tipId : undefined}
-                className={`flex w-full flex-col items-start gap-1 px-4 py-2 text-left transition-colors duration-120 ease-emergent ${
+                className={`flex w-full flex-col items-start gap-0 px-4 py-1 text-left transition-colors duration-120 ease-emergent ${
                   s.state === 'current' ? 'bg-raised' : 'hover:bg-white/[.03]'
                 } ${s.state === 'locked' ? 'text-ink-3' : 'text-ink'} ${blocked ? 'cursor-not-allowed hover:bg-transparent' : ''} ${
                   i === 0 ? 'rounded-l-card' : ''
@@ -66,7 +66,7 @@ export function StageRail({ stages, onSelect }: StageRailProps) {
                   <StatusDot tone={STATE_TONE[s.state]} glow={s.state === 'done'} />
                   {s.num} · {STATE_TEXT[s.state]}
                 </span>
-                <span className="text-sm font-medium">{s.label}</span>
+                <span className="text-sm font-medium leading-5">{s.label}</span>
               </button>
               {s.requirement && blocked && (
                 <span
@@ -109,10 +109,10 @@ export function StageRailCompact({ stages, onSelect }: StageRailProps) {
   }, [open]);
 
   return (
-    <nav aria-label="Etapas del método" className="relative lg:hidden" ref={wrapRef}>
+    <nav aria-label="Etapas del método" className="relative min-w-0 lg:hidden" ref={wrapRef}>
       <button
         type="button"
-        className="btn btn-ghost h-11 text-ink"
+        className="btn btn-ghost h-11 max-w-full gap-1.5 px-2 text-ink"
         aria-expanded={open}
         aria-controls={menuId}
         onClick={() => setOpen(o => !o)}
@@ -120,7 +120,7 @@ export function StageRailCompact({ stages, onSelect }: StageRailProps) {
         <span className="font-mono text-xs text-ink-2">
           {current.num} / {String(stages.length).padStart(2, '0')}
         </span>
-        <span>· {current.label}</span>
+        <span className="truncate">· {current.label}</span>
         <ChevronDown aria-hidden="true" />
       </button>
       {open && (

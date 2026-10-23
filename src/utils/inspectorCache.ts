@@ -1,48 +1,46 @@
 /**
- * Client-side localStorage cache for individual reference breakdowns (Deep Inspector)
+ * Caché en localStorage de los desgloses individuales (inspector de referencia).
+ * La clave incluye el proyecto: el mismo ID (ref_01) puede existir en varios proyectos.
  */
+import { ReferenceBreakdown } from '../types';
 
-const CACHE_PREFIX = 'emergent_ref_breakdown_v1_';
+const CACHE_PREFIX = 'emergent_ref_breakdown_v2_';
+const keyFor = (projectId: string, refId: string) => `${CACHE_PREFIX}${projectId}_${refId}`;
 
-export function getCachedBreakdown(refId: string): any | null {
+export function getCachedBreakdown(projectId: string, refId: string): ReferenceBreakdown | null {
   try {
-    const key = `${CACHE_PREFIX}${refId}`;
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(keyFor(projectId, refId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed && parsed.data) {
-      return parsed.data;
-    }
-    return null;
+    return parsed?.data ?? null;
   } catch (err) {
-    console.warn('Error reading breakdown cache for ref:', refId, err);
+    console.warn('Error leyendo el caché del desglose:', refId, err);
     return null;
   }
 }
 
-export function setCachedBreakdown(refId: string, breakdownData: any): void {
+export function setCachedBreakdown(projectId: string, refId: string, data: ReferenceBreakdown): void {
   try {
-    const key = `${CACHE_PREFIX}${refId}`;
-    localStorage.setItem(
-      key,
-      JSON.stringify({
-        data: breakdownData,
-        cachedAt: new Date().toISOString(),
-      })
-    );
+    localStorage.setItem(keyFor(projectId, refId), JSON.stringify({ data, cachedAt: new Date().toISOString() }));
   } catch (err) {
-    console.warn('Error writing breakdown cache for ref:', refId, err);
+    console.warn('Error guardando el caché del desglose:', refId, err);
+  }
+}
+
+export function clearCachedBreakdown(projectId: string, refId: string): void {
+  try {
+    localStorage.removeItem(keyFor(projectId, refId));
+  } catch {
+    /* noop */
   }
 }
 
 export function clearBreakdownCache(): void {
   try {
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith(CACHE_PREFIX)) {
-        localStorage.removeItem(key);
-      }
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith(CACHE_PREFIX) || key.startsWith('emergent_ref_breakdown_v1_')) localStorage.removeItem(key);
     });
   } catch (err) {
-    console.warn('Error clearing breakdown cache:', err);
+    console.warn('Error limpiando el caché de desgloses:', err);
   }
 }
