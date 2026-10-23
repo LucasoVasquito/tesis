@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pattern, Project, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
+import { LogItem, LogKind, Pattern, Project, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
 import { evidenceReferences, inferPalette } from './utils/palette';
 import { SAMPLE_PROJECTS, createEmptyProject } from './data/sampleProjects';
 import { compressImageString, compressReferences } from './utils/imageCompressor';
 import { clearCachedBreakdown, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
 import { downloadProjectMarkdown, exportProjectAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
-import { filesToReferences, makeFeedback, migrateProject, uid } from './utils/project';
+import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid } from './utils/project';
 import { MIN_REFERENCES, canEnter, initialStage, isBriefComplete, railItems } from './utils/stages';
 
 import { Button } from './components/ui';
@@ -18,6 +18,8 @@ import { LightboxModal } from './components/LightboxModal';
 import { AboutView } from './components/AboutView';
 import { SystemDetail } from './components/synthesis/SystemDetail';
 import { SystemApplicationView } from './components/SystemApplicationView';
+import { GuidelinesView } from './components/GuidelinesView';
+import { LogDrawer } from './components/LogDrawer';
 
 import { BriefDraft, BriefStage } from './stages/BriefStage';
 import { CorpusStage, InductionState } from './stages/CorpusStage';
@@ -28,7 +30,7 @@ const LIST_KEY = 'emergent_projects_list_v4';
 const ACTIVE_KEY = 'emergent_active_project_v4';
 const LEGACY_SINGLE_KEY = 'emergent_visual_system_project_v3';
 
-type Overlay = null | { kind: 'about' } | { kind: 'apply'; systemId: string };
+type Overlay = null | { kind: 'about' } | { kind: 'guidelines'; systemId: string } | { kind: 'apply'; systemId: string };
 
 /** Claves que usaba el onboarding anterior (fuera de React). Ya no se leen. */
 const LEGACY_ONBOARDING_KEYS = ['emergent_user_brief_confirmed', 'emergent_visual_system_projects_store_v4'];
@@ -94,6 +96,7 @@ export default function App() {
   const [focusSystemId, setFocusSystemId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isLogOpen, setIsLogOpen] = useState(false);
   const [lightboxRef, setLightboxRef] = useState<Reference | null>(null);
   const [briefDraft, setBriefDraft] = useState<BriefDraft>({ name: project.name, objective: project.objective, description: project.description });
 
@@ -117,6 +120,16 @@ export default function App() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(null);
   }, []);
+
+  /** Agrega entradas a la bitácora del proyecto. */
+  const addLog = useCallback(
+    (kind: LogKind, targetId: string, label: string, reason?: string, opts: { feedbackId?: string; projectId?: string } = {}): LogItem => {
+      const item = makeLog(kind, targetId, label, reason, opts.feedbackId);
+      updateProject(p => ({ ...p, log: [...(p.log ?? []), item] }), opts.projectId);
+      return item;
+    },
+    [updateProject],
+  );
 
   /* ========== Etapas ========== */
   // Persistir la etapa en el proyecto para recuperarla al recargar.
@@ -187,7 +200,9 @@ export default function App() {
   const handleSubmitBrief = () => {
     const d = { name: briefDraft.name.trim(), objective: briefDraft.objective.trim(), description: briefDraft.description.trim() };
     if (!d.name || !d.objective) return;
+    const changed = d.name !== project.name || d.objective !== project.objective || d.description !== project.description;
     updateProject(p => ({ ...p, ...d }));
+    if (changed) addLog('brief', 'brief', isBriefComplete(project) ? 'Brief actualizado' : 'Brief definido', d.objective);
     setStage('corpus');
   };
 
@@ -321,24 +336,9 @@ export default function App() {
       }
 
       const { patterns: detected = [], suggestedSystems = [] } = result.data || {};
-      let newCount = 0;
+      // La fusión se calcula una vez (el corpus está bloqueado durante la inducción).
+      const { merged, newCount } = mergeInducedPatterns(projectRef.current.patterns, detected);
       updateProject(prev => {
-        const confirmed = prev.patterns.filter(x => x.status === 'confirmed');
-        const discarded = prev.patterns.filter(x => x.status === 'discarded');
-        const sameAs = (a: Pattern, b: any) => a.id === b.id || a.name.toLowerCase() === String(b.name || '').toLowerCase();
-
-        const merged: Pattern[] = detected.map((d: any) => {
-          const c = confirmed.find(x => sameAs(x, d));
-          if (c) return { ...d, id: c.id, status: 'confirmed' as const, assignedSystemId: c.assignedSystemId, designerNotes: c.designerNotes, trend: 'strengthened' as const };
-          const x = discarded.find(y => sameAs(y, d));
-          if (x) return { ...d, id: x.id, status: 'discarded' as const, discardReason: x.discardReason, designerNotes: x.designerNotes, trend: 'stable' as const };
-          newCount++;
-          return { ...d, status: 'detected' as const, trend: d.trend || 'new' };
-        });
-        // Las decisiones humanas nunca se pierden aunque la IA no vuelva a proponer el patrón.
-        confirmed.forEach(c => !merged.some(m => m.id === c.id) && merged.unshift({ ...c, trend: 'weakened' }));
-        discarded.forEach(d => !merged.some(m => m.id === d.id) && merged.push(d));
-
         return {
           ...prev,
           status: 'analyzed',
@@ -350,6 +350,7 @@ export default function App() {
         };
       }, projectId);
 
+      addLog('induce', 'corpus', `Inducción · ${p.references.length} referencias, ${detected.length} patrones (${newCount} nuevos)`, p.patterns.length ? 'Reinducción con decisiones previas como contexto.' : 'Primera lectura del corpus.', { projectId });
       setInduction({ status: 'idle', tick: 0 });
       if (projectRef.current.id === projectId) {
         setAuditFilter('pending');
@@ -408,6 +409,7 @@ export default function App() {
   const handleConfirmPattern = (pattern: Pattern) => {
     const after = setPatterns(ps => ps.map(p => (p.id === pattern.id ? { ...p, status: 'confirmed' as const } : p)));
     advanceAfterDecision(pattern.id, after);
+    addLog('confirm', pattern.id, `Confirmado · ${pattern.name}`);
     showToast({ message: `Confirmado · ${pattern.id}`, tone: 'confirmed' });
   };
 
@@ -421,11 +423,13 @@ export default function App() {
       feedback: [...p.feedback, fb],
     }));
     advanceAfterDecision(pattern.id, after);
+    addLog('discard', pattern.id, `Descartado · ${pattern.name}`, reason, { feedbackId: fb.id });
     showToast({ message: `Descartado · ${pattern.id}`, tone: 'discarded' });
   };
 
   const handleSaveNote = (pattern: Pattern, note: string) => {
     setPatterns(ps => ps.map(p => (p.id === pattern.id ? { ...p, designerNotes: note || undefined } : p)));
+    addLog('note', pattern.id, note ? 'Nota del diseñador' : 'Nota borrada', note || undefined);
     showToast({ message: note ? `Nota guardada · ${pattern.id}` : `Nota borrada · ${pattern.id}` });
   };
 
@@ -435,6 +439,7 @@ export default function App() {
       patterns: p.patterns.map(x => (x.id === pattern.id ? { ...x, status: 'detected' as const, assignedSystemId: null } : x)),
       systems: p.systems.map(s => ({ ...s, patternIds: s.patternIds.filter(id => id !== pattern.id) })),
     }));
+    addLog('restore', pattern.id, `Restaurado a pendiente · ${pattern.name}`);
     showToast({ message: `Restaurado a pendiente · ${pattern.id}`, tone: 'pending' });
   };
 
@@ -459,6 +464,7 @@ export default function App() {
       patterns: p.patterns.map(x => (patternIds.includes(x.id) ? { ...x, assignedSystemId: id } : x)),
     }));
     setFocusSystemId(id);
+    addLog('system_create', id, `Sistema creado · ${sys.name}`, patternIds.length ? `Con ${patternIds.join(', ')}` : undefined);
     return sys;
   };
 
@@ -471,10 +477,13 @@ export default function App() {
       patterns: p.patterns.map(x => (x.id === patternId ? { ...x, assignedSystemId: systemId } : x)),
     }));
     const sys = projectRef.current.systems.find(s => s.id === systemId);
+    addLog('assign', patternId, `Asignado → ${sys?.name ?? systemId}`);
     showToast({ message: `${patternId} → ${sys?.name ?? systemId}`, tone: 'confirmed' });
   };
 
   const handleUnassign = (patternId: string, systemId: string) => {
+    const sysName = projectRef.current.systems.find(s => s.id === systemId)?.name ?? systemId;
+    addLog('unassign', patternId, `Quitado de ${sysName}`);
     updateProject(p => {
       const systems = p.systems.map(s => (s.id === systemId ? { ...s, patternIds: s.patternIds.filter(id => id !== patternId) } : s));
       const still = systems.find(s => s.patternIds.includes(patternId));
@@ -490,6 +499,7 @@ export default function App() {
       patterns: p.patterns.map(x => (x.assignedSystemId === id ? { ...x, assignedSystemId: null } : x)),
     }));
     if (systemDetailId === id) setSystemDetailId(null);
+    addLog('system_delete', id, `Sistema eliminado · ${sys?.name ?? id}`);
     showToast({ message: `Sistema eliminado · ${sys?.name ?? id}`, tone: 'discarded' });
   };
 
@@ -548,6 +558,7 @@ export default function App() {
         }),
         projectId,
       );
+      addLog('synthesize', systemId, `Redactado con IA · ${sys.name}`, `${sysPatterns.length} patrones, ${sysRefs.length} referencias`, { projectId });
       showToast({ message: `Sistema redactado · ${sys.name}`, tone: 'confirmed' });
     } catch (err: any) {
       updateProject(x => ({ ...x, systems: x.systems.map(s => (s.id === systemId ? { ...s, isSynthesizing: false } : s)) }), projectId);
@@ -612,6 +623,7 @@ export default function App() {
         references: [...prev.references.filter(x => !refIds.has(x.id)), ...importedRefs],
       };
     });
+    addLog('import', sysId, `Sistema importado · ${data.system.name}`, `${data.confirmedPatterns?.length || 0} patrones desde .json`);
     if (stage !== 'synthesis') setStage('synthesis');
     showToast({ message: `Sistema importado · ${data.system.name} (${data.confirmedPatterns?.length || 0} patrones)`, tone: 'confirmed' }, 4000);
   };
@@ -682,6 +694,7 @@ export default function App() {
       suggestedSystems: (x.suggestedSystems ?? []).filter(s => s.id !== id),
       patterns: x.patterns.map(pt => (patternIds.includes(pt.id) ? { ...pt, assignedSystemId: sysId } : pt)),
     }));
+    addLog('system_adopt', sysId, `Sugerencia adoptada · ${sug.name}`, patternIds.length ? `Con ${patternIds.join(', ')}` : 'Sin patrones confirmados asociados');
     showToast({ message: `Sugerencia adoptada · ${sug.name} (${patternIds.length} patrones confirmados)`, tone: 'confirmed' });
     // La paleta se infiere del corpus; no se toma la propuesta por la IA.
     if (patternIds.length) setTimeout(() => handleInferPalette(sysId, true), 0);
@@ -690,7 +703,15 @@ export default function App() {
   const handleDismissSuggestion = (id: string) => {
     const sug = projectRef.current.suggestedSystems?.find(s => s.id === id);
     updateProject(x => ({ ...x, suggestedSystems: (x.suggestedSystems ?? []).filter(s => s.id !== id) }));
+    addLog('system_dismiss', id, `Sugerencia descartada · ${sug?.name ?? id}`);
     showToast({ message: `Sugerencia descartada · ${sug?.name ?? id}` });
+  };
+
+  const handleAddRule = (fb: { type: 'designer_rule' | 'scope_refinement' | 'reference_exclusion' | 'pattern_rejection'; comment: string }) => {
+    const item = makeFeedback({ type: fb.type, comment: fb.comment });
+    updateProject(p => ({ ...p, feedback: [...p.feedback, item] }));
+    addLog('feedback', 'proyecto', fb.type === 'designer_rule' ? 'Regla del diseñador' : fb.type === 'scope_refinement' ? 'Ajuste de alcance' : 'Exclusión de referencia', fb.comment, { feedbackId: item.id });
+    showToast({ message: 'Regla guardada · se usa en la próxima inducción', tone: 'evidence' });
   };
 
   /* ========== ActionBar por etapa ========== */
@@ -791,6 +812,7 @@ export default function App() {
   const rail = railItems(project, stage, induction.status === 'running');
   const detailSystem = stage === 'synthesis' ? project.systems.find(s => s.id === systemDetailId) ?? null : null;
   const applySystem = overlay?.kind === 'apply' ? project.systems.find(s => s.id === overlay.systemId) ?? null : null;
+  const guidelinesSystem = overlay?.kind === 'guidelines' ? project.systems.find(s => s.id === overlay.systemId) ?? null : null;
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink">
@@ -809,12 +831,12 @@ export default function App() {
         onOpenSample={handleOpenSample}
         onExportProjectJson={() => exportProjectAsJSON(project)}
         onDownloadDossier={() => downloadProjectMarkdown(project)}
-        onOpenLog={() => {}}
+        onOpenLog={() => setIsLogOpen(o => !o)}
         onOpenAbout={() => setOverlay({ kind: 'about' })}
-        isLogOpen={false}
+        isLogOpen={isLogOpen}
       />
 
-      <main id="main" tabIndex={-1} className="relative min-h-0 flex-1 outline-none">
+      <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none ${overlay ? 'print:hidden' : ''}`}>
         {stage === 'brief' && (
           <BriefStage
             project={project}
@@ -877,7 +899,7 @@ export default function App() {
                 onUnassign={handleUnassign}
                 onCreateSystemWithPattern={pid => createSystem([pid])}
                 onSynthesize={handleSynthesize}
-                onOpenGuidelines={id => setOverlay({ kind: 'apply', systemId: id })}
+                onOpenGuidelines={id => setOverlay({ kind: 'guidelines', systemId: id })}
                 onOpenDetail={setSystemDetailId}
                 onDeleteSystem={handleDeleteSystem}
                 onInferPalette={handleInferPalette}
@@ -901,10 +923,25 @@ export default function App() {
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} />
       <LightboxModal reference={lightboxRef} onClose={() => setLightboxRef(null)} />
 
+      <LogDrawer open={isLogOpen} project={project} onClose={() => setIsLogOpen(false)} onAddRule={handleAddRule} />
+
       {overlay?.kind === 'about' && <AboutView onBack={() => setOverlay(null)} />}
+      {guidelinesSystem && (
+        <GuidelinesView
+          project={project}
+          system={guidelinesSystem}
+          onBack={() => setOverlay(null)}
+          onTryPiece={() => setOverlay({ kind: 'apply', systemId: guidelinesSystem.id })}
+        />
+      )}
       {applySystem && (
         <div className="fixed inset-0 z-40 flex flex-col bg-bg" data-overlay-open="true">
-          <SystemApplicationView project={project} system={applySystem} onBackToSystem={() => setOverlay(null)} onOpenLightbox={setLightboxRef} />
+          <SystemApplicationView
+            project={project}
+            system={applySystem}
+            onBackToSystem={() => setOverlay({ kind: 'guidelines', systemId: applySystem.id })}
+            onOpenLightbox={setLightboxRef}
+          />
         </div>
       )}
     </div>

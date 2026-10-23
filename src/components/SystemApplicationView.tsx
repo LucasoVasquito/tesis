@@ -34,7 +34,6 @@ import {
   ApplicationIteration,
   AIEngineType,
 } from '../types';
-import { ExportBrandGuidelinesModal } from './ExportBrandGuidelinesModal';
 
 interface SystemApplicationViewProps {
   project: Project;
@@ -89,7 +88,6 @@ export const SystemApplicationView: React.FC<SystemApplicationViewProps> = ({
   const [anchorIterationId, setAnchorIterationId] = useState<string | null>(null);
 
   // Export Modal State
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Inspector de Prompt Maestro
   const [showPromptInspector, setShowPromptInspector] = useState(false);
@@ -492,14 +490,7 @@ Strict Directive: Render ONLY the requested subject "${rawUserText}". Do NOT add
 
         {/* Action Header Items */}
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => setIsExportModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 text-xs font-semibold border border-emerald-800 transition-colors shadow-sm"
-            title="Exportar Ficha Técnica y Manual de Marca (PDF / Markdown)"
-          >
-            <FileText className="w-4 h-4 text-emerald-400" />
-            <span>Exportar Manual de Marca</span>
-          </button>
+
 
           <div className="flex items-center gap-2 bg-gradient-to-r from-emerald-950/80 to-indigo-950/80 px-3 py-1.5 rounded-xl border border-emerald-700/50 shadow-sm">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -1547,12 +1538,7 @@ Strict Directive: Render ONLY the requested subject "${rawUserText}". Do NOT add
 
       </div>
 
-      <ExportBrandGuidelinesModal
-        isOpen={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        project={project}
-        system={system}
-      />
+
     </main>
   );
 };

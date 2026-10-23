@@ -359,41 +359,31 @@
 
 /* ---------- Impresión (PDF de lineamientos) ---------- */
 @media print {
-  body {
+  html,
+  body,
+  #root {
+    height: auto;
     overflow: visible;
     background: #fff;
-    color: #000;
+    color: #111;
   }
   .no-print {
     display: none !important;
   }
-}
-
-/* ========================================================
-   LEGADO · Se elimina en el paso 2 junto con los componentes viejos
-   ======================================================== */
-.font-display {
-  font-family: var(--font-sans);
-  letter-spacing: -0.02em;
-}
-.glass-panel {
-  background: rgba(17, 17, 20, 0.92);
-  border: 1px solid var(--color-line);
-}
-.glass-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-}
-.bg-dot-grid {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 24px 24px;
-}
-.badge-tech {
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-.animate-fade-in {
-  animation: em-fade-in 180ms var(--ease-emergent);
+  /* El manual se imprime en tinta oscura sobre papel */
+  .guidelines,
+  .guidelines * {
+    color: #111 !important;
+    border-color: #d4d4d8 !important;
+    box-shadow: none !important;
+  }
+  .guidelines *:not([style*="background"]) {
+    background-color: transparent !important;
+  }
+  .guidelines [style*="background"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 
 /* Áreas táctiles de 44px como mínimo en pantallas táctiles */

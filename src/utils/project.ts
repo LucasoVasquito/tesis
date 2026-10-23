@@ -1,4 +1,4 @@
-import { FeedbackItem, LogItem, LogKind, Project, Reference } from '../types';
+import { FeedbackItem, LogItem, LogKind, Pattern, Project, Reference } from '../types';
 import {
   LEGACY_PLACEHOLDER_DESCRIPTION_PREFIX,
   LEGACY_PLACEHOLDER_NAME,
@@ -125,4 +125,26 @@ export function formatLogTime(iso: string) {
   const hm = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
   if (d.toDateString() === today.toDateString()) return hm;
   return `${d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })} ${hm}`;
+}
+
+/**
+ * Fusiona los patrones de una nueva inducción con las decisiones previas del diseñador.
+ * Lo confirmado o descartado conserva su ID, estado y notas; nunca se pierde aunque la IA no lo repita.
+ */
+export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { merged: Pattern[]; newCount: number } {
+  const confirmed = previous.filter(x => x.status === 'confirmed');
+  const discarded = previous.filter(x => x.status === 'discarded');
+  const sameAs = (a: Pattern, b: any) => a.id === b.id || a.name.toLowerCase() === String(b?.name || '').toLowerCase();
+  let newCount = 0;
+  const merged: Pattern[] = detected.map((d: any) => {
+    const c = confirmed.find(x => sameAs(x, d));
+    if (c) return { ...d, id: c.id, status: 'confirmed' as const, assignedSystemId: c.assignedSystemId, designerNotes: c.designerNotes, trend: 'strengthened' as const };
+    const x = discarded.find(y => sameAs(y, d));
+    if (x) return { ...d, id: x.id, status: 'discarded' as const, discardReason: x.discardReason, designerNotes: x.designerNotes, trend: 'stable' as const };
+    newCount++;
+    return { ...d, evidence: Array.isArray(d.evidence) ? d.evidence : [], relatedObservations: Array.isArray(d.relatedObservations) ? d.relatedObservations : [], status: 'detected' as const, trend: d.trend || 'new' };
+  });
+  confirmed.forEach(c => !merged.some(m => m.id === c.id) && merged.unshift({ ...c, trend: 'weakened' }));
+  discarded.forEach(d => !merged.some(m => m.id === d.id) && merged.push(d));
+  return { merged, newCount };
 }
