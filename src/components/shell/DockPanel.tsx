@@ -1,4 +1,4 @@
-import React, { useEffect, useId } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 import { IconButton } from '../ui';
 import { useIsDesktop } from '../../hooks/useMediaQuery';
@@ -13,6 +13,8 @@ interface DockPanelProps {
   onClose: () => void;
   /** Contenido fijo arriba del cuerpo (p. ej. navegación entre patrones). */
   toolbar?: React.ReactNode;
+  /** Cuando cambia, el cuerpo vuelve arriba (p. ej. al pasar de un patrón a otro). */
+  scrollKey?: string;
   children: React.ReactNode;
 }
 
@@ -20,10 +22,14 @@ interface DockPanelProps {
  * Panel acoplable único. En escritorio es un <aside role="complementary"> a la derecha;
  * en mobile y tablet es una hoja inferior al 70% de la altura, con role="dialog" y foco atrapado.
  */
-export function DockPanel({ open, title, meta, width = 380, onClose, toolbar, children }: DockPanelProps) {
+export function DockPanel({ open, title, meta, width = 380, onClose, toolbar, scrollKey, children }: DockPanelProps) {
   const isDesktop = useIsDesktop();
   const titleId = useId();
   const sheetRef = useFocusTrap<HTMLDivElement>(open && !isDesktop, onClose);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 });
+  }, [scrollKey]);
 
   // En escritorio, Esc cierra el panel salvo que otro control ya haya usado la tecla.
   useEffect(() => {
@@ -65,7 +71,7 @@ export function DockPanel({ open, title, meta, width = 380, onClose, toolbar, ch
       >
         {header}
         {toolbar && <div className="shrink-0 border-b border-line px-5 py-3">{toolbar}</div>}
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto">{children}</div>
       </aside>
     );
   }
@@ -84,7 +90,7 @@ export function DockPanel({ open, title, meta, width = 380, onClose, toolbar, ch
         <span aria-hidden="true" className="mx-auto mt-2 h-1 w-10 rounded-full bg-line-strong" />
         {header}
         {toolbar && <div className="shrink-0 border-b border-line px-5 py-3">{toolbar}</div>}
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

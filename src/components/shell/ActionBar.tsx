@@ -35,8 +35,9 @@ export function ActionBar({ status, notice, toast, onDismissToast, secondary, pr
                 type="button"
                 className="btn btn-ghost btn-sm text-ink underline decoration-white/30 underline-offset-4"
                 onClick={() => {
-                  toast.action?.onClick();
+                  const run = toast.action?.onClick;
                   onDismissToast?.();
+                  run?.();
                 }}
               >
                 {toast.action.label}

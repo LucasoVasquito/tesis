@@ -5,6 +5,7 @@ import { EmptyState, IconButton, PatternCard, PatternCardMode } from '../compone
 import { CanvasArea, CorpusView } from '../components/canvas/CanvasArea';
 import { CanvasHandle } from '../components/canvas/ReferenceCanvas';
 import { DockPanel } from '../components/shell/DockPanel';
+import { useAuditShortcuts } from '../hooks/useAuditShortcuts';
 
 export type AuditFilter = 'pending' | 'all' | 'confirmed' | 'discarded';
 
@@ -53,6 +54,16 @@ export function AuditStage(props: AuditStageProps) {
   const prev = () => list.length && props.onIndexChange((safeIndex - 1 + list.length) % list.length);
   const next = () => list.length && props.onIndexChange((safeIndex + 1) % list.length);
 
+  useAuditShortcuts({
+    enabled: dockOpen,
+    current,
+    mode,
+    setMode,
+    prev,
+    next,
+    confirm: () => current && props.onConfirm(current),
+  });
+
   const counts = {
     pending: project.patterns.filter(p => p.status === 'detected').length,
     all: project.patterns.length,
@@ -73,6 +84,10 @@ export function AuditStage(props: AuditStageProps) {
           <ChevronRight className="size-4 stroke-[1.5]" />
         </IconButton>
       </div>
+      <p className="m-0 hidden font-mono text-xs text-ink-2 lg:block" id="audit-keys">
+        <kbd className="kbd">C</kbd> confirmar · <kbd className="kbd">D</kbd> descartar · <kbd className="kbd">N</kbd> anotar · <kbd className="kbd">←</kbd>{' '}
+        <kbd className="kbd">→</kbd> navegar
+      </p>
       <div role="radiogroup" aria-label="Filtrar patrones por estado" className="flex flex-wrap gap-1">
         {AUDIT_FILTERS.map(f => (
           <button
@@ -129,8 +144,9 @@ export function AuditStage(props: AuditStageProps) {
         meta="04 · patrón actual"
         onClose={() => setDockOpen(false)}
         toolbar={nav}
+        scrollKey={current?.id}
       >
-        <div className="p-5">
+        <div className="p-3">
           {current ? (
             <PatternCard
               key={current.id}

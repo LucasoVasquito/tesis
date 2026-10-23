@@ -406,14 +406,35 @@ export default function App() {
     return next;
   };
 
+  /**
+   * Deshacer una decisión de auditoría: vuelve el patrón a su estado anterior, devuelve su lugar en los
+   * sistemas, quita la entrada de bitácora y el feedback que generó, y vuelve a mostrarlo.
+   */
+  const undoDecision = (snapshot: Pattern, systemIds: string[], logId: string, feedbackId?: string) => {
+    updateProject(p => ({
+      ...p,
+      patterns: p.patterns.map(x => (x.id === snapshot.id ? snapshot : x)),
+      systems: p.systems.map(s => (systemIds.includes(s.id) && !s.patternIds.includes(snapshot.id) ? { ...s, patternIds: [...s.patternIds, snapshot.id] } : s)),
+      log: (p.log ?? []).filter(l => l.id !== logId),
+      feedback: feedbackId ? p.feedback.filter(f => f.id !== feedbackId) : p.feedback,
+    }));
+    const list = filterPatterns(projectRef.current.patterns.map(x => (x.id === snapshot.id ? snapshot : x)), auditFilter);
+    const idx = list.findIndex(x => x.id === snapshot.id);
+    if (idx >= 0) setAuditIndex(idx);
+    showToast({ message: `Deshecho · ${snapshot.id} vuelve a ${snapshot.status === 'detected' ? 'pendiente' : snapshot.status}` });
+  };
+
   const handleConfirmPattern = (pattern: Pattern) => {
+    const snapshot = projectRef.current.patterns.find(p => p.id === pattern.id) ?? pattern;
     const after = setPatterns(ps => ps.map(p => (p.id === pattern.id ? { ...p, status: 'confirmed' as const } : p)));
     advanceAfterDecision(pattern.id, after);
-    addLog('confirm', pattern.id, `Confirmado · ${pattern.name}`);
-    showToast({ message: `Confirmado · ${pattern.id}`, tone: 'confirmed' });
+    const entry = addLog('confirm', pattern.id, `Confirmado · ${pattern.name}`);
+    showToast({ message: `Confirmado · ${pattern.id}`, tone: 'confirmed', action: { label: 'Deshacer', onClick: () => undoDecision(snapshot, [], entry.id) } });
   };
 
   const handleDiscardPattern = (pattern: Pattern, reason: string) => {
+    const snapshot = projectRef.current.patterns.find(p => p.id === pattern.id) ?? pattern;
+    const inSystems = projectRef.current.systems.filter(s => s.patternIds.includes(pattern.id)).map(s => s.id);
     const fb = makeFeedback({ patternId: pattern.id, type: 'pattern_rejection', comment: `Patrón "${pattern.name}" descartado: ${reason}` });
     const after = pattern.status === 'detected' ? projectRef.current.patterns.map(p => (p.id === pattern.id ? { ...p, status: 'discarded' as const } : p)) : projectRef.current.patterns;
     updateProject(p => ({
@@ -423,8 +444,12 @@ export default function App() {
       feedback: [...p.feedback, fb],
     }));
     advanceAfterDecision(pattern.id, after);
-    addLog('discard', pattern.id, `Descartado · ${pattern.name}`, reason, { feedbackId: fb.id });
-    showToast({ message: `Descartado · ${pattern.id}`, tone: 'discarded' });
+    const entry = addLog('discard', pattern.id, `Descartado · ${pattern.name}`, reason, { feedbackId: fb.id });
+    showToast({
+      message: `Descartado · ${pattern.id}`,
+      tone: 'discarded',
+      action: { label: 'Deshacer', onClick: () => undoDecision(snapshot, inSystems, entry.id, fb.id) },
+    });
   };
 
   const handleSaveNote = (pattern: Pattern, note: string) => {
