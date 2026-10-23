@@ -1,13 +1,13 @@
 import React from 'react';
 import { PatternStatus, PatternTrend } from '../../types';
 
-export type Tone = 'pending' | 'confirmed' | 'discarded' | 'evidence' | 'neutral' | 'current';
+export type Tone = 'pending' | 'confirmed' | 'discarded' | 'signal' | 'neutral' | 'current';
 
 export const TONE_COLOR: Record<Tone, string> = {
   pending: 'var(--color-pending)',
   confirmed: 'var(--color-confirmed)',
   discarded: 'var(--color-discarded)',
-  evidence: 'var(--color-evidence)',
+  signal: 'var(--color-signal)',
   current: 'var(--color-ink)',
   neutral: 'rgba(255,255,255,.15)',
 };

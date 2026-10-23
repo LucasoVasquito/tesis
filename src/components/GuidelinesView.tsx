@@ -143,7 +143,7 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
                     return (
                       <li key={id} className="flex flex-col gap-1">
                         {r ? (
-                          <img src={r.image} alt={r.name} className="aspect-square w-full rounded-ctrl border border-evidence/60 object-cover" referrerPolicy="no-referrer" loading="lazy" />
+                          <img src={r.image} alt={r.name} className="aspect-square w-full rounded-ctrl border border-signal/60 object-cover" referrerPolicy="no-referrer" loading="lazy" />
                         ) : (
                           <span className="block aspect-square w-full rounded-ctrl border border-dashed border-line-strong" />
                         )}

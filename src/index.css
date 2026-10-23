@@ -23,11 +23,12 @@
   --color-pending: oklch(0.74 0.09 80);
   --color-confirmed: oklch(0.74 0.09 155);
   --color-discarded: oklch(0.74 0.09 25);
-  --color-evidence: oklch(0.74 0.09 250);
+  /* Señal: todo lo que viene de la IA y todo lo que se puede rastrear (reemplaza al azul de evidencia) */
+  --color-signal: oklch(0.74 0.19 350);
   --color-pending-ink: oklch(0.84 0.08 80);
   --color-confirmed-ink: oklch(0.84 0.08 155);
   --color-discarded-ink: oklch(0.84 0.08 25);
-  --color-evidence-ink: oklch(0.84 0.08 250);
+  --color-signal-ink: oklch(0.86 0.12 350);
   --color-error-ink: oklch(0.82 0.08 25);
 
   /* Tipografía */
@@ -187,9 +188,17 @@
   }
 
   .btn-confirm,
-  .btn-discard,
-  .btn-evidence {
+  .btn-discard {
     padding: 0 12px;
+  }
+  /* Acciones de IA: tinte de señal */
+  .btn-signal {
+    background: color-mix(in oklab, var(--color-signal) 10%, transparent);
+    border-color: color-mix(in oklab, var(--color-signal) 40%, transparent);
+    color: var(--color-signal-ink);
+  }
+  .btn-signal:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--color-signal) 18%, transparent);
   }
   .btn-confirm {
     background: color-mix(in oklab, var(--color-confirmed) 8%, transparent);

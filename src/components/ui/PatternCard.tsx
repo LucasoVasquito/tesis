@@ -4,6 +4,7 @@ import { Pattern, Reference } from '../../types';
 import { Button } from './Button';
 import { CategoryTag } from './CategoryTag';
 import { StatusPill, TrendTag } from './StatusPill';
+import { familyOf } from '../../utils/families';
 
 export type PatternCardMode = 'idle' | 'discard' | 'note';
 
@@ -84,7 +85,8 @@ export function PatternCard({
   return (
     <article
       aria-labelledby={titleId}
-      className={`flex w-full max-w-[560px] flex-col rounded-card border border-line-mid bg-surface ${className ?? ''}`}
+      className={`flex w-full max-w-[560px] flex-col overflow-hidden rounded-card border border-l-[3px] border-line-mid bg-surface ${className ?? ''}`}
+      style={{ borderLeftColor: familyOf(pattern.category).color }}
     >
       {/* 1 · Cabecera */}
       <header className="flex flex-col gap-3 px-5 pb-4 pt-5">
@@ -129,7 +131,7 @@ export function PatternCard({
                       <img
                         src={ref.image}
                         alt=""
-                        className="block aspect-square w-full rounded-ctrl border border-evidence/60 object-cover"
+                        className="block aspect-square w-full rounded-ctrl border border-signal/60 object-cover"
                         referrerPolicy="no-referrer"
                         loading="lazy"
                       />

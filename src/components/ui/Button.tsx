@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'confirm' | 'discard';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'confirm' | 'discard' | 'signal';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;

@@ -34,7 +34,7 @@ export function ReferenceCard({ reference: ref, zoom, width, selected, evidence,
   const border = selected
     ? 'border-ink'
     : evidence
-      ? 'border-evidence/70'
+      ? 'border-signal/70'
       : 'border-line';
   const palette = (ref.breakdown?.colors ?? []).slice(0, 5).map(c => c.hex);
 

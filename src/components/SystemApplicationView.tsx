@@ -273,7 +273,7 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
                   {evidenceRefs.map(r => (
                     <li key={r.id}>
                       <button type="button" onClick={() => onOpenLightbox(r)} className="flex w-full flex-col gap-1 text-left text-ink-2 hover:text-ink" aria-label={`Ver ${r.name} (${r.id})`}>
-                        <img src={r.image} alt="" className="aspect-square w-full rounded-tag border border-evidence/60 object-cover" referrerPolicy="no-referrer" />
+                        <img src={r.image} alt="" className="aspect-square w-full rounded-tag border border-signal/60 object-cover" referrerPolicy="no-referrer" />
                         <span className="font-mono text-xs">{r.id}</span>
                       </button>
                     </li>

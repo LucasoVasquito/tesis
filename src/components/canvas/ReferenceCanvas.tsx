@@ -408,7 +408,7 @@ export function ReferenceCanvas({
               ))}
             </svg>
             <span
-              className="absolute z-10 whitespace-nowrap rounded-full border border-evidence/70 bg-raised px-3 py-0.5 font-mono text-xs text-ink"
+              className="absolute z-10 whitespace-nowrap rounded-full border border-signal/70 bg-raised px-3 py-0.5 font-mono text-xs text-ink"
               style={{ left: evidence.node.x, top: evidence.node.y, transform: `translate(-50%, -50%) scale(${1 / t.scale})` }}
             >
               {highlight?.label}

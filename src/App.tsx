@@ -366,7 +366,7 @@ export default function App() {
         setAuditFilter('pending');
         setAuditIndex(0);
         setStage('audit');
-        showToast({ message: `Inducción · ${p.references.length} referencias, ${detected.length} patrones`, tone: 'evidence' }, 4000);
+        showToast({ message: `Inducción · ${p.references.length} referencias, ${detected.length} patrones`, tone: 'signal' }, 4000);
       }
     } catch (err: any) {
       updateProject(x => ({ ...x, status: x.patterns.length ? 'analyzed' : 'draft' }), projectId);
@@ -684,7 +684,7 @@ export default function App() {
         let b = r.breakdown ?? getCachedBreakdown(projectId, r.id);
         if (!b) {
           done++;
-          showToast({ message: `Desglosando ${r.id} para inferir la paleta · ${done} / ${missing.length}`, tone: 'evidence' }, 60000);
+          showToast({ message: `Desglosando ${r.id} para inferir la paleta · ${done} / ${missing.length}`, tone: 'signal' }, 60000);
           b = await handleInspectReference(r);
         }
         withBreakdown.push(b ? { ...r, breakdown: b } : r);
@@ -746,7 +746,7 @@ export default function App() {
     const item = makeFeedback({ type: fb.type, comment: fb.comment });
     updateProject(p => ({ ...p, feedback: [...p.feedback, item] }));
     addLog('feedback', 'proyecto', fb.type === 'designer_rule' ? 'Regla del diseñador' : fb.type === 'scope_refinement' ? 'Ajuste de alcance' : 'Exclusión de referencia', fb.comment, { feedbackId: item.id });
-    showToast({ message: 'Regla guardada · se usa en la próxima inducción', tone: 'evidence' });
+    showToast({ message: 'Regla guardada · se usa en la próxima inducción', tone: 'signal' });
   };
 
   /* ========== ActionBar por etapa ========== */

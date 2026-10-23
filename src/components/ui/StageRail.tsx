@@ -24,7 +24,7 @@ const STATE_TEXT: Record<StageRailState, string> = {
 
 const STATE_TONE: Record<StageRailState, Tone> = {
   done: 'confirmed',
-  current: 'current',
+  current: 'signal',
   available: 'neutral',
   locked: 'neutral',
 };
@@ -57,13 +57,17 @@ export function StageRail({ stages, onSelect }: StageRailProps) {
                 aria-disabled={blocked || undefined}
                 aria-describedby={s.requirement && blocked ? tipId : undefined}
                 className={`flex h-full w-full min-w-0 flex-col items-center justify-center gap-0.5 px-3 text-center transition-colors duration-120 ease-emergent ${
-                  s.state === 'current' ? 'bg-raised' : 'hover:bg-white/[.03]'
+                  s.state === 'current' ? 'bg-signal/12 shadow-[inset_0_-2px_0_var(--color-signal)]' : 'hover:bg-white/[.03]'
                 } ${s.state === 'locked' ? 'text-ink-3' : 'text-ink'} ${blocked ? 'cursor-not-allowed hover:bg-transparent' : ''} ${
                   i === 0 ? 'rounded-l-card' : ''
                 } ${i === stages.length - 1 ? 'rounded-r-card' : ''}`}
               >
-                <span className={`flex items-center gap-1.5 whitespace-nowrap font-mono text-xs leading-4 ${s.state === 'locked' ? 'text-ink-3' : 'text-ink-2'}`}>
-                  <StatusDot tone={STATE_TONE[s.state]} glow={s.state === 'done'} />
+                <span
+                  className={`flex items-center gap-1.5 whitespace-nowrap font-mono text-xs leading-4 ${
+                    s.state === 'locked' ? 'text-ink-3' : s.state === 'current' ? 'text-signal-ink' : 'text-ink-2'
+                  }`}
+                >
+                  <StatusDot tone={STATE_TONE[s.state]} glow={s.state === 'done' || s.state === 'current'} />
                   {s.num}
                   <span className="hidden xl:inline">· {STATE_TEXT[s.state]}</span>
                   <span className="sr-only xl:hidden">{STATE_TEXT[s.state]}</span>
@@ -148,7 +152,7 @@ export function StageRailCompact({ stages, onSelect }: StageRailProps) {
                     s.state === 'current' ? 'bg-white/5' : interactive ? 'hover:bg-white/5' : ''
                   } ${s.state === 'locked' ? 'text-ink-3' : 'text-ink'}`}
                 >
-                  <StatusDot tone={STATE_TONE[s.state]} glow={s.state === 'done'} />
+                  <StatusDot tone={STATE_TONE[s.state]} glow={s.state === 'done' || s.state === 'current'} />
                   <span className="font-mono text-xs text-ink-2">{s.num}</span>
                   <span className="flex-1 text-sm font-medium">{s.label}</span>
                   <span className="font-mono text-xs text-ink-2">{STATE_TEXT[s.state]}</span>

@@ -12,16 +12,16 @@ export const LOG_TONE: Record<LogKind, Tone> = {
   confirm: 'confirmed',
   discard: 'discarded',
   restore: 'pending',
-  note: 'evidence',
+  note: 'signal',
   assign: 'confirmed',
   unassign: 'neutral',
   system_create: 'confirmed',
   system_adopt: 'confirmed',
   system_dismiss: 'neutral',
   system_delete: 'discarded',
-  synthesize: 'evidence',
-  import: 'evidence',
-  feedback: 'evidence',
+  synthesize: 'signal',
+  import: 'signal',
+  feedback: 'signal',
 };
 
 interface LogDrawerProps {
