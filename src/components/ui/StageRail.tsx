@@ -42,37 +42,39 @@ function isInteractive(s: StageRailItem) {
 export function StageRail({ stages, onSelect }: StageRailProps) {
   const baseId = useId();
   return (
-    <nav aria-label="Etapas del método" className="hidden min-w-0 max-w-[880px] flex-1 lg:flex">
-      <ol className="flex w-full items-stretch overflow-x-auto rounded-card border border-line bg-surface">
+    <nav aria-label="Etapas del método" className="mx-auto hidden w-full min-w-0 max-w-[680px] lg:flex">
+      <ol className="flex h-11 w-full items-stretch rounded-card border border-line bg-surface">
         {stages.map((s, i) => {
           const interactive = isInteractive(s);
           const tipId = `${baseId}-${s.id}-tip`;
           const blocked = s.state === 'locked' || s.visitable === false;
           return (
-            <li key={s.id} className={`group relative flex flex-[1_0_140px] ${i < stages.length - 1 ? 'border-r border-line' : ''}`}>
+            <li key={s.id} className={`group relative flex min-w-0 flex-1 ${i < stages.length - 1 ? 'border-r border-line' : ''}`}>
               <button
                 type="button"
                 onClick={() => interactive && onSelect(s.id)}
                 aria-current={s.state === 'current' ? 'step' : undefined}
                 aria-disabled={blocked || undefined}
                 aria-describedby={s.requirement && blocked ? tipId : undefined}
-                className={`flex w-full flex-col items-start gap-0 px-4 py-1 text-left transition-colors duration-120 ease-emergent ${
+                className={`flex h-full w-full min-w-0 flex-col items-center justify-center gap-0.5 px-3 text-center transition-colors duration-120 ease-emergent ${
                   s.state === 'current' ? 'bg-raised' : 'hover:bg-white/[.03]'
                 } ${s.state === 'locked' ? 'text-ink-3' : 'text-ink'} ${blocked ? 'cursor-not-allowed hover:bg-transparent' : ''} ${
                   i === 0 ? 'rounded-l-card' : ''
                 } ${i === stages.length - 1 ? 'rounded-r-card' : ''}`}
               >
-                <span className={`flex items-center gap-2 font-mono text-xs ${s.state === 'locked' ? 'text-ink-3' : 'text-ink-2'}`}>
+                <span className={`flex items-center gap-1.5 whitespace-nowrap font-mono text-xs leading-4 ${s.state === 'locked' ? 'text-ink-3' : 'text-ink-2'}`}>
                   <StatusDot tone={STATE_TONE[s.state]} glow={s.state === 'done'} />
-                  {s.num} · {STATE_TEXT[s.state]}
+                  {s.num}
+                  <span className="hidden xl:inline">· {STATE_TEXT[s.state]}</span>
+                  <span className="sr-only xl:hidden">{STATE_TEXT[s.state]}</span>
                 </span>
-                <span className="text-sm font-medium leading-5">{s.label}</span>
+                <span className="max-w-full truncate text-13 font-medium leading-4">{s.label}</span>
               </button>
               {s.requirement && blocked && (
                 <span
                   id={tipId}
                   role="tooltip"
-                  className="pointer-events-none absolute left-4 top-full z-50 mt-2 w-max max-w-[240px] rounded-ctrl border border-line-mid bg-raised px-3 py-2 text-xs text-ink opacity-0 shadow-float transition-opacity duration-120 ease-emergent group-hover:opacity-100 group-focus-within:opacity-100"
+                  className="pointer-events-none absolute left-1/2 top-full z-50 -translate-x-1/2 mt-2 w-max max-w-[240px] rounded-ctrl border border-line-mid bg-raised px-3 py-2 text-xs text-ink opacity-0 shadow-float transition-opacity duration-120 ease-emergent group-hover:opacity-100 group-focus-within:opacity-100"
                 >
                   {s.requirement}
                 </span>

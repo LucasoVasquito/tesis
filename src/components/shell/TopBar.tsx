@@ -137,7 +137,7 @@ export function TopBar(props: TopBarProps) {
       </div>
 
       {/* Etapas */}
-      <div className="flex min-w-0 flex-1 justify-center">
+      <div className="flex min-w-0 flex-1 justify-center lg:px-6 xl:px-10">
         <StageRail stages={rail} onSelect={props.onSelectStage} />
         <StageRailCompact stages={rail} onSelect={props.onSelectStage} />
       </div>
