@@ -1,6 +1,4 @@
 @import "tailwindcss" source(".");
-/* Temporal: el onboarding todavía vive fuera de React (se elimina en el paso 3). */
-@source "../assets/onboarding.js";
 
 /* ========================================================
    EMERGENT · Sistema visual v0.1

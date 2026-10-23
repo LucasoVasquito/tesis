@@ -5,7 +5,7 @@ import { compressImageString, compressReferences } from './utils/imageCompressor
 import { clearCachedBreakdown, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
 import { downloadProjectMarkdown, exportProjectAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, migrateProject, uid } from './utils/project';
-import { MIN_REFERENCES, canEnter, initialStage, railItems } from './utils/stages';
+import { MIN_REFERENCES, canEnter, initialStage, isBriefComplete, railItems } from './utils/stages';
 
 import { Button } from './components/ui';
 import { TopBar } from './components/shell/TopBar';
@@ -29,8 +29,12 @@ const LEGACY_SINGLE_KEY = 'emergent_visual_system_project_v3';
 
 type Overlay = null | { kind: 'about' } | { kind: 'apply'; systemId: string };
 
+/** Claves que usaba el onboarding anterior (fuera de React). Ya no se leen. */
+const LEGACY_ONBOARDING_KEYS = ['emergent_user_brief_confirmed', 'emergent_visual_system_projects_store_v4'];
+
 function loadProjects(): Project[] {
   try {
+    LEGACY_ONBOARDING_KEYS.forEach(k => localStorage.removeItem(k));
     const saved = localStorage.getItem(LIST_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
@@ -630,10 +634,19 @@ export default function App() {
 
   if (stage === 'brief') {
     const ok = !!briefDraft.name.trim() && !!briefDraft.objective.trim();
-    status = ok ? 'Brief listo' : 'Nombre y objetivo son obligatorios';
+    const edited =
+      briefDraft.name !== project.name || briefDraft.objective !== project.objective || briefDraft.description !== project.description;
+    status = !ok ? 'Nombre y objetivo son obligatorios' : edited && isBriefComplete(project) ? 'Cambios sin guardar' : 'Brief listo';
+    if (edited && isBriefComplete(project)) {
+      secondary = (
+        <Button variant="ghost" onClick={() => setBriefDraft({ name: project.name, objective: project.objective, description: project.description })}>
+          Descartar cambios
+        </Button>
+      );
+    }
     primary = (
       <Button variant="primary" type="submit" form="brief-form" disabled={!ok}>
-        Continuar al corpus
+        {edited && isBriefComplete(project) ? 'Guardar y continuar' : 'Continuar al corpus'}
       </Button>
     );
   } else if (stage === 'corpus') {
