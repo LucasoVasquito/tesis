@@ -1,6 +1,10 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
+
+// Vista de verificación del sistema visual (solo desarrollo): http://localhost:5173/#ds
+const DesignSystemPreview = import.meta.env.DEV ? React.lazy(() => import('./dev/DesignSystemPreview')) : null;
+const showDesignSystem = !!DesignSystemPreview && window.location.hash === '#ds';
 import './index.css';
 
 interface Props {
@@ -40,27 +44,22 @@ class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="h-screen w-screen flex flex-col items-center justify-center bg-zinc-950 text-zinc-100 p-6 text-center space-y-4">
-          <div className="w-12 h-12 rounded-full bg-red-950 border border-red-800 flex items-center justify-center text-red-400 text-xl font-bold">
-            ⚠️
-          </div>
-          <h1 className="text-lg font-bold text-zinc-100">Se produjo un error en la aplicación</h1>
-          <p className="text-xs text-zinc-400 max-w-md font-mono bg-zinc-900/80 p-3 rounded-lg border border-zinc-800">
-            {this.state.error?.message || 'Error inesperado de renderizado.'}
-          </p>
-          <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={this.handleReload}
-              className="px-4 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-md"
-            >
-              Recargar aplicación (conservar proyectos)
-            </button>
-            <button
-              onClick={this.handleClearOnlyIfExplicit}
-              className="px-3 py-2 text-xs text-zinc-500 hover:text-red-400 border border-zinc-800 hover:border-red-900/50 rounded-lg transition-colors"
-            >
-              Limpiar caché
-            </button>
+        <div className="flex h-screen w-screen items-center justify-center bg-bg p-6 text-ink">
+          <div role="alert" className="flex w-full max-w-md flex-col gap-3 rounded-card border border-discarded/35 bg-discarded/5 p-5">
+            <span className="font-mono text-xs font-medium text-discarded-ink">ERROR DE INTERFAZ</span>
+            <h1 className="m-0 text-15 font-medium">Se produjo un error en la aplicación</h1>
+            <p className="m-0 text-13 text-ink-2">Tus proyectos siguen guardados en este navegador.</p>
+            <pre className="m-0 max-h-40 overflow-auto whitespace-pre-wrap rounded-ctrl border border-line bg-bg p-3 font-mono text-xs text-ink-2">
+              {this.state.error?.message || 'Error inesperado de renderizado.'}
+            </pre>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={this.handleReload} className="btn btn-primary btn-sm">
+                Recargar (conservar proyectos)
+              </button>
+              <button type="button" onClick={this.handleClearOnlyIfExplicit} className="btn btn-ghost btn-sm">
+                Borrar datos locales
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -73,7 +72,13 @@ class ErrorBoundary extends Component<Props, State> {
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      {showDesignSystem && DesignSystemPreview ? (
+        <React.Suspense fallback={null}>
+          <DesignSystemPreview />
+        </React.Suspense>
+      ) : (
+        <App />
+      )}
     </ErrorBoundary>
   </React.StrictMode>,
 );

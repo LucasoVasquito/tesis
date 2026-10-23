@@ -843,7 +843,7 @@ export default function App() {
     : null;
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-none">
+    <div className="h-screen w-screen flex flex-col bg-bg text-ink overflow-hidden font-sans">
       {/* 1. Global Navigation Bar */}
       <Navbar
         project={project}
