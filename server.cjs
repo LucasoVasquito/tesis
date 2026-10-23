@@ -1,547 +1,570 @@
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
-
-// server.ts
-var import_express = __toESM(require("express"), 1);
-var import_path = __toESM(require("path"), 1);
-var import_genai = require("@google/genai");
-var import_inference = require("@huggingface/inference");
-var import_dotenv = __toESM(require("dotenv"), 1);
-import_dotenv.default.config();
-var app = (0, import_express.default)();
-var PORT = 3e3;
-app.use(import_express.default.json({ limit: "50mb" }));
-app.use(import_express.default.urlencoded({ extended: true, limit: "50mb" }));
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "*");
-  res.header("Access-Control-Allow-Methods", "*");
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
-function getGeminiClient() {
-  import_dotenv.default.config({ override: true });
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || !apiKey.trim()) {
-    throw new Error("La variable de entorno GEMINI_API_KEY no est\xE1 configurada en el servidor.");
-  }
-  return new import_genai.GoogleGenAI({
-    apiKey: apiKey.trim(),
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build"
-      }
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
     }
-  });
-}
-var VALID_GEMINI_MIME_TYPES = /* @__PURE__ */ new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/heic",
-  "image/heif"
-]);
-async function resolveImagePart(imageStr, refId) {
-  if (!imageStr) return null;
-  if (imageStr.startsWith("data:")) {
-    try {
-      const commaIdx = imageStr.indexOf(",");
-      if (commaIdx !== -1) {
-        const header = imageStr.slice(5, commaIdx);
-        const data = imageStr.slice(commaIdx + 1).trim();
-        let mimeType = header.split(";")[0]?.toLowerCase().trim() || "image/jpeg";
-        if (mimeType === "image/jpg") mimeType = "image/jpeg";
-        if (!VALID_GEMINI_MIME_TYPES.has(mimeType)) {
-          mimeType = "image/jpeg";
-        }
-        return {
-          mimeType,
-          data,
-          refId
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
         };
-      }
-    } catch (err) {
-      console.warn(`Error procesando data URL para ref ${refId}:`, err);
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const path_1 = __importDefault(require("path"));
+const genai_1 = require("@google/genai");
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
+const app = (0, express_1.default)();
+const PORT = Number(process.env.PORT) || 3000;
+// Set payload limit high enough for image uploads (moodboards with multiple references)
+app.use(express_1.default.json({ limit: "50mb" }));
+app.use(express_1.default.urlencoded({ extended: true, limit: "50mb" }));
+app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "*");
+    res.header("Access-Control-Allow-Methods", "*");
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(200);
     }
-  }
-  if (imageStr.startsWith("http://") || imageStr.startsWith("https://")) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const response = await fetch(imageStr, {
-        signal: controller.signal,
-        headers: {
-          Accept: "image/jpeg,image/png,image/webp,image/*;q=0.8",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-      });
-      clearTimeout(timeoutId);
-      if (!response.ok) {
-        console.warn(`Fetch de imagen fall\xF3 para ${refId} (${imageStr}) con status ${response.status}`);
-        return null;
-      }
-      const rawContentType = response.headers.get("content-type") || "image/jpeg";
-      let mimeType = rawContentType.split(";")[0]?.toLowerCase().trim() || "image/jpeg";
-      if (mimeType === "image/jpg") mimeType = "image/jpeg";
-      if (!VALID_GEMINI_MIME_TYPES.has(mimeType)) {
-        mimeType = "image/jpeg";
-      }
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      return {
-        mimeType,
-        data: buffer.toString("base64"),
-        refId
-      };
-    } catch (err) {
-      console.warn(`Timeout o error descargando imagen para ref ${refId}:`, err?.message || err);
-    }
-  }
-  return null;
-}
-function parseModelJsonResponse(text) {
-  let cleaned = text.trim();
-  if (cleaned.startsWith("```json")) {
-    cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-  } else if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
-  }
-  return JSON.parse(cleaned);
-}
-async function generateContentWithRetry(ai, request) {
-  const candidateModels = [
-    request.model,
-    "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-3.6-flash",
-    "gemini-3.7-flash"
-  ].filter(Boolean);
-
-  const uniqueModels = Array.from(new Set(candidateModels));
-  let lastError = null;
-
-  for (const model of uniqueModels) {
-    try {
-      console.log(`[Gemini API] Consultando modelo ${model}...`);
-      const response = await ai.models.generateContent({
-        ...request,
-        model
-      });
-      console.log(`[Gemini API] \xC9xito con modelo ${model}`);
-      return response;
-    } catch (err) {
-      lastError = err;
-      const msg = err?.message || String(err);
-      console.warn(`[Gemini API] Modelo ${model} notific\xF3 error (${msg.slice(0, 120)}...). Cambiando al siguiente modelo...`);
-      continue;
-    }
-  }
-
-  throw lastError;
-}
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: (/* @__PURE__ */ new Date()).toISOString() });
+    next();
 });
-app.post("/api/analyze-references", async (req, res) => {
-  try {
-    const {
-      references = [],
-      objective = "",
-      projectName = "",
-      description = "",
-      previousPatterns = [],
-      confirmedPatterns = [],
-      discardedPatterns = [],
-      feedback = []
-    } = req.body;
-    if (!references || references.length === 0) {
-      return res.status(400).json({
-        error: "Se requiere al menos una referencia visual para el an\xE1lisis."
-      });
+// Initialize Gemini Client Lazily with dynamic .env reloading
+function getGeminiClient() {
+    dotenv_1.default.config({ override: true });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || !apiKey.trim()) {
+        throw new Error("La variable de entorno GEMINI_API_KEY no está configurada en el servidor.");
     }
-    let result = null;
-    try {
-      const resolvedImages = await Promise.all(
-        references.map(async (ref) => {
-          try {
-            const imgPart = await resolveImagePart(ref.image, ref.id);
-            return { ref, imgPart };
-          } catch {
-            return { ref, imgPart: null };
-          }
-        })
-      );
-      const parts = [];
-      const refSummaryList = [];
-      for (const { ref, imgPart } of resolvedImages) {
-        parts.push({
-          text: `[REFERENCIA_VISUAL: ID="${ref.id}", Nombre="${ref.name || ref.id}", Notas="${ref.notes || "Ninguna"}"]`
-        });
-        if (imgPart) {
-          parts.push({
-            inlineData: {
-              mimeType: imgPart.mimeType,
-              data: imgPart.data
+    return new genai_1.GoogleGenAI({
+        apiKey: apiKey.trim(),
+        httpOptions: {
+            headers: {
+                "User-Agent": "aistudio-build",
+            },
+        },
+    });
+}
+// Supported MIME types for Gemini API inline data
+const VALID_GEMINI_MIME_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/heic",
+    "image/heif",
+]);
+// Helper function to extract base64 and mimeType from data URL or fetch if HTTP URL
+async function resolveImagePart(imageStr, refId) {
+    if (!imageStr)
+        return null;
+    // Handle Base64 Data URLs
+    if (imageStr.startsWith("data:")) {
+        try {
+            const commaIdx = imageStr.indexOf(",");
+            if (commaIdx !== -1) {
+                const header = imageStr.slice(5, commaIdx); // e.g. "image/png;base64"
+                const data = imageStr.slice(commaIdx + 1).trim();
+                let mimeType = header.split(";")[0]?.toLowerCase().trim() || "image/jpeg";
+                if (mimeType === "image/jpg")
+                    mimeType = "image/jpeg";
+                if (!VALID_GEMINI_MIME_TYPES.has(mimeType)) {
+                    mimeType = "image/jpeg";
+                }
+                return {
+                    mimeType,
+                    data,
+                    refId,
+                };
             }
-          });
         }
-        refSummaryList.push(`- ID: ${ref.id} (${ref.name || "Sin t\xEDtulo"})`);
-      }
-      const previousContext = `
-HISTORIAL DE DECISIONES PREVIAS DEL DISE\xD1ADOR:
-- Patrones ya confirmados por el dise\xF1ador: ${JSON.stringify(confirmedPatterns.map((p) => ({ id: p.id, name: p.name, category: p.category, assignedSystem: p.assignedSystemId })))}
-- Patrones previamente descartados por el dise\xF1ador: ${JSON.stringify(discardedPatterns.map((p) => ({ id: p.id, name: p.name, reason: p.discardReason })))}
-- Feedback expl\xEDcito del dise\xF1ador: ${JSON.stringify(feedback.map((f) => ({ type: f.type, comment: f.comment, refId: f.referenceId, patternId: f.patternId })))}
-- Patrones de an\xE1lisis anterior: ${JSON.stringify(previousPatterns.map((p) => ({ id: p.id, name: p.name, evidenceCount: p.evidence?.length })))}
+        catch (err) {
+            console.warn(`Error procesando data URL para ref ${refId}:`, err);
+        }
+    }
+    // Handle HTTP / HTTPS URLs with 3.5s timeout
+    if (imageStr.startsWith("http://") || imageStr.startsWith("https://")) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3500);
+            const response = await fetch(imageStr, {
+                signal: controller.signal,
+                headers: {
+                    Accept: "image/jpeg,image/png,image/webp,image/*;q=0.8",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                },
+            });
+            clearTimeout(timeoutId);
+            if (!response.ok) {
+                console.warn(`Fetch de imagen falló para ${refId} (${imageStr}) con status ${response.status}`);
+                return null;
+            }
+            const rawContentType = response.headers.get("content-type") || "image/jpeg";
+            let mimeType = rawContentType.split(";")[0]?.toLowerCase().trim() || "image/jpeg";
+            if (mimeType === "image/jpg")
+                mimeType = "image/jpeg";
+            if (!VALID_GEMINI_MIME_TYPES.has(mimeType)) {
+                mimeType = "image/jpeg";
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            return {
+                mimeType,
+                data: buffer.toString("base64"),
+                refId,
+            };
+        }
+        catch (err) {
+            console.warn(`Timeout o error descargando imagen para ref ${refId}:`, err?.message || err);
+        }
+    }
+    return null;
+}
+// Helper to safely parse JSON returned by the model
+function parseModelJsonResponse(text) {
+    let cleaned = text.trim();
+    if (cleaned.startsWith("```json")) {
+        cleaned = cleaned.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+    }
+    else if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```\s*/, "").replace(/\s*```$/, "");
+    }
+    return JSON.parse(cleaned);
+}
+// Helper to call Gemini using fast fallback candidate models on 503 high demand or 404
+async function generateContentWithRetry(ai, request) {
+    const candidateModels = [
+        request.model,
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+    ].filter(Boolean);
+    const uniqueModels = Array.from(new Set(candidateModels));
+    let lastError = null;
+    for (const model of uniqueModels) {
+        try {
+            console.log(`[Gemini API] Consultando modelo ${model}...`);
+            const response = await ai.models.generateContent({
+                ...request,
+                model,
+            });
+            console.log(`[Gemini API] Éxito con modelo ${model}`);
+            return response;
+        }
+        catch (err) {
+            lastError = err;
+            const msg = err?.message || String(err);
+            console.warn(`[Gemini API] Modelo ${model} notificó error (${msg.slice(0, 120)}...). Cambiando al siguiente modelo...`);
+            // Pasar de inmediato al siguiente modelo candidato sin demoras
+            continue;
+        }
+    }
+    throw lastError;
+}
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+// ==========================================
+// 1. Multimodal Multi-Reference Pattern Discovery
+// ==========================================
+app.post("/api/analyze-references", async (req, res) => {
+    try {
+        const { references = [], objective = "", projectName = "", description = "", previousPatterns = [], confirmedPatterns = [], discardedPatterns = [], feedback = [], } = req.body;
+        if (!references || references.length === 0) {
+            return res.status(400).json({
+                error: "Se requiere al menos una referencia visual para el análisis.",
+            });
+        }
+        let result = null;
+        try {
+            // Fetch and resolve all images in parallel for optimal speed
+            const resolvedImages = await Promise.all(references.map(async (ref) => {
+                try {
+                    const imgPart = await resolveImagePart(ref.image, ref.id);
+                    return { ref, imgPart };
+                }
+                catch {
+                    return { ref, imgPart: null };
+                }
+            }));
+            // Build multimodal parts
+            const parts = [];
+            const refSummaryList = [];
+            for (const { ref, imgPart } of resolvedImages) {
+                parts.push({
+                    text: `[REFERENCIA_VISUAL: ID="${ref.id}", Nombre="${ref.name || ref.id}", Notas="${ref.notes || 'Ninguna'}"]`,
+                });
+                if (imgPart) {
+                    parts.push({
+                        inlineData: {
+                            mimeType: imgPart.mimeType,
+                            data: imgPart.data,
+                        },
+                    });
+                }
+                refSummaryList.push(`- ID: ${ref.id} (${ref.name || 'Sin título'})`);
+            }
+            const previousContext = `
+HISTORIAL DE DECISIONES PREVIAS DEL DISEÑADOR:
+- Patrones ya confirmados por el diseñador: ${JSON.stringify(confirmedPatterns.map((p) => ({ id: p.id, name: p.name, category: p.category, assignedSystem: p.assignedSystemId })))}
+- Patrones previamente descartados por el diseñador: ${JSON.stringify(discardedPatterns.map((p) => ({ id: p.id, name: p.name, reason: p.discardReason })))}
+- Feedback explícito del diseñador: ${JSON.stringify(feedback.map((f) => ({ type: f.type, comment: f.comment, refId: f.referenceId, patternId: f.patternId })))}
+- Patrones de análisis anterior: ${JSON.stringify(previousPatterns.map((p) => ({ id: p.id, name: p.name, evidenceCount: p.evidence?.length })))}
 `;
-      const nombre_proyecto = projectName || "Identidad Visual";
-      const objetivo_proyecto = objective || "Exploraci\xF3n de identidad y universo est\xE9tico";
-      const instructions = `
-Actu\xE1 como un Director de Arte senior, cr\xEDtico de dise\xF1o visual y experto en branding e identidades multimediales. Est\xE1s evaluando un moodboard de trabajo recopilado por un dise\xF1ador para el proyecto '${nombre_proyecto}' (${objetivo_proyecto}).
+            const nombre_proyecto = projectName || "Identidad Visual";
+            const objetivo_proyecto = objective || "Exploración de identidad y universo estético";
+            const instructions = `
+Actuá como un Director de Arte senior, crítico de diseño visual y experto en branding e identidades multimediales. Estás evaluando un moodboard de trabajo recopilado por un diseñador para el proyecto '${nombre_proyecto}' (${objetivo_proyecto}).
 
-El an\xE1lisis no debe ser escueto ni superficial. Debes realizar un desglose minucioso, cruzando las referencias visuales del canvas para detectar patrones estructurales complejos que articulen logotipos, sistemas de packaging, tratamientos fotogr\xE1ficos, tipograf\xEDas, flyers, publicaciones digitales y recursos gr\xE1ficos/mascotas.
+El análisis no debe ser escueto ni superficial. Debes realizar un desglose minucioso, cruzando las referencias visuales del canvas para detectar patrones estructurales complejos que articulen logotipos, sistemas de packaging, tratamientos fotográficos, tipografías, flyers, publicaciones digitales y recursos gráficos/mascotas.
 
-Para cada descubrimiento o patr\xF3n que detectes, analiza y detalla rigurosamente:
+Para cada descubrimiento o patrón que detectes, analiza y detalla rigurosamente:
 
-1. CATEGOR\xCDA T\xC9CNICA: (Ej: Tipograf\xEDa Display, Sistema de Logotipo, Fotograf\xEDa Gastron\xF3mica, Packaging Estructurado, Ilustraci\xF3n de Personaje/Mascota, Composici\xF3n/Grilla, Tratamiento Crom\xE1tico).
+1. CATEGORÍA TÉCNICA: (Ej: Tipografía Display, Sistema de Logotipo, Fotografía Gastronómica, Packaging Estructurado, Ilustración de Personaje/Mascota, Composición/Grilla, Tratamiento Cromático).
    Usa una de las siguientes claves normalizadas:
    - 'logo_identity' (Sistema de Logotipo e Identidad)
    - 'packaging' (Packaging y Envases)
-   - 'photography_treatment' (Fotograf\xEDa y Tratamiento Visual)
-   - 'typography' (Tipograf\xEDa y Jerarqu\xEDas)
-   - 'flyer_poster' (Flyers, Afiches y Piezas Gr\xE1ficas)
+   - 'photography_treatment' (Fotografía y Tratamiento Visual)
+   - 'typography' (Tipografía y Jerarquías)
+   - 'flyer_poster' (Flyers, Afiches y Piezas Gráficas)
    - 'social_media' (Publicaciones y Redes Sociales)
-   - 'mascot_illustration' (Mascotas, Personajes e Ilustraci\xF3n)
-   - 'color' (Tratamiento Crom\xE1tico y Paletas)
+   - 'mascot_illustration' (Mascotas, Personajes e Ilustración)
+   - 'color' (Tratamiento Cromático y Paletas)
    - 'texture' (Textura, Grano y Materialidad)
-   - 'composition' (Composici\xF3n y Grilla)
-   - 'graphic_elements' (Recursos Gr\xE1ficos Secundarios)
+   - 'composition' (Composición y Grilla)
+   - 'graphic_elements' (Recursos Gráficos Secundarios)
 
-2. NOMBRE DEL PATR\xD3N: Un t\xEDtulo conceptual y t\xE9cnico preciso (ej: "Tipograf\xEDa display con deformaciones formales y alto impacto", "Mascotas estilo ilustraci\xF3n vintage cartoon").
+2. NOMBRE DEL PATRÓN: Un título conceptual y técnico preciso (ej: "Tipografía display con deformaciones formales y alto impacto", "Mascotas estilo ilustración vintage cartoon").
 
-3. DESCRIPCI\xD3N PROFUNDA Y RELACIONAL: Explica a fondo c\xF3mo opera este patr\xF3n, qu\xE9 tensiones visuales resuelve y c\xF3mo dialoga entre diferentes soportes (por ejemplo, c\xF3mo la tipograf\xEDa de los carteles se acopla con el packaging o c\xF3mo la fotograf\xEDa complementa al sistema de marca).
+3. DESCRIPCIÓN PROFUNDA Y RELACIONAL: Explica a fondo cómo opera este patrón, qué tensiones visuales resuelve y cómo dialoga entre diferentes soportes (por ejemplo, cómo la tipografía de los carteles se acopla con el packaging o cómo la fotografía complementa al sistema de marca).
 
-4. RASGOS OBSERVABLES: Caracter\xEDsticas visuales concretas y t\xE9cnicas (ej: trazos porosos, grillas perimetrales, saturaci\xF3n controlada, iluminaci\xF3n cenital de estudio).
+4. RASGOS OBSERVABLES: Características visuales concretas y técnicas (ej: trazos porosos, grillas perimetrales, saturación controlada, iluminación cenital de estudio).
 
-5. EVIDENCIA CRUZADA: Vincula expl\xEDcitamente los IDs exactos de las referencias del canvas que sostienen este hallazgo (ej: [ref_01, ref_05, ref_06]).
+5. EVIDENCIA CRUZADA: Vincula explícitamente los IDs exactos de las referencias del canvas que sostienen este hallazgo (ej: [ref_01, ref_05, ref_06]).
 
-6. HIP\xD3TESIS DE SISTEMA VISUAL: Fundamenta c\xF3mo este descubrimiento puede traducirse en un subsistema reutilizable para soportes f\xEDsicos (espacio, envoltorios) y digitales (web, redes).
+6. HIPÓTESIS DE SISTEMA VISUAL: Fundamenta cómo este descubrimiento puede traducirse en un subsistema reutilizable para soportes físicos (espacio, envoltorios) y digitales (web, redes).
 
-No generalices. Si encuentras contradicciones est\xE9ticas entre referencias (ej. estilos tipogr\xE1ficos divergentes), se\xF1\xE1lalo como evidencia de m\xFAltiples sistemas visuales en tensi\xF3n. S\xE9 exhaustivo y riguroso.
+No generalices. Si encuentras contradicciones estéticas entre referencias (ej. estilos tipográficos divergentes), señálalo como evidencia de múltiples sistemas visuales en tensión. Sé exhaustivo y riguroso.
 
-DESCRIPCI\xD3N / CONTEXTO DEL PROYECTO:
-"${description || "Sin descripci\xF3n adicional"}"
+DESCRIPCIÓN / CONTEXTO DEL PROYECTO:
+"${description || 'Sin descripción adicional'}"
 
 REFERENCIAS CARGADAS EN EL CANVAS:
-${refSummaryList.join("\n")}
+${refSummaryList.join('\n')}
 
 ${previousContext}
 
-Devuelve el an\xE1lisis en formato JSON estricto cumpliendo el schema provisto.`;
-      parts.push({ text: instructions });
-      const ai = getGeminiClient();
-      const response = await generateContentWithRetry(ai, {
-        contents: [{ role: "user", parts }],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: import_genai.Type.OBJECT,
-            properties: {
-              patterns: {
-                type: import_genai.Type.ARRAY,
-                items: {
-                  type: import_genai.Type.OBJECT,
-                  properties: {
-                    id: { type: import_genai.Type.STRING, description: "Identificador \xFAnico, ej. pat_01" },
-                    name: { type: import_genai.Type.STRING, description: "Nombre conceptual y t\xE9cnico preciso del patr\xF3n" },
-                    category: {
-                      type: import_genai.Type.STRING,
-                      description: "typography | color | texture | composition | logo_identity | packaging | photography_treatment | mascot_illustration | flyer_poster | social_media | graphic_elements"
-                    },
-                    description: { type: import_genai.Type.STRING, description: "Descripci\xF3n profunda y relacional: c\xF3mo opera este patr\xF3n, tensiones que resuelve y di\xE1logo entre soportes" },
-                    evidence: {
-                      type: import_genai.Type.ARRAY,
-                      items: { type: import_genai.Type.STRING },
-                      description: "Array de IDs exactos de las referencias del canvas que sostienen el hallazgo, ej: ['ref_01', 'ref_04']"
-                    },
-                    confidence: { type: import_genai.Type.NUMBER, description: "Nivel de confianza entre 0.0 y 1.0" },
-                    relatedObservations: {
-                      type: import_genai.Type.ARRAY,
-                      items: { type: import_genai.Type.STRING },
-                      description: "Caracter\xEDsticas visuales concretas y t\xE9cnicas observables"
-                    },
-                    systemHypothesis: {
-                      type: import_genai.Type.STRING,
-                      description: "Hip\xF3tesis de traducci\xF3n del patr\xF3n en un subsistema reutilizable para soportes f\xEDsicos y digitales"
-                    },
-                    suggestedSystemName: { type: import_genai.Type.STRING, description: "Nombre del sistema visual sugerido al que pertenece este patr\xF3n" },
-                    trend: {
-                      type: import_genai.Type.STRING,
-                      description: "new | strengthened | weakened | stable"
-                    }
-                  },
-                  required: ["id", "name", "category", "description", "evidence", "confidence", "relatedObservations", "systemHypothesis"]
-                }
-              },
-              suggestedSystems: {
-                type: import_genai.Type.ARRAY,
-                items: {
-                  type: import_genai.Type.OBJECT,
-                  properties: {
-                    id: { type: import_genai.Type.STRING },
-                    name: { type: import_genai.Type.STRING, description: "Nombre del sistema, ej: Sistema Identitario Urbano Kraft" },
-                    description: { type: import_genai.Type.STRING, description: "Fundamentaci\xF3n y descripci\xF3n conceptual del sistema" },
-                    associatedPatternNames: {
-                      type: import_genai.Type.ARRAY,
-                      items: { type: import_genai.Type.STRING }
-                    },
-                    referenceIds: {
-                      type: import_genai.Type.ARRAY,
-                      items: { type: import_genai.Type.STRING }
-                    },
-                    aestheticPillars: {
-                      type: import_genai.Type.ARRAY,
-                      items: { type: import_genai.Type.STRING },
-                      description: "Pilares conceptuales y estil\xEDsticos clave"
-                    },
-                    systemDetails: {
-                      type: import_genai.Type.OBJECT,
-                      properties: {
-                        brandEssence: { type: import_genai.Type.STRING, description: "Concepto nuclear y tono de voz visual" },
-                        logoAndIdentity: { type: import_genai.Type.STRING, description: "Criterios de logotipos, isotipos y sellos identitarios" },
-                        packagingSystem: { type: import_genai.Type.STRING, description: "Criterios de packaging, empaques, etiquetas y sustratos" },
-                        photographyStyle: { type: import_genai.Type.STRING, description: "Criterios de fotograf\xEDa y direcci\xF3n de arte" },
-                        typographySystem: { type: import_genai.Type.STRING, description: "Familias, combinaciones y jerarqu\xEDas tipogr\xE1ficas" },
-                        graphicApplications: { type: import_genai.Type.STRING, description: "Criterios de flyers, afiches, carteler\xEDa y men\xFAs" },
-                        mascotAndIllustration: { type: import_genai.Type.STRING, description: "Criterios de mascotas, personajes e ilustraciones" },
-                        digitalAndSocialMedia: { type: import_genai.Type.STRING, description: "Estructura de publicaciones y contenido para redes sociales" }
-                      }
-                    },
-                    suggestedPalette: {
-                      type: import_genai.Type.ARRAY,
-                      items: {
-                        type: import_genai.Type.OBJECT,
+Devuelve el análisis en formato JSON estricto cumpliendo el schema provisto.`;
+            parts.push({ text: instructions });
+            const ai = getGeminiClient();
+            const response = await generateContentWithRetry(ai, {
+                contents: [{ role: "user", parts }],
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: genai_1.Type.OBJECT,
                         properties: {
-                          hex: { type: import_genai.Type.STRING },
-                          name: { type: import_genai.Type.STRING },
-                          role: { type: import_genai.Type.STRING }
+                            patterns: {
+                                type: genai_1.Type.ARRAY,
+                                items: {
+                                    type: genai_1.Type.OBJECT,
+                                    properties: {
+                                        id: { type: genai_1.Type.STRING, description: "Identificador único, ej. pat_01" },
+                                        name: { type: genai_1.Type.STRING, description: "Nombre conceptual y técnico preciso del patrón" },
+                                        category: {
+                                            type: genai_1.Type.STRING,
+                                            description: "typography | color | texture | composition | logo_identity | packaging | photography_treatment | mascot_illustration | flyer_poster | social_media | graphic_elements",
+                                        },
+                                        description: { type: genai_1.Type.STRING, description: "Descripción profunda y relacional: cómo opera este patrón, tensiones que resuelve y diálogo entre soportes" },
+                                        evidence: {
+                                            type: genai_1.Type.ARRAY,
+                                            items: { type: genai_1.Type.STRING },
+                                            description: "Array de IDs exactos de las referencias del canvas que sostienen el hallazgo, ej: ['ref_01', 'ref_04']",
+                                        },
+                                        confidence: { type: genai_1.Type.NUMBER, description: "Nivel de confianza entre 0.0 y 1.0" },
+                                        relatedObservations: {
+                                            type: genai_1.Type.ARRAY,
+                                            items: { type: genai_1.Type.STRING },
+                                            description: "Características visuales concretas y técnicas observables",
+                                        },
+                                        systemHypothesis: {
+                                            type: genai_1.Type.STRING,
+                                            description: "Hipótesis de traducción del patrón en un subsistema reutilizable para soportes físicos y digitales",
+                                        },
+                                        suggestedSystemName: { type: genai_1.Type.STRING, description: "Nombre del sistema visual sugerido al que pertenece este patrón" },
+                                        trend: {
+                                            type: genai_1.Type.STRING,
+                                            description: "new | strengthened | weakened | stable",
+                                        },
+                                    },
+                                    required: ["id", "name", "category", "description", "evidence", "confidence", "relatedObservations", "systemHypothesis"],
+                                },
+                            },
+                            suggestedSystems: {
+                                type: genai_1.Type.ARRAY,
+                                items: {
+                                    type: genai_1.Type.OBJECT,
+                                    properties: {
+                                        id: { type: genai_1.Type.STRING },
+                                        name: { type: genai_1.Type.STRING, description: "Nombre del sistema, ej: Sistema Identitario Urbano Kraft" },
+                                        description: { type: genai_1.Type.STRING, description: "Fundamentación y descripción conceptual del sistema" },
+                                        associatedPatternNames: {
+                                            type: genai_1.Type.ARRAY,
+                                            items: { type: genai_1.Type.STRING },
+                                        },
+                                        referenceIds: {
+                                            type: genai_1.Type.ARRAY,
+                                            items: { type: genai_1.Type.STRING },
+                                        },
+                                        aestheticPillars: {
+                                            type: genai_1.Type.ARRAY,
+                                            items: { type: genai_1.Type.STRING },
+                                            description: "Pilares conceptuales y estilísticos clave",
+                                        },
+                                        systemDetails: {
+                                            type: genai_1.Type.OBJECT,
+                                            properties: {
+                                                brandEssence: { type: genai_1.Type.STRING, description: "Concepto nuclear y tono de voz visual" },
+                                                logoAndIdentity: { type: genai_1.Type.STRING, description: "Criterios de logotipos, isotipos y sellos identitarios" },
+                                                packagingSystem: { type: genai_1.Type.STRING, description: "Criterios de packaging, empaques, etiquetas y sustratos" },
+                                                photographyStyle: { type: genai_1.Type.STRING, description: "Criterios de fotografía y dirección de arte" },
+                                                typographySystem: { type: genai_1.Type.STRING, description: "Familias, combinaciones y jerarquías tipográficas" },
+                                                graphicApplications: { type: genai_1.Type.STRING, description: "Criterios de flyers, afiches, cartelería y menús" },
+                                                mascotAndIllustration: { type: genai_1.Type.STRING, description: "Criterios de mascotas, personajes e ilustraciones" },
+                                                digitalAndSocialMedia: { type: genai_1.Type.STRING, description: "Estructura de publicaciones y contenido para redes sociales" },
+                                            },
+                                        },
+                                        suggestedPalette: {
+                                            type: genai_1.Type.ARRAY,
+                                            items: {
+                                                type: genai_1.Type.OBJECT,
+                                                properties: {
+                                                    hex: { type: genai_1.Type.STRING },
+                                                    name: { type: genai_1.Type.STRING },
+                                                    role: { type: genai_1.Type.STRING },
+                                                },
+                                                required: ["hex", "name", "role"],
+                                            },
+                                        },
+                                    },
+                                    required: ["id", "name", "description", "referenceIds", "aestheticPillars"],
+                                },
+                            },
+                            overallInsight: {
+                                type: genai_1.Type.STRING,
+                                description: "Diagnóstico general exhaustivo y articulado de la investigación visual y relaciones del branding",
+                            },
                         },
-                        required: ["hex", "name", "role"]
-                      }
-                    }
-                  },
-                  required: ["id", "name", "description", "referenceIds", "aestheticPillars"]
-                }
-              },
-              overallInsight: {
-                type: import_genai.Type.STRING,
-                description: "Diagn\xF3stico general exhaustivo y articulado de la investigaci\xF3n visual y relaciones del branding"
-              }
-            },
-            required: ["patterns", "suggestedSystems", "overallInsight"]
-          }
+                        required: ["patterns", "suggestedSystems", "overallInsight"],
+                    },
+                },
+            });
+            const rawText = response.text || "{}";
+            result = parseModelJsonResponse(rawText);
         }
-      });
-      const rawText = response.text || "{}";
-      result = parseModelJsonResponse(rawText);
-    } catch (aiErr) {
-      console.error("[Gemini API Error in analyze-references]:", aiErr?.message || aiErr);
-      return res.status(500).json({
-        error: `Error al procesar el an\xE1lisis de referencias con Gemini: ${aiErr?.message || String(aiErr)}`
-      });
+        catch (aiErr) {
+            console.error("[Gemini API Error in analyze-references]:", aiErr?.message || aiErr);
+            return res.status(500).json({
+                error: `Error al procesar el análisis de referencias con Gemini: ${aiErr?.message || String(aiErr)}`,
+            });
+        }
+        return res.json({
+            success: true,
+            data: result,
+            analyzedAt: new Date().toISOString(),
+        });
     }
-    return res.json({
-      success: true,
-      data: result,
-      analyzedAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
-  } catch (error) {
-    console.error("Error en /api/analyze-references:", error);
-    return res.status(500).json({
-      error: "Error al procesar el an\xE1lisis de referencias con Gemini.",
-      details: error.message
-    });
-  }
+    catch (error) {
+        console.error("Error en /api/analyze-references:", error);
+        return res.status(500).json({
+            error: "Error al procesar el análisis de referencias con Gemini.",
+            details: error.message,
+        });
+    }
 });
+// ==========================================
+// 2. Individual Reference Breakdown (Deep Inspector)
+// ==========================================
 app.post("/api/inspect-reference", async (req, res) => {
-  try {
-    const { reference } = req.body;
-    if (!reference || !reference.image) {
-      return res.status(400).json({ error: "Se requiere una referencia con imagen para el desglose." });
-    }
-    let result = null;
     try {
-      const imgPart = await resolveImagePart(reference.image, reference.id || "ref_inspect");
-      const promptText = `
-Analiza exhaustivamente esta imagen de referencia visual individual para un dise\xF1ador multimedial.
-Provee un desglose formal y t\xE9cnico riguroso de sus componentes visuales observables:
-1. Paleta de color (colores dominantes, de acento y fondo con c\xF3digo HEX estimado y rol).
-2. Tipograf\xEDa visible (clasificaci\xF3n, presencia o ausencia de serif/sans/display, peso, tratamiento gr\xE1fico). Si no hay texto, ind\xEDcalo claramente.
-3. Textura y materialidad visual (grano, semitono, ruido anal\xF3gico, limpieza digital).
-4. Composici\xF3n y distribuci\xF3n espacial (tipo de ret\xEDcula, balance, peso visual, proporci\xF3n de espacio negativo, contraste).
-5. Recursos gr\xE1ficos y geom\xE9tricos (l\xEDneas, filetes, capas, marcos, formas).
-6. Tratamiento fotogr\xE1fico o ilustrativo (iluminaci\xF3n, virado crom\xE1tico, contraste, estilo).
-7. Resumen observable sint\xE9tico.
-
-No inventes nada que no est\xE9 presente en la imagen. Devuelve el resultado en JSON estructurado.
-`;
-      const ai = getGeminiClient();
-      const response = await generateContentWithRetry(ai, {
-        model: "gemini-3.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: promptText },
-              {
-                inlineData: {
-                  mimeType: imgPart.mimeType,
-                  data: imgPart.data
-                }
-              }
-            ]
-          }
-        ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: import_genai.Type.OBJECT,
-            properties: {
-              colors: {
-                type: import_genai.Type.ARRAY,
-                items: {
-                  type: import_genai.Type.OBJECT,
-                  properties: {
-                    hex: { type: import_genai.Type.STRING },
-                    name: { type: import_genai.Type.STRING },
-                    role: { type: import_genai.Type.STRING, description: "predominant | accent | background | detail" },
-                    percentage: { type: import_genai.Type.STRING }
-                  },
-                  required: ["hex", "name", "role"]
-                }
-              },
-              typography: {
-                type: import_genai.Type.OBJECT,
-                properties: {
-                  hasText: { type: import_genai.Type.BOOLEAN },
-                  familyStyle: { type: import_genai.Type.STRING },
-                  classification: { type: import_genai.Type.STRING, description: "serif | sans-serif | display | script | monospaced | none | mixed" },
-                  treatment: { type: import_genai.Type.STRING },
-                  hierarchy: { type: import_genai.Type.STRING }
-                },
-                required: ["hasText", "familyStyle", "classification", "treatment", "hierarchy"]
-              },
-              texture: {
-                type: import_genai.Type.OBJECT,
-                properties: {
-                  type: { type: import_genai.Type.STRING },
-                  intensity: { type: import_genai.Type.STRING, description: "sutil | moderada | intensa | nula" },
-                  description: { type: import_genai.Type.STRING }
-                },
-                required: ["type", "intensity", "description"]
-              },
-              composition: {
-                type: import_genai.Type.OBJECT,
-                properties: {
-                  spatialDistribution: { type: import_genai.Type.STRING },
-                  negativeSpace: { type: import_genai.Type.STRING, description: "abundante | moderado | denso/saturado" },
-                  contrastLevel: { type: import_genai.Type.STRING, description: "muy alto | medio | bajo / tonal" },
-                  focalPoint: { type: import_genai.Type.STRING }
-                },
-                required: ["spatialDistribution", "negativeSpace", "contrastLevel", "focalPoint"]
-              },
-              graphicResources: {
-                type: import_genai.Type.ARRAY,
-                items: { type: import_genai.Type.STRING }
-              },
-              photoTreatment: { type: import_genai.Type.STRING },
-              formsAndGeometry: {
-                type: import_genai.Type.ARRAY,
-                items: { type: import_genai.Type.STRING }
-              },
-              observableSummary: { type: import_genai.Type.STRING }
-            },
-            required: [
-              "colors",
-              "typography",
-              "texture",
-              "composition",
-              "graphicResources",
-              "photoTreatment",
-              "formsAndGeometry",
-              "observableSummary"
-            ]
-          }
+        const { reference } = req.body;
+        if (!reference || !reference.image) {
+            return res.status(400).json({ error: "Se requiere una referencia con imagen para el desglose." });
         }
-      });
-      const rawText = response.text || "{}";
-      result = parseModelJsonResponse(rawText);
-    } catch (aiErr) {
-      console.error("[Gemini API Error in inspect-reference]:", aiErr?.message || aiErr);
-      return res.status(500).json({
-        error: `Error al inspeccionar la referencia con Gemini: ${aiErr?.message || String(aiErr)}`
-      });
+        let result = null;
+        try {
+            const imgPart = await resolveImagePart(reference.image, reference.id || "ref_inspect");
+            const promptText = `
+Analiza exhaustivamente esta imagen de referencia visual individual para un diseñador multimedial.
+Provee un desglose formal y técnico riguroso de sus componentes visuales observables:
+1. Paleta de color (colores dominantes, de acento y fondo con código HEX estimado y rol).
+2. Tipografía visible (clasificación, presencia o ausencia de serif/sans/display, peso, tratamiento gráfico). Si no hay texto, indícalo claramente.
+3. Textura y materialidad visual (grano, semitono, ruido analógico, limpieza digital).
+4. Composición y distribución espacial (tipo de retícula, balance, peso visual, proporción de espacio negativo, contraste).
+5. Recursos gráficos y geométricos (líneas, filetes, capas, marcos, formas).
+6. Tratamiento fotográfico o ilustrativo (iluminación, virado cromático, contraste, estilo).
+7. Resumen observable sintético.
+
+No inventes nada que no esté presente en la imagen. Devuelve el resultado en JSON estructurado.
+`;
+            const ai = getGeminiClient();
+            const response = await generateContentWithRetry(ai, {
+                model: "gemini-3.5-flash",
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: promptText },
+                            {
+                                inlineData: {
+                                    mimeType: imgPart.mimeType,
+                                    data: imgPart.data,
+                                },
+                            },
+                        ],
+                    },
+                ],
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: genai_1.Type.OBJECT,
+                        properties: {
+                            colors: {
+                                type: genai_1.Type.ARRAY,
+                                items: {
+                                    type: genai_1.Type.OBJECT,
+                                    properties: {
+                                        hex: { type: genai_1.Type.STRING },
+                                        name: { type: genai_1.Type.STRING },
+                                        role: { type: genai_1.Type.STRING, description: "predominant | accent | background | detail" },
+                                        percentage: { type: genai_1.Type.STRING },
+                                    },
+                                    required: ["hex", "name", "role"],
+                                },
+                            },
+                            typography: {
+                                type: genai_1.Type.OBJECT,
+                                properties: {
+                                    hasText: { type: genai_1.Type.BOOLEAN },
+                                    familyStyle: { type: genai_1.Type.STRING },
+                                    classification: { type: genai_1.Type.STRING, description: "serif | sans-serif | display | script | monospaced | none | mixed" },
+                                    treatment: { type: genai_1.Type.STRING },
+                                    hierarchy: { type: genai_1.Type.STRING },
+                                },
+                                required: ["hasText", "familyStyle", "classification", "treatment", "hierarchy"],
+                            },
+                            texture: {
+                                type: genai_1.Type.OBJECT,
+                                properties: {
+                                    type: { type: genai_1.Type.STRING },
+                                    intensity: { type: genai_1.Type.STRING, description: "sutil | moderada | intensa | nula" },
+                                    description: { type: genai_1.Type.STRING },
+                                },
+                                required: ["type", "intensity", "description"],
+                            },
+                            composition: {
+                                type: genai_1.Type.OBJECT,
+                                properties: {
+                                    spatialDistribution: { type: genai_1.Type.STRING },
+                                    negativeSpace: { type: genai_1.Type.STRING, description: "abundante | moderado | denso/saturado" },
+                                    contrastLevel: { type: genai_1.Type.STRING, description: "muy alto | medio | bajo / tonal" },
+                                    focalPoint: { type: genai_1.Type.STRING },
+                                },
+                                required: ["spatialDistribution", "negativeSpace", "contrastLevel", "focalPoint"],
+                            },
+                            graphicResources: {
+                                type: genai_1.Type.ARRAY,
+                                items: { type: genai_1.Type.STRING },
+                            },
+                            photoTreatment: { type: genai_1.Type.STRING },
+                            formsAndGeometry: {
+                                type: genai_1.Type.ARRAY,
+                                items: { type: genai_1.Type.STRING },
+                            },
+                            observableSummary: { type: genai_1.Type.STRING },
+                        },
+                        required: [
+                            "colors",
+                            "typography",
+                            "texture",
+                            "composition",
+                            "graphicResources",
+                            "photoTreatment",
+                            "formsAndGeometry",
+                            "observableSummary",
+                        ],
+                    },
+                },
+            });
+            const rawText = response.text || "{}";
+            result = parseModelJsonResponse(rawText);
+        }
+        catch (aiErr) {
+            console.error("[Gemini API Error in inspect-reference]:", aiErr?.message || aiErr);
+            return res.status(500).json({
+                error: `Error al inspeccionar la referencia con Gemini: ${aiErr?.message || String(aiErr)}`,
+            });
+        }
+        return res.json({
+            success: true,
+            data: {
+                ...result,
+                analyzedAt: new Date().toISOString(),
+            },
+        });
     }
-    return res.json({
-      success: true,
-      data: {
-        ...result,
-        analyzedAt: (/* @__PURE__ */ new Date()).toISOString()
-      }
-    });
-  } catch (error) {
-    console.error("Error en /api/inspect-reference:", error);
-    return res.status(500).json({
-      error: "Error al desglosar la referencia individual con Gemini.",
-      details: error.message
-    });
-  }
+    catch (error) {
+        console.error("Error en /api/inspect-reference:", error);
+        return res.status(500).json({
+            error: "Error al desglosar la referencia individual con Gemini.",
+            details: error.message,
+        });
+    }
 });
+// ==========================================
+// Synthesize / Update Visual System Details with Gemini
+// ==========================================
 app.post("/api/synthesize-system", async (req, res) => {
-  import_dotenv.default.config({ override: true });
-  try {
-    const {
-      system,
-      patterns = [],
-      references = [],
-      projectName = "",
-      projectObjective = "",
-      projectDescription = ""
-    } = req.body;
-
-    const sysName = system?.name || projectName || "Sistema Visual";
-    const patternSummary = (patterns || [])
-      .map((p) => `- ${p.name} [Categor\xEDa: ${p.category}]: ${p.description}`)
-      .join("\n");
-    const refSummary = (references || [])
-      .map((r) => `- Ref ID: ${r.id}, Nombre: ${r.name || r.id}, Notas: ${r.notes || "Sin notas"}`)
-      .join("\n");
-
-    const systemInstruction = `You are a Senior Art Director and World-Class Brand Identity Strategist.
+    dotenv_1.default.config({ override: true });
+    try {
+        const { system, patterns = [], references = [], projectName = "", projectObjective = "", projectDescription = "", } = req.body;
+        const sysName = system?.name || projectName || "Sistema Visual";
+        const patternSummary = (patterns || [])
+            .map((p) => `- [${p.id}] ${p.name} [Categoría: ${p.category}]: ${p.description}`)
+            .join("\n");
+        const refSummary = (references || [])
+            .map((r) => `- Ref ID: ${r.id}, Nombre: ${r.name || r.id}, Notas: ${r.notes || "Sin notas"}`)
+            .join("\n");
+        const systemInstruction = `You are a Senior Art Director and World-Class Brand Identity Strategist.
 A Visual System is being synthesized/updated for the brand "${projectName || sysName}".
 Brand Objective: "${projectObjective}"
 Brand Context: "${projectDescription}"
@@ -561,12 +584,13 @@ All output text MUST be in natural, evocative Spanish.
 Generate JSON containing:
 1. "name": A refined, memorable name for this visual system.
 2. "description": A comprehensive conceptual narrative (2-3 paragraphs) explaining how colors, typography, textures, and grid composition interact.
-3. "aestheticPillars": Array of 3 to 5 synthetic, impactful conceptual pillars (e.g. "Tensi\xF3n Tipogr\xE1fica Hipercondensada", "Sustratos Kraft & Tactilidad", "Reticulado Perimetral").
+3. "aestheticPillars": Array of 3 to 5 synthetic, impactful conceptual pillars (e.g. "Tensión Tipográfica Hipercondensada", "Sustratos Kraft & Tactilidad", "Reticulado Perimetral").
 4. "colorPalette": Array of 4 to 6 color swatches extracted from evidence: {"hex": "#HEX", "name": "Nombre evocador", "role": "Rol en el sistema"}.
 5. "typographyRules": Array of 2-4 key typography guidelines.
 6. "textureRules": Array of 2-4 key texture/finish guidelines.
 7. "compositionRules": Array of 2-4 key layout/grid guidelines.
-8. "systemDetails": Object with rich text descriptions for:
+8. "sources": Traceability. For each item of aestheticPillars, typographyRules, textureRules and compositionRules, list the IDs (in square brackets above, e.g. "pat_bc_02") of the validated patterns that support it. Use only IDs from the list. Shape: {"aestheticPillars": [["pat_x"], ...], "typographyRules": [[...]], "textureRules": [[...]], "compositionRules": [[...]]}, one inner array per item, same order.
+9. "systemDetails": Object with rich text descriptions for:
    - "brandEssence"
    - "logoAndIdentity"
    - "packagingSystem"
@@ -576,666 +600,366 @@ Generate JSON containing:
    - "mascotAndIllustration"
    - "digitalAndSocialMedia"
 `;
-
-    const userPrompt = `Synthesize visual system "${sysName}" using ${patterns.length} patterns and ${references.length} references.`;
-    const ai = getGeminiClient();
-    const response = await generateContentWithRetry(ai, {
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: import_genai.Type.OBJECT,
-          properties: {
-            name: { type: import_genai.Type.STRING },
-            description: { type: import_genai.Type.STRING },
-            aestheticPillars: {
-              type: import_genai.Type.ARRAY,
-              items: { type: import_genai.Type.STRING }
-            },
-            colorPalette: {
-              type: import_genai.Type.ARRAY,
-              items: {
-                type: import_genai.Type.OBJECT,
-                properties: {
-                  hex: { type: import_genai.Type.STRING },
-                  name: { type: import_genai.Type.STRING },
-                  role: { type: import_genai.Type.STRING }
+        const userPrompt = `Synthesize visual system "${sysName}" using ${patterns.length} patterns and ${references.length} references.`;
+        const ai = getGeminiClient();
+        const response = await generateContentWithRetry(ai, {
+            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            config: {
+                systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: genai_1.Type.OBJECT,
+                    properties: {
+                        name: { type: genai_1.Type.STRING },
+                        description: { type: genai_1.Type.STRING },
+                        aestheticPillars: {
+                            type: genai_1.Type.ARRAY,
+                            items: { type: genai_1.Type.STRING },
+                        },
+                        colorPalette: {
+                            type: genai_1.Type.ARRAY,
+                            items: {
+                                type: genai_1.Type.OBJECT,
+                                properties: {
+                                    hex: { type: genai_1.Type.STRING },
+                                    name: { type: genai_1.Type.STRING },
+                                    role: { type: genai_1.Type.STRING },
+                                },
+                                required: ["hex", "name", "role"],
+                            },
+                        },
+                        typographyRules: {
+                            type: genai_1.Type.ARRAY,
+                            items: { type: genai_1.Type.STRING },
+                        },
+                        textureRules: {
+                            type: genai_1.Type.ARRAY,
+                            items: { type: genai_1.Type.STRING },
+                        },
+                        compositionRules: {
+                            type: genai_1.Type.ARRAY,
+                            items: { type: genai_1.Type.STRING },
+                        },
+                        sources: {
+                            type: genai_1.Type.OBJECT,
+                            properties: {
+                                aestheticPillars: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
+                                typographyRules: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
+                                textureRules: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
+                                compositionRules: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
+                            },
+                        },
+                        systemDetails: {
+                            type: genai_1.Type.OBJECT,
+                            properties: {
+                                brandEssence: { type: genai_1.Type.STRING },
+                                logoAndIdentity: { type: genai_1.Type.STRING },
+                                packagingSystem: { type: genai_1.Type.STRING },
+                                photographyStyle: { type: genai_1.Type.STRING },
+                                typographySystem: { type: genai_1.Type.STRING },
+                                graphicApplications: { type: genai_1.Type.STRING },
+                                mascotAndIllustration: { type: genai_1.Type.STRING },
+                                digitalAndSocialMedia: { type: genai_1.Type.STRING },
+                            },
+                        },
+                    },
+                    required: [
+                        "name",
+                        "description",
+                        "aestheticPillars",
+                        "colorPalette",
+                        "typographyRules",
+                        "textureRules",
+                        "compositionRules",
+                        "systemDetails",
+                    ],
                 },
-                required: ["hex", "name", "role"]
-              }
             },
-            typographyRules: {
-              type: import_genai.Type.ARRAY,
-              items: { type: import_genai.Type.STRING }
-            },
-            textureRules: {
-              type: import_genai.Type.ARRAY,
-              items: { type: import_genai.Type.STRING }
-            },
-            compositionRules: {
-              type: import_genai.Type.ARRAY,
-              items: { type: import_genai.Type.STRING }
-            },
-            systemDetails: {
-              type: import_genai.Type.OBJECT,
-              properties: {
-                brandEssence: { type: import_genai.Type.STRING },
-                logoAndIdentity: { type: import_genai.Type.STRING },
-                packagingSystem: { type: import_genai.Type.STRING },
-                photographyStyle: { type: import_genai.Type.STRING },
-                typographySystem: { type: import_genai.Type.STRING },
-                graphicApplications: { type: import_genai.Type.STRING },
-                mascotAndIllustration: { type: import_genai.Type.STRING },
-                digitalAndSocialMedia: { type: import_genai.Type.STRING }
-              }
+        });
+        const rawText = response.text || "{}";
+        const parsed = parseModelJsonResponse(rawText);
+        if (parsed && parsed.description) {
+            // Trazabilidad: solo IDs de patrones que realmente se enviaron, alineados con cada ítem.
+            const validIds = new Set((patterns || []).map((p) => p.id));
+            const fields = ["aestheticPillars", "typographyRules", "textureRules", "compositionRules"];
+            const sources = {};
+            for (const f of fields) {
+                const items = Array.isArray(parsed[f]) ? parsed[f] : [];
+                const raw = Array.isArray(parsed.sources?.[f]) ? parsed.sources[f] : [];
+                sources[f] = items.map((_, i) => (Array.isArray(raw[i]) ? raw[i] : []).map(String).filter((id) => validIds.has(id)));
             }
-          },
-          required: [
-            "name",
-            "description",
-            "aestheticPillars",
-            "colorPalette",
-            "typographyRules",
-            "textureRules",
-            "compositionRules",
-            "systemDetails"
-          ]
+            parsed.sources = sources;
+            return res.json({
+                success: true,
+                data: parsed,
+            });
         }
-      }
-    });
-
-    const rawText = response.text || "{}";
-    const parsed = parseModelJsonResponse(rawText);
-    if (parsed && parsed.description) {
-      return res.json({
-        success: true,
-        data: parsed
-      });
+        throw new Error("No se pudo parsear el resultado de la síntesis.");
     }
-    throw new Error("No se pudo parsear el resultado de la s\xEDntesis.");
-  } catch (error) {
-    console.error("Error en /api/synthesize-system:", error);
-    return res.status(500).json({
-      error: "Error sintetizando el sistema visual.",
-      details: error.message || String(error)
-    });
-  }
+    catch (error) {
+        console.error("Error en /api/synthesize-system:", error);
+        return res.status(500).json({
+            error: "Error sintetizando el sistema visual.",
+            details: error.message || String(error),
+        });
+    }
 });
-app.post("/api/suggest-inspirations", async (req, res) => {
-  import_dotenv.default.config({ override: true });
-  try {
-    const {
-      projectName = "",
-      objective = "",
-      description = "",
-      system,
-      confirmedPatterns = []
-    } = req.body;
-    const nombreProyecto = projectName || system?.name || "Proyecto de Identidad Visual";
-    const objetivoProyecto = objective || "Branding y Sistema de Identidad Visual";
-    const descripcionProyecto = description || system?.description || "";
-    const activePatternsSummary = (confirmedPatterns || []).map((p) => `${p.name} (${p.category}): ${p.description}`).join("; ");
-    const systemInstruction = `You are a World-Class Creative Art Director and Brand Strategist.
-Analyze the user's specific brand project and visual system:
-- Brand Name: "${nombreProyecto}"
-- Brand Objective: "${objetivoProyecto}"
-- Brand Description: "${descripcionProyecto}"
-- System Name: "${system?.name || ""}"
-- Confirmed Visual Patterns: "${activePatternsSummary}"
-
-Your task is to generate EXACTLY 4 highly specific, creative visual application shortcut suggestions tailored uniquely to THIS brand.
-
-DO NOT output generic ideas or hardcoded templates. For example:
-- If the project is about clothing/apparel -> suggest t-shirt mockup, hangtag, tote bag, lookbook.
-- If the project is about gastronomy/burgers -> suggest packaging wrapper, storefront sign, Instagram product shot, print poster.
-- If the project is about perfume/cosmetics -> suggest glass bottle packaging, tactile box, editorial campaign poster, store display.
-- If the project is about tech/software -> suggest mobile app UI, landing page hero, vector brand mark, presentation deck.
-
-OUTPUT FORMAT:
-Return ONLY a JSON object with this structure:
-{
-  "suggestions": [
-    {
-      "id": "sug_1",
-      "label": "<Emoji + Short Title in Spanish, max 25 chars>",
-      "category": "<Category>",
-      "userDescription": "<Detailed graphic directive prompt in Spanish describing how to apply the visual system to this specific support>"
-    }
-  ]
-}`;
-    const userPrompt = `Generate 4 tailored creative application shortcuts for brand "${nombreProyecto}" with objective "${objetivoProyecto}".`;
-    const ai = getGeminiClient();
-    const response = await generateContentWithRetry(ai, {
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: import_genai.Type.OBJECT,
-          properties: {
-            suggestions: {
-              type: import_genai.Type.ARRAY,
-              items: {
-                type: import_genai.Type.OBJECT,
-                properties: {
-                  id: { type: import_genai.Type.STRING },
-                  label: { type: import_genai.Type.STRING },
-                  category: { type: import_genai.Type.STRING },
-                  userDescription: { type: import_genai.Type.STRING }
-                },
-                required: ["id", "label", "category", "userDescription"]
-              }
-            }
-          },
-          required: ["suggestions"]
-        }
-      }
-    });
-    const rawText = response.text || "{}";
-    const parsed = parseModelJsonResponse(rawText);
-    if (parsed && Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0) {
-      return res.json({
-        success: true,
-        suggestions: parsed.suggestions
-      });
-    }
-    throw new Error("No se obtuvieron sugerencias de Gemini.");
-  } catch (err) {
-    console.warn("Error en /api/suggest-inspirations:", err?.message || err);
-    return res.json({
-      success: true,
-      suggestions: [
-        {
-          id: "sug_f1",
-          label: `\u{1F3F7}\uFE0F Isotipo ${req.body.projectName || "Marca"}`,
-          category: "Branding",
-          userDescription: `Isotipo gr\xE1fico vectorial limpio aislado sobre fondo neutro, aplicando las proporciones y formas geom\xE9tricas del sistema visual de ${req.body.projectName || "la marca"}.`
-        },
-        {
-          id: "sug_f2",
-          label: `\u{1F4E6} Mockup de Packaging`,
-          category: "Packaging",
-          userDescription: `Pieza de packaging o embalaje de producto con acabado de material t\xE1ctil, aplicando la paleta de colores y reglas de marca de ${req.body.projectName || "la marca"}.`
-        },
-        {
-          id: "sug_f3",
-          label: `\u{1F4F1} Post para Redes`,
-          category: "Social Media",
-          userDescription: `Composici\xF3n gr\xE1fica cuadrada para redes sociales con jerarqu\xEDa tipogr\xE1fica, grilla balanceada y elementos del sistema visual.`
-        },
-        {
-          id: "sug_f4",
-          label: `\u{1F4C4} Afiche Editorial`,
-          category: "Editorial",
-          userDescription: `P\xF3ster de dise\xF1o gr\xE1fico 2D con composici\xF3n reticular suiza, titulares de alto contraste y sello de autenticidad del sistema visual.`
-        }
-      ]
-    });
-  }
-});
-function buildFallbackMasterPrompt(params) {
-  const { projectName, system, confirmedPatterns = [], userDescription, iterationPrompt } = params;
-  const rawUserText = iterationPrompt ? `${userDescription} (Ajuste: ${iterationPrompt})` : userDescription;
-  const textLower = rawUserText.toLowerCase().trim();
-  const isLogo = /\b(logo|logotipo|isotipo|monograma|sello|emblema|marca|isologo)\b/i.test(textLower);
-  const isFlyer = /\b(flyer|afiche|poster|volante|folleto|publicidad|aviso)\b/i.test(textLower);
-  const isPackaging = /\b(envoltorio|papel|packaging|bolsa|caja|vaso|servilleta|etiqueta|envase)\b/i.test(textLower);
-  const isSpatial = /\b(pared|fachada|marquesina|local|interior|mostrador|cartel|espacio)\b/i.test(textLower);
-  const isApparel = /\b(remera|campera|ropa|indumentaria|prenda|tshirt|shirt|hoodie|chaqueta|pantalon|tote|bag)\b/i.test(textLower);
-  const hasMascot = /\b(mascota|personaje|ilustracion|ilustración|dibujo|character)\b/i.test(textLower);
-  const cleanSubject = rawUserText.replace(/^aplicar el sistema (gráfico|visual) a /i, "").replace(/^apply the visual system to /i, "").trim();
-  const hexColors = (system.colorPalette || []).map((c) => `${c.name ? `${c.name} ` : ""}(${c.hex})`).join(", ");
-  const mascotPattern = confirmedPatterns.find((p) => p.category === "mascot_illustration" || /\bmascota\b/i.test(p.name));
-  const mascotDetail = system.systemDetails?.mascotAndIllustration || system.systemDetails?.mascotOrIllustration || (mascotPattern ? mascotPattern.description : "");
-  let formatDirective = "";
-  if (isLogo) {
-    formatDirective = `Clean minimalist 2D flat vector logo mark design for ${cleanSubject}. CRISP VECTOR GRAPHIC ICON isolated on a solid clean neutral background. NO 3D scene, NO room, NO wall, NO store interior, NO product mockup environment.`;
-  } else if (isApparel) {
-    formatDirective = `Studio product photography mockup of ${cleanSubject}, displayed flat lay on a clean neutral background. Realistic fabric texture, tactile woven labels, industrial embroidery and print detail.`;
-  } else if (isPackaging) {
-    formatDirective = `Photorealistic product packaging mockup of ${cleanSubject}, studio flat lay photography, tactile paper / material texture with softbox studio lighting. ${hasMascot ? `Features repeated graphic pattern of the brand mascot (${mascotDetail || "stylized character illustration"}) printed on packaging surface.` : ""}`;
-  } else if (isFlyer) {
-    formatDirective = `2D graphic design print flyer poster layout of ${cleanSubject}, editorial grid composition, crisp typography, clean paper texture.`;
-  } else if (isSpatial) {
-    formatDirective = `Environmental graphic design architectural store mockup of ${cleanSubject}, interior wall signage with realistic lighting.`;
-  } else {
-    formatDirective = `Professional studio product representation of ${cleanSubject}.`;
-  }
-  const promptParts = [
-    formatDirective,
-    `Brand Context: "${projectName}"`,
-    hexColors ? `Color Palette (HEX): ${hexColors}` : "",
-    (system.typographyRules || []).slice(0, 2).join(". "),
-    (system.textureRules || []).slice(0, 2).join(". "),
-    (system.compositionRules || []).slice(0, 1).join(". "),
-    "Strict directive: Do NOT print any unwanted literal text or Spanish labels on the image. High resolution master quality."
-  ].filter(Boolean);
-  return promptParts.join(". ");
+/** Detecta el soporte pedido para elegir formato y tamaño. */
+function detectFormat(text) {
+    const t = text.toLowerCase();
+    const has = (re) => re.test(t);
+    if (has(/\b(logo|logotipo|isotipo|isologo|monograma|emblema|sello)\b/))
+        return { id: "logo", size: "1024x1024", phrase: "a flat 2D logo mark presented alone on a plain background, crisp vector-like edges" };
+    if (has(/\b(afiche|poster|póster|flyer|volante|cartel publicitario)\b/))
+        return { id: "poster", size: "1024x1536", phrase: "a vertical printed poster, flat 2D graphic layout seen straight on, edge to edge" };
+    if (has(/\b(fachada|frente|marquesina|vidriera|local|interior|mostrador|señalética|senaletica|pared|mural)\b/))
+        return { id: "space", size: "1536x1024", phrase: "a natural-light architectural photograph of the physical space, eye-level, realistic materials" };
+    if (has(/\b(web|website|sitio|landing|home ?page)\b/))
+        return { id: "web", size: "1536x1024", phrase: "a desktop website hero section shown as a flat screen capture" };
+    if (has(/\b(story|stories|historia)\b/))
+        return { id: "story", size: "1024x1536", phrase: "a vertical social media story, flat 2D layout" };
+    if (has(/\b(instagram|post|redes|feed)\b/))
+        return { id: "post", size: "1024x1024", phrase: "a square social media post, flat 2D layout" };
+    if (has(/\b(packaging|envase|envoltorio|caja|bolsa|vaso|etiqueta|servilleta|lata|botella)\b/))
+        return { id: "packaging", size: "1024x1024", phrase: "a product packaging photograph on a plain studio surface, soft natural light, real printed materials" };
+    if (has(/\b(menú|menu|carta|folleto|editorial|revista|libro|tapa)\b/))
+        return { id: "print", size: "1024x1536", phrase: "a printed editorial piece photographed flat from above on a plain surface" };
+    return { id: "piece", size: "1024x1024", phrase: "a single brand application presented clearly on a plain background" };
 }
-async function synthesizeMasterPromptWithGemini(params) {
-  const {
-    projectName,
-    objective,
-    context,
-    system,
-    confirmedPatterns = [],
-    selectedResources = {},
-    userDescription,
-    iterationPrompt
-  } = params;
-  const colorSummary = (system.colorPalette || []).map((c) => `${c.name || "Color"} (${c.hex}) - Role: ${c.role || "general"}`).join("; ");
-  const pillarsSummary = (system.aestheticPillars || []).join(". ");
-  const typographySummary = (system.typographyRules || []).join(". ");
-  const textureSummary = (system.textureRules || []).join(". ");
-  const compositionSummary = (system.compositionRules || []).join(". ");
-  const sysDetails = system.systemDetails || {};
-  const detailsSummary = [
-    sysDetails.brandEssence ? `Brand Essence: ${sysDetails.brandEssence}` : "",
-    sysDetails.logoAndIdentity || sysDetails.logoRules ? `Logo & Identity Guidelines: ${sysDetails.logoAndIdentity || sysDetails.logoRules}` : "",
-    sysDetails.packagingSystem || sysDetails.packagingDesign ? `Packaging Guidelines: ${sysDetails.packagingSystem || sysDetails.packagingDesign}` : "",
-    sysDetails.mascotAndIllustration || sysDetails.mascotOrIllustration ? `Mascot & Illustration Style: ${sysDetails.mascotAndIllustration || sysDetails.mascotOrIllustration}` : "",
-    sysDetails.photographyStyle || sysDetails.photographyDirection ? `Photography Style: ${sysDetails.photographyStyle || sysDetails.photographyDirection}` : "",
-    sysDetails.graphicApplications || sysDetails.flyersAndPosters ? `Graphic Applications / Editorial: ${sysDetails.graphicApplications || sysDetails.flyersAndPosters}` : ""
-  ].filter(Boolean).join("\n");
-  const activePatternsSummary = confirmedPatterns.map((p) => `- [${p.category}] ${p.name}: ${p.description} ${p.systemHypothesis ? `(Translation: ${p.systemHypothesis})` : ""}`).join("\n");
-  const activeResourcesSummary = Object.entries(selectedResources).filter(([_, enabled]) => enabled).map(([key]) => key).join(", ");
-  const systemInstruction = `You are a World-Class Art Director and Senior Prompt Specialist for DALL-E 3 and FLUX image generation.
-Your mission is to take a designer's application request (written in Spanish) and synthesize it with the Brand Visual System to produce a single, cohesive ENGLISH prompt for DALL-E 3.
-
-ABSOLUTE CRITICAL RULES FOR DALL-E 3 PROMPT SYNTHESIS:
-1. THE REQUESTED SUBJECT IS SACROSANCT AND MUST BE THE PRIMARY CORE OBJECT OF THE PROMPT:
-   - Identify the exact physical object requested by the designer (e.g. "campera de trabajo utilitaria de lona pesada" -> "A studio flat lay product photography mockup of a heavy canvas utility workwear jacket").
-   - The prompt MUST start explicitly by describing this EXACT requested physical item.
-   - DO NOT substitute, alter, or replace the requested physical item with unrelated objects from moodboard patterns (e.g. DO NOT render a sound recorder interface, audio cassette, vinyl record, or poster when the designer asked for a jacket, t-shirt, or packaging!).
-
-2. APPLY THE BRAND'S VISUAL IDENTITY ONTO THAT REQUESTED PHYSICAL OBJECT:
-   - Apply the brand's visual identity rules ONTO the requested object as graphic prints, embroidered details, woven tags, typographic stamps, or material finishes.
-   - Incorporate the brand's exact HEX color palette (${colorSummary}) for the object's body, accents, and graphic details.
-   - Incorporate typography rules, texture treatments, and graphic resources onto the surface of the item.
-
-3. DO NOT PRINT UNWANTED SPANISH WORDS OR META LABELS:
-   - DO NOT print literal Spanish words like "campera", "envoltura", "mascota", "logo", "dise\xF1o" on the graphic unless explicitly surrounded by quotation marks indicating literal text.
-
-4. FORMAT SPECIFICATIONS BY ITEM TYPE:
-   - APPAREL / INDUMENTARIA / CAMPERA / REMERA: "Studio product photography mockup of [item description] displayed flat lay on a clean neutral studio background. Featuring [graphic prints, woven tags, embroidered details, exact HEX colors]. Soft lighting, ultra detailed fabric texture."
-   - LOGO / ISOTIPO: "Clean 2D flat vector logo mark icon design isolated on a solid neutral background. High resolution vector graphic. NO 3D mockup, NO room, NO wall, NO store."
-   - PACKAGING / ENVOLTORIO: "Studio flat lay photorealistic product packaging mockup of [item description] with tactile material finish."
-   - POSTER / AFICHE: "2D graphic design print poster layout preview, editorial grid composition, crisp typography."
-
-5. OUTPUT FORMAT:
-   Return ONLY a JSON object with this exact structure:
-   {
-     "englishPrompt": "<Detailed single-paragraph English prompt starting directly with the requested physical item and applying all visual identity features>",
-     "rationale": "<1-sentence Spanish summary explaining how the requested subject was synthesized with the visual system rules>"
-   }`;
-  const userPromptText = `
-Brand Name: "${projectName}"
-Brand Objective: "${objective}"
-Designer's Application Request: "${userDescription}"
-${iterationPrompt ? `Iteration Adjustment Required: "${iterationPrompt}"` : ""}
-
-VISUAL SYSTEM METADATA:
-System Name: ${system.name}
-System Description: ${system.description || ""}
-Aesthetic Pillars: ${pillarsSummary}
-Color Palette: ${colorSummary}
-Typography Rules: ${typographySummary}
-Texture Rules: ${textureSummary}
-Composition Rules: ${compositionSummary}
-
-SYSTEM GUIDELINES:
-${detailsSummary}
-
-CONFIRMED VISUAL PATTERNS:
-${activePatternsSummary || "No specific pattern overrides."}
-
-ACTIVE SELECTED RESOURCES BY DESIGNER:
-${activeResourcesSummary || "All resources active."}
-`;
-  try {
-    const ai = getGeminiClient();
-    const response = await generateContentWithRetry(ai, {
-      contents: [{ role: "user", parts: [{ text: userPromptText }] }],
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: import_genai.Type.OBJECT,
-          properties: {
-            englishPrompt: { type: import_genai.Type.STRING },
-            rationale: { type: import_genai.Type.STRING }
-          },
-          required: ["englishPrompt", "rationale"]
-        }
-      }
-    });
-    const rawText = response.text || "{}";
-    const parsed = parseModelJsonResponse(rawText);
-    if (parsed && parsed.englishPrompt) {
-      return {
-        englishPrompt: parsed.englishPrompt.trim(),
-        rationale: parsed.rationale || "Prompt sintetizado aplicando el sistema visual sobre el objeto solicitado."
-      };
+const firstOf = (arr) => (Array.isArray(arr) && arr.length ? String(arr[0]).trim() : "");
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s);
+/**
+ * Prompt en inglés, corto y descriptivo:
+ * sujeto · soporte · paleta HEX (3-4) · una regla tipográfica · una de textura · composición.
+ * Las restricciones se expresan en positivo.
+ */
+function buildImagePrompt(opts) {
+    const { system, resources, patterns } = opts;
+    const lines = [];
+    lines.push(`${clip(opts.subject, 220)}, for the brand "${opts.projectName || system?.name}".`);
+    lines.push(`Format: ${opts.format.phrase}.`);
+    const palette = (system?.colorPalette || []).map((c) => String(c.hex || "").toUpperCase()).filter(Boolean).slice(0, 4);
+    if (resources.palette !== false && palette.length)
+        lines.push(`Color palette limited to ${palette.join(", ")}, used as flat solid colors.`);
+    const typo = firstOf(system?.typographyRules) || patterns.find((p) => p.category === "typography")?.description || "";
+    if (resources.typography !== false && typo)
+        lines.push(`Typography: ${clip(typo, 180)}.`);
+    const texture = firstOf(system?.textureRules) || patterns.find((p) => p.category === "texture")?.description || "";
+    if (resources.texture !== false && texture)
+        lines.push(`Surface and texture: ${clip(texture, 160)}.`);
+    const comp = firstOf(system?.compositionRules) || patterns.find((p) => p.category === "composition")?.description || "";
+    if (resources.composition !== false && comp)
+        lines.push(`Composition: ${clip(comp, 160)}.`);
+    if (resources.graphic_elements) {
+        const g = patterns.filter((p) => p.category === "graphic_elements" || p.category === "logo_identity").map((p) => p.name).slice(0, 2);
+        if (g.length)
+            lines.push(`Graphic elements: ${g.join("; ")}.`);
     }
-  } catch (err) {
-    console.warn("Gemini prompt synthesis warning, using fallback synthesizer:", err?.message || err);
-  }
-  return {
-    englishPrompt: buildFallbackMasterPrompt(params),
-    rationale: "Prompt generado mediante sintetizador de respaldo del sistema visual."
-  };
+    if (resources.photography) {
+        const ph = system?.systemDetails?.photographyStyle || patterns.find((p) => p.category === "photography_treatment")?.description;
+        if (ph)
+            lines.push(`Image treatment: ${clip(ph, 140)}.`);
+    }
+    if (resources.illustration) {
+        const il = system?.systemDetails?.mascotAndIllustration || patterns.find((p) => p.category === "mascot_illustration")?.description;
+        if (il)
+            lines.push(`Illustration: ${clip(il, 140)}.`);
+    }
+    if (opts.revision) {
+        lines.push(`Revise the first attached image: ${clip(opts.revision, 200)}. Keep everything else as it is.`);
+    }
+    else if (opts.hasAnchor) {
+        lines.push("Keep the same visual language, materials and lighting as the first attached image.");
+    }
+    if (opts.hasReferences) {
+        lines.push("The attached reference images are style evidence: match their palette, materials, textures and graphic language, with a new composition and original content.");
+    }
+    lines.push("Text in the image, if any, is short, legible and spelled exactly as given.");
+    return lines.join("\n");
+}
+/** data URL o http(s) → Blob para multipart. */
+async function imageToBlob(src, name) {
+    const part = await resolveImagePart(src, name);
+    if (!part)
+        return null;
+    const ext = part.mimeType.split("/")[1] || "png";
+    const type = ["image/png", "image/jpeg", "image/webp"].includes(part.mimeType) ? part.mimeType : "image/png";
+    return { blob: new Blob([Buffer.from(part.data, "base64")], { type }), name: `${name}.${ext === "jpeg" ? "jpg" : ext}` };
+}
+function friendlyOpenAIError(msg) {
+    const m = msg.toLowerCase();
+    if (m.includes("incorrect api key") || m.includes("invalid api key"))
+        return "La OPENAI_API_KEY del archivo .env no es válida.";
+    if (m.includes("verif"))
+        return "Tu organización de OpenAI tiene que estar verificada para usar los modelos GPT Image (platform.openai.com → Settings → Organization → Verify).";
+    if (m.includes("billing") || m.includes("quota") || m.includes("credit"))
+        return "La cuenta de OpenAI no tiene saldo o alcanzó su límite (platform.openai.com → Billing).";
+    if (m.includes("safety") || m.includes("moderation") || m.includes("rejected"))
+        return "OpenAI rechazó el pedido por sus políticas de contenido. Probá reformular la descripción.";
+    return msg;
+}
+async function callOpenAIImage(opts) {
+    const { key, model, prompt, size, quality, images } = opts;
+    let response;
+    if (images.length) {
+        const form = new FormData();
+        form.append("model", model);
+        form.append("prompt", prompt);
+        form.append("size", size);
+        form.append("quality", quality);
+        form.append("n", "1");
+        // gpt-image-1 admite fidelidad alta a las imágenes de entrada; gpt-image-2 la aplica siempre.
+        if (model === "gpt-image-1")
+            form.append("input_fidelity", "high");
+        images.forEach(img => form.append("image[]", img.blob, img.name));
+        response = await fetch("https://api.openai.com/v1/images/edits", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${key}` },
+            body: form,
+        });
+    }
+    else {
+        response = await fetch("https://api.openai.com/v1/images/generations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+            body: JSON.stringify({ model, prompt, size, quality, n: 1 }),
+        });
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) {
+        const err = new Error(data?.error?.message || `HTTP ${response.status}`);
+        err.status = response.status;
+        err.code = data?.error?.code;
+        throw err;
+    }
+    const b64 = data?.data?.[0]?.b64_json;
+    if (b64)
+        return `data:image/png;base64,${b64}`;
+    const url = data?.data?.[0]?.url;
+    if (url) {
+        const img = await fetch(url);
+        return `data:image/png;base64,${Buffer.from(await img.arrayBuffer()).toString("base64")}`;
+    }
+    throw new Error("OpenAI no devolvió ninguna imagen.");
 }
 app.post("/api/generate-application", async (req, res) => {
-  import_dotenv.default.config({ override: true });
-  try {
-    const {
-      objective = "",
-      context = "",
-      system,
-      projectName = "",
-      confirmedPatterns = [],
-      selectedResources = {},
-      relevantReferences = [],
-      userDescription = "",
-      iterationPrompt = "",
-      previousImageUrl = "",
-      aiEngine = "openai_dalle3",
-      prompt = ""
-    } = req.body;
-    console.log("ENGINE:", aiEngine);
-    console.log("OPENAI KEY PRESENTE:", !!process.env.OPENAI_API_KEY);
-    if (!system || !system.name) {
-      return res.status(400).json({
-        error: "Se requiere un sistema visual confirmado para generar una aplicaci\xF3n."
-      });
-    }
-    const nombreProyecto = projectName || system.name || "Proyecto de Identidad Visual";
-    const objetivoProyecto = objective || "Branding y Sistema de Identidad Visual";
-    const textoUsuario = iterationPrompt ? `${userDescription} (Ajuste / Iteraci\xF3n requerida: ${iterationPrompt})` : userDescription || "Aplicar el sistema visual a una pieza de identidad de marca fotorrealista con alta fidelidad de materiales.";
-    const synthesisResult = await synthesizeMasterPromptWithGemini({
-      projectName: nombreProyecto,
-      objective: objetivoProyecto,
-      context,
-      system,
-      confirmedPatterns,
-      selectedResources,
-      userDescription: textoUsuario,
-      iterationPrompt
-    });
-    const visualPrompt = synthesisResult.englishPrompt;
-    console.log("==========================================");
-    console.log("PROMPT MAESTRO SINTETIZADO CON SISTEMA VISUAL:");
-    console.log(visualPrompt);
-    console.log("JUSTIFICACI\xD3N:", synthesisResult.rationale);
-    console.log("==========================================");
-    const aspectRatio = "1:1";
-    let generatedImageBase64 = null;
-    let modelUsed = "OpenAI DALL-E 3";
-    let engineUsed = aiEngine || "openai_dalle3";
-    if (aiEngine === "huggingface_sdxl") {
-      const hfToken = process.env.HUGGINGFACE_TOKEN ? process.env.HUGGINGFACE_TOKEN.trim() : "";
-      if (!hfToken) {
-        return res.status(400).json({
-          error: "No se encontr\xF3 la variable HUGGINGFACE_TOKEN en el archivo .env. Por favor agreg\xE1 tu token de Hugging Face."
-        });
-      }
-      try {
-        console.log("Generando imagen con Hugging Face Inference API...");
-        const hfClient = new import_inference.InferenceClient(hfToken);
-        let imageRes = null;
-        let selectedModel = "black-forest-labs/FLUX.1-schnell";
-        try {
-          imageRes = await hfClient.textToImage({
-            model: selectedModel,
-            inputs: visualPrompt
-          });
-        } catch (fluxErr) {
-          console.warn("FLUX.1-schnell failed, attempting SDXL fallback:", fluxErr?.message || fluxErr);
-          selectedModel = "stabilityai/stable-diffusion-xl-base-1.0";
-          imageRes = await hfClient.textToImage({
-            model: selectedModel,
-            inputs: visualPrompt
-          });
+    dotenv_1.default.config({ override: true });
+    try {
+        const { system, projectName = "", confirmedPatterns = [], selectedResources = {}, references = [], userDescription = "", iterationPrompt = "", previousImageUrl = "", anchorImageUrl = "", } = req.body || {};
+        if (!system || !system.name) {
+            return res.status(400).json({ error: "Se requiere un sistema visual para generar la pieza." });
         }
-        if (typeof imageRes === "string") {
-          generatedImageBase64 = imageRes.startsWith("data:") ? imageRes : `data:image/jpeg;base64,${imageRes}`;
-        } else if (imageRes && typeof imageRes.arrayBuffer === "function") {
-          const arrayBuffer = await imageRes.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString("base64");
-          generatedImageBase64 = `data:image/jpeg;base64,${base64}`;
+        const key = (process.env.OPENAI_API_KEY || "").trim();
+        if (!key) {
+            return res.status(400).json({ error: "Falta OPENAI_API_KEY en el archivo .env del servidor." });
         }
-        modelUsed = selectedModel.includes("FLUX") ? "FLUX.1 Schnell (Hugging Face)" : "Stable Diffusion XL (Hugging Face)";
-        engineUsed = "huggingface_sdxl";
-      } catch (err) {
-        console.error("Hugging Face connection error:", err?.message || err);
-        return res.status(500).json({
-          error: `Error de conexi\xF3n con Hugging Face: ${err.message || "No se pudo generar la imagen con Hugging Face"}`
-        });
-      }
-    } else if (aiEngine === "openai_dalle3") {
-      const openaiKey = process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.trim() : "";
-      if (!openaiKey) {
-        return res.status(400).json({
-          error: "No se encontr\xF3 la variable OPENAI_API_KEY en el archivo .env. Por favor agrega tu clave de OpenAI."
-        });
-      }
-      try {
-        console.log("Generando imagen con OpenAI...");
-        const candidateModels = ["gpt-image-1", "chatgpt-image-latest", "dall-e-3"];
-        let lastError = null;
-        for (const modelCandidate of candidateModels) {
-          console.log(`Intentando generaci\xF3n de imagen con modelo OpenAI: ${modelCandidate}`);
-          const response = await fetch("https://api.openai.com/v1/images/generations", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${openaiKey}`
-            },
-            body: JSON.stringify({
-              model: modelCandidate,
-              prompt: visualPrompt,
-              n: 1,
-              size: "1024x1024"
-            })
-          });
-          const data = await response.json();
-          if (data.error) {
-            console.warn(`Error con modelo ${modelCandidate}:`, data.error.message);
-            lastError = data.error;
-            if (data.error.message && data.error.message.includes("does not exist")) {
-              continue;
-            } else {
-              let userMsg = data.error.message || JSON.stringify(data.error);
-              return res.status(400).json({
-                error: `Error de OpenAI: ${userMsg}`,
-                details: data.error
-              });
+        const subject = String(userDescription || "").trim() || `A key brand piece for ${system.name}`;
+        const format = detectFormat(`${subject} ${iterationPrompt}`);
+        const revision = String(iterationPrompt || "").trim();
+        // Imágenes de entrada: primero la pieza a revisar (o el ancla de estilo), luego hasta 3 referencias de evidencia.
+        const inputs = [];
+        const base = revision ? previousImageUrl : anchorImageUrl;
+        if (base) {
+            const b = await imageToBlob(base, revision ? "pieza_anterior" : "ancla_estilo");
+            if (b)
+                inputs.push(b);
+        }
+        const usedRefs = [];
+        for (const r of (references || []).slice(0, 3)) {
+            if (!r?.image)
+                continue;
+            const b = await imageToBlob(r.image, r.id || "ref");
+            if (b) {
+                inputs.push(b);
+                usedRefs.push(r.id);
             }
-          }
-          if (data.data && data.data[0]?.b64_json) {
-            generatedImageBase64 = `data:image/png;base64,${data.data[0].b64_json}`;
-          } else if (data.data && data.data[0]?.url) {
-            const imgResponse = await fetch(data.data[0].url);
-            const arrayBuf = await imgResponse.arrayBuffer();
-            const base64 = Buffer.from(arrayBuf).toString("base64");
-            generatedImageBase64 = `data:image/png;base64,${base64}`;
-          }
-          modelUsed = `OpenAI (${modelCandidate})`;
-          engineUsed = "openai_dalle3";
-          break;
         }
-        if (!generatedImageBase64 && lastError) {
-          let userMsg = lastError.message || JSON.stringify(lastError);
-          return res.status(400).json({
-            error: `Error de OpenAI: ${userMsg}`,
-            details: lastError
-          });
-        }
-      } catch (err) {
-        console.error("OpenAI connection error:", err?.message || err);
-        return res.status(500).json({
-          error: `Error de conexi\xF3n con OpenAI: ${err.message}`
+        const prompt = buildImagePrompt({
+            subject,
+            projectName,
+            system,
+            patterns: confirmedPatterns,
+            resources: selectedResources,
+            format,
+            hasReferences: usedRefs.length > 0,
+            revision: revision || undefined,
+            hasAnchor: !revision && !!anchorImageUrl && inputs.length > usedRefs.length,
         });
-      }
-    }
-    if (generatedImageBase64) {
-      return res.json({
-        success: true,
-        data: {
-          imageUrl: generatedImageBase64,
-          aspectRatio,
-          modelUsed,
-          engineUsed,
-          appliedResources: Object.keys(selectedResources).filter((k) => selectedResources[k]),
-          systemName: system.name,
-          promptUsed: visualPrompt,
-          promptRationale: synthesisResult.rationale,
-          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        const preferred = (process.env.OPENAI_IMAGE_MODEL || "gpt-image-2").trim();
+        const quality = (process.env.OPENAI_IMAGE_QUALITY || "high").trim();
+        const models = Array.from(new Set([preferred, "gpt-image-1"]));
+        let imageUrl = "";
+        let modelUsed = "";
+        let lastErr = null;
+        for (const model of models) {
+            try {
+                console.log(`[Imagen] ${model} · ${format.size} · ${inputs.length} imágenes de entrada`);
+                imageUrl = await callOpenAIImage({ key, model, prompt, size: format.size, quality, images: inputs });
+                modelUsed = model;
+                break;
+            }
+            catch (err) {
+                lastErr = err;
+                const msg = String(err?.message || "").toLowerCase();
+                const modelProblem = err?.status === 404 || msg.includes("model") || msg.includes("does not exist") || msg.includes("not found");
+                console.warn(`[Imagen] ${model} falló: ${err?.message}`);
+                if (!modelProblem)
+                    break; // errores de contenido, saldo o verificación no se resuelven cambiando de modelo
+            }
         }
-      });
+        if (!imageUrl) {
+            return res.status(502).json({
+                error: friendlyOpenAIError(String(lastErr?.message || "No se pudo generar la imagen.")),
+                details: lastErr?.message,
+                promptUsed: prompt,
+            });
+        }
+        return res.json({
+            success: true,
+            data: {
+                imageUrl,
+                modelUsed,
+                size: format.size,
+                format: format.id,
+                referencesUsed: usedRefs,
+                appliedResources: Object.keys(selectedResources).filter(k => selectedResources[k]),
+                systemName: system.name,
+                promptUsed: prompt,
+                timestamp: new Date().toISOString(),
+            },
+        });
     }
-    console.warn("Generating SVG vector application mockup...");
-    const fallbackColors = system.colorPalette && system.colorPalette.length > 0 ? system.colorPalette.map((c) => c.hex) : ["#141414", "#E65100", "#C89D7C", "#F4F4F0"];
-    const primaryColor = fallbackColors[0] || "#141414";
-    const accentColor = fallbackColors[1] || "#E65100";
-    const tertiaryColor = fallbackColors[2] || "#C89D7C";
-    const lightColor = fallbackColors[3] || "#F4F4F0";
-    const svgVectorCode = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="100%" height="100%">
-      <defs>
-        <filter id="craft-noise" x="0%" y="0%" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="noise"/>
-          <feColorMatrix type="matrix" values="0 0 0 0 0.8  0 0 0 0 0.6  0 0 0 0 0.45  0 0 0 0.12 0" in="noise" result="coloredNoise"/>
-          <feComposite operator="in" in2="SourceGraphic"/>
-        </filter>
-        <pattern id="kraft-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="${primaryColor}" stroke-width="0.5" stroke-opacity="0.08"/>
-        </pattern>
-      </defs>
-      
-      <!-- Background Kraft Stock -->
-      <rect width="1000" height="1000" fill="${tertiaryColor}" />
-      <rect width="1000" height="1000" fill="url(#kraft-grid)" />
-      
-      <!-- Outer Frame & Trim Marks -->
-      <rect x="40" y="40" width="920" height="920" fill="none" stroke="${primaryColor}" stroke-width="3" />
-      <rect x="52" y="52" width="896" height="896" fill="none" stroke="${accentColor}" stroke-width="1.5" stroke-dasharray="8 6" />
-      
-      <!-- Corner Registration Marks -->
-      <path d="M 30 40 L 50 40 M 40 30 L 40 50" stroke="${primaryColor}" stroke-width="2"/>
-      <path d="M 950 40 L 970 40 M 960 30 L 960 50" stroke="${primaryColor}" stroke-width="2"/>
-      <path d="M 30 960 L 50 960 M 40 950 L 40 970" stroke="${primaryColor}" stroke-width="2"/>
-      <path d="M 950 960 L 970 960 M 960 950 L 960 970" stroke="${primaryColor}" stroke-width="2"/>
-
-      <!-- Header Label / System Info -->
-      <text x="80" y="95" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="14" fill="${primaryColor}" letter-spacing="4">
-        SISTEMA VISUAL: ${system.name.toUpperCase()}
-      </text>
-      <text x="920" y="95" text-anchor="end" font-family="monospace" font-size="12" fill="${accentColor}" font-weight="bold">
-        AUTENTICADO \u2022 ULTRA HD
-      </text>
-
-      <!-- Centerpiece Stamp / Monogram -->
-      <g transform="translate(500, 470)">
-        <circle r="220" fill="${primaryColor}" />
-        <circle r="205" fill="none" stroke="${lightColor}" stroke-width="2" stroke-dasharray="6 4" />
-        <circle r="190" fill="none" stroke="${accentColor}" stroke-width="3" />
-        
-        <!-- Big Brand Monogram -->
-        <text x="0" y="35" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="110" fill="${lightColor}" letter-spacing="-3">
-          ${system.name.slice(0, 3).toUpperCase()}
-        </text>
-        
-        <!-- Circular Stamp Arc Text -->
-        <path id="curveTop" d="M -150 -40 A 150 150 0 0 1 150 -40" fill="none" />
-        <text font-family="system-ui, sans-serif" font-size="16" font-weight="bold" fill="${accentColor}" letter-spacing="6">
-          <textPath href="#curveTop" startOffset="50%" text-anchor="middle">
-            CALIDAD ARTESANAL CONFIRMADA
-          </textPath>
-        </text>
-
-        <path id="curveBottom" d="M -140 70 A 140 140 0 0 0 140 70" fill="none" />
-        <text font-family="monospace" font-size="13" fill="${lightColor}" letter-spacing="4">
-          <textPath href="#curveBottom" startOffset="50%" text-anchor="middle">
-            EST. 2024 \u2022 CRAFT IDENTITY
-          </textPath>
-        </text>
-      </g>
-
-      <!-- User Instruction Label Banner -->
-      <g transform="translate(100, 770)">
-        <rect width="800" height="90" rx="12" fill="${primaryColor}" />
-        <text x="30" y="38" font-family="system-ui, sans-serif" font-weight="800" font-size="15" fill="${accentColor}" letter-spacing="1">
-          APLICACI\xD3N SOLICITADA POR EL USUARIO:
-        </text>
-        <text x="30" y="65" font-family="system-ui, sans-serif" font-size="14" fill="${lightColor}" font-weight="500">
-          ${textoUsuario.slice(0, 85)}${textoUsuario.length > 85 ? "..." : ""}
-        </text>
-      </g>
-
-      <!-- Bottom Palette Swatches and Technical Tag -->
-      <g transform="translate(80, 895)">
-        <rect x="0" y="0" width="36" height="36" rx="6" fill="${primaryColor}" stroke="#fff" stroke-width="1.5" />
-        <rect x="46" y="0" width="36" height="36" rx="6" fill="${accentColor}" stroke="#fff" stroke-width="1.5" />
-        <rect x="92" y="0" width="36" height="36" rx="6" fill="${tertiaryColor}" stroke="#fff" stroke-width="1.5" />
-        <rect x="138" y="0" width="36" height="36" rx="6" fill="${lightColor}" stroke="#141414" stroke-width="1.5" />
-        <text x="190" y="24" font-family="monospace" font-size="12" fill="${primaryColor}" font-weight="bold">
-          HEX: ${fallbackColors.slice(0, 4).join(" \u2022 ")}
-        </text>
-      </g>
-    </svg>`;
-    const fallbackSvgBase64 = `data:image/svg+xml;utf8,${encodeURIComponent(svgVectorCode)}`;
-    return res.json({
-      success: true,
-      data: {
-        imageUrl: fallbackSvgBase64,
-        svgCode: svgVectorCode,
-        aspectRatio: "1:1",
-        modelUsed: "Vector SVG Engine",
-        engineUsed: "svg_vector",
-        appliedResources: Object.keys(selectedResources).filter((k) => selectedResources[k]),
-        systemName: system.name,
-        promptUsed: visualPrompt,
-        timestamp: (/* @__PURE__ */ new Date()).toISOString()
-      }
-    });
-  } catch (error) {
-    console.error("Error in /api/generate-application:", error);
-    return res.status(500).json({
-      error: "Error interno al generar la aplicaci\xF3n visual.",
-      details: error.message
-    });
-  }
+    catch (error) {
+        console.error("Error en /api/generate-application:", error);
+        return res.status(500).json({ error: "Error interno al generar la pieza.", details: error?.message });
+    }
 });
+// Vite middleware & Static Serving
 async function setupVite() {
-  const fs = require("fs");
-  const distPath = import_path.default.join(process.cwd(), "dist");
-  const assetsPath = import_path.default.join(process.cwd(), "assets");
-
-  const setNoCache = (res) => {
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-  };
-
-  app.use("/assets", import_express.default.static(assetsPath, { setHeaders: setNoCache }));
-  app.use("/assets", import_express.default.static(import_path.default.join(distPath, "assets"), { setHeaders: setNoCache }));
-  app.use(import_express.default.static(distPath, { setHeaders: setNoCache }));
-  app.use(import_express.default.static(process.cwd(), { setHeaders: setNoCache }));
-
-  app.use((req, res) => {
-    setNoCache(res);
-    const distHtml = import_path.default.join(distPath, "index.html");
-    if (fs.existsSync(distHtml)) {
-      res.sendFile(distHtml);
-    } else {
-      res.sendFile(import_path.default.join(process.cwd(), "index.html"));
-    }
-  });
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Emergent App] Servidor corriendo en http://localhost:${PORT}`);
-  });
+    const fs = await Promise.resolve().then(() => __importStar(require("fs")));
+    const distPath = path_1.default.join(process.cwd(), "dist");
+    const assetsPath = path_1.default.join(process.cwd(), "assets");
+    const setNoCache = (res) => {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+    };
+    app.use("/assets", express_1.default.static(assetsPath, { setHeaders: setNoCache }));
+    app.use("/assets", express_1.default.static(path_1.default.join(distPath, "assets"), { setHeaders: setNoCache }));
+    app.use(express_1.default.static(distPath, { setHeaders: setNoCache }));
+    app.use(express_1.default.static(process.cwd(), { setHeaders: setNoCache }));
+    app.use((req, res) => {
+        setNoCache(res);
+        const distHtml = path_1.default.join(distPath, "index.html");
+        if (fs.existsSync(distHtml)) {
+            res.sendFile(distHtml);
+        }
+        else {
+            res.sendFile(path_1.default.join(process.cwd(), "index.html"));
+        }
+    });
+    app.listen(PORT, "0.0.0.0", () => {
+        console.log(`[Emergent App] Server running on http://0.0.0.0:${PORT}`);
+    });
 }
 setupVite();
-//# sourceMappingURL=server.cjs.map

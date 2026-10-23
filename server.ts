@@ -1,13 +1,12 @@
 import express from "express";
 import path from "path";
 import { GoogleGenAI, Type } from "@google/genai";
-import { InferenceClient } from "@huggingface/inference";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Set payload limit high enough for image uploads (moodboards with multiple references)
 app.use(express.json({ limit: "50mb" }));
@@ -569,7 +568,7 @@ app.post("/api/synthesize-system", async (req, res) => {
 
     const sysName = system?.name || projectName || "Sistema Visual";
     const patternSummary = (patterns || [])
-      .map((p: any) => `- ${p.name} [Categoría: ${p.category}]: ${p.description}`)
+      .map((p: any) => `- [${p.id}] ${p.name} [Categoría: ${p.category}]: ${p.description}`)
       .join("\n");
     const refSummary = (references || [])
       .map((r: any) => `- Ref ID: ${r.id}, Nombre: ${r.name || r.id}, Notas: ${r.notes || "Sin notas"}`)
@@ -600,7 +599,8 @@ Generate JSON containing:
 5. "typographyRules": Array of 2-4 key typography guidelines.
 6. "textureRules": Array of 2-4 key texture/finish guidelines.
 7. "compositionRules": Array of 2-4 key layout/grid guidelines.
-8. "systemDetails": Object with rich text descriptions for:
+8. "sources": Traceability. For each item of aestheticPillars, typographyRules, textureRules and compositionRules, list the IDs (in square brackets above, e.g. "pat_bc_02") of the validated patterns that support it. Use only IDs from the list. Shape: {"aestheticPillars": [["pat_x"], ...], "typographyRules": [[...]], "textureRules": [[...]], "compositionRules": [[...]]}, one inner array per item, same order.
+9. "systemDetails": Object with rich text descriptions for:
    - "brandEssence"
    - "logoAndIdentity"
    - "packagingSystem"
@@ -651,6 +651,15 @@ Generate JSON containing:
               type: Type.ARRAY,
               items: { type: Type.STRING },
             },
+            sources: {
+              type: Type.OBJECT,
+              properties: {
+                aestheticPillars: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } },
+                typographyRules: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } },
+                textureRules: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } },
+                compositionRules: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } },
+              },
+            },
             systemDetails: {
               type: Type.OBJECT,
               properties: {
@@ -682,6 +691,16 @@ Generate JSON containing:
     const rawText = response.text || "{}";
     const parsed = parseModelJsonResponse(rawText);
     if (parsed && parsed.description) {
+      // Trazabilidad: solo IDs de patrones que realmente se enviaron, alineados con cada ítem.
+      const validIds = new Set((patterns || []).map((p: any) => p.id));
+      const fields = ["aestheticPillars", "typographyRules", "textureRules", "compositionRules"];
+      const sources: Record<string, string[][]> = {};
+      for (const f of fields) {
+        const items = Array.isArray(parsed[f]) ? parsed[f] : [];
+        const raw = Array.isArray(parsed.sources?.[f]) ? parsed.sources[f] : [];
+        sources[f] = items.map((_: any, i: number) => (Array.isArray(raw[i]) ? raw[i] : []).map(String).filter((id: string) => validIds.has(id)));
+      }
+      parsed.sources = sources;
       return res.json({
         success: true,
         data: parsed,
@@ -699,352 +718,275 @@ Generate JSON containing:
 
 
 // ==========================================
-// 3. Visual System Application & Visualization Generator
+// 3. Verificación externa: pieza generada con OpenAI (GPT Image)
 // ==========================================
+// DALL·E 3 fue retirado de la API de OpenAI el 12/05/2026. Se usa la familia GPT Image con la
+// misma OPENAI_API_KEY. El modelo se configura con OPENAI_IMAGE_MODEL (por defecto gpt-image-2)
+// y, si no está disponible para la cuenta, se reintenta con gpt-image-1.
+type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
+
+interface PieceFormat {
+  id: string;
+  size: ImageSize;
+  phrase: string;
+}
+
+/** Detecta el soporte pedido para elegir formato y tamaño. */
+function detectFormat(text: string): PieceFormat {
+  const t = text.toLowerCase();
+  const has = (re: RegExp) => re.test(t);
+  if (has(/\b(logo|logotipo|isotipo|isologo|monograma|emblema|sello)\b/))
+    return { id: "logo", size: "1024x1024", phrase: "a flat 2D logo mark presented alone on a plain background, crisp vector-like edges" };
+  if (has(/\b(afiche|poster|póster|flyer|volante|cartel publicitario)\b/))
+    return { id: "poster", size: "1024x1536", phrase: "a vertical printed poster, flat 2D graphic layout seen straight on, edge to edge" };
+  if (has(/\b(fachada|frente|marquesina|vidriera|local|interior|mostrador|señalética|senaletica|pared|mural)\b/))
+    return { id: "space", size: "1536x1024", phrase: "a natural-light architectural photograph of the physical space, eye-level, realistic materials" };
+  if (has(/\b(web|website|sitio|landing|home ?page)\b/))
+    return { id: "web", size: "1536x1024", phrase: "a desktop website hero section shown as a flat screen capture" };
+  if (has(/\b(story|stories|historia)\b/))
+    return { id: "story", size: "1024x1536", phrase: "a vertical social media story, flat 2D layout" };
+  if (has(/\b(instagram|post|redes|feed)\b/))
+    return { id: "post", size: "1024x1024", phrase: "a square social media post, flat 2D layout" };
+  if (has(/\b(packaging|envase|envoltorio|caja|bolsa|vaso|etiqueta|servilleta|lata|botella)\b/))
+    return { id: "packaging", size: "1024x1024", phrase: "a product packaging photograph on a plain studio surface, soft natural light, real printed materials" };
+  if (has(/\b(menú|menu|carta|folleto|editorial|revista|libro|tapa)\b/))
+    return { id: "print", size: "1024x1536", phrase: "a printed editorial piece photographed flat from above on a plain surface" };
+  return { id: "piece", size: "1024x1024", phrase: "a single brand application presented clearly on a plain background" };
+}
+
+const firstOf = (arr?: string[]) => (Array.isArray(arr) && arr.length ? String(arr[0]).trim() : "");
+const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s);
+
+/**
+ * Prompt en inglés, corto y descriptivo:
+ * sujeto · soporte · paleta HEX (3-4) · una regla tipográfica · una de textura · composición.
+ * Las restricciones se expresan en positivo.
+ */
+function buildImagePrompt(opts: {
+  subject: string;
+  projectName: string;
+  system: any;
+  patterns: any[];
+  resources: Record<string, boolean>;
+  format: PieceFormat;
+  hasReferences: boolean;
+  revision?: string;
+  hasAnchor?: boolean;
+}): string {
+  const { system, resources, patterns } = opts;
+  const lines: string[] = [];
+  lines.push(`${clip(opts.subject, 220)}, for the brand "${opts.projectName || system?.name}".`);
+  lines.push(`Format: ${opts.format.phrase}.`);
+
+  const palette = (system?.colorPalette || []).map((c: any) => String(c.hex || "").toUpperCase()).filter(Boolean).slice(0, 4);
+  if (resources.palette !== false && palette.length) lines.push(`Color palette limited to ${palette.join(", ")}, used as flat solid colors.`);
+
+  const typo = firstOf(system?.typographyRules) || patterns.find((p: any) => p.category === "typography")?.description || "";
+  if (resources.typography !== false && typo) lines.push(`Typography: ${clip(typo, 180)}.`);
+
+  const texture = firstOf(system?.textureRules) || patterns.find((p: any) => p.category === "texture")?.description || "";
+  if (resources.texture !== false && texture) lines.push(`Surface and texture: ${clip(texture, 160)}.`);
+
+  const comp = firstOf(system?.compositionRules) || patterns.find((p: any) => p.category === "composition")?.description || "";
+  if (resources.composition !== false && comp) lines.push(`Composition: ${clip(comp, 160)}.`);
+
+  if (resources.graphic_elements) {
+    const g = patterns.filter((p: any) => p.category === "graphic_elements" || p.category === "logo_identity").map((p: any) => p.name).slice(0, 2);
+    if (g.length) lines.push(`Graphic elements: ${g.join("; ")}.`);
+  }
+  if (resources.photography) {
+    const ph = system?.systemDetails?.photographyStyle || patterns.find((p: any) => p.category === "photography_treatment")?.description;
+    if (ph) lines.push(`Image treatment: ${clip(ph, 140)}.`);
+  }
+  if (resources.illustration) {
+    const il = system?.systemDetails?.mascotAndIllustration || patterns.find((p: any) => p.category === "mascot_illustration")?.description;
+    if (il) lines.push(`Illustration: ${clip(il, 140)}.`);
+  }
+
+  if (opts.revision) {
+    lines.push(`Revise the first attached image: ${clip(opts.revision, 200)}. Keep everything else as it is.`);
+  } else if (opts.hasAnchor) {
+    lines.push("Keep the same visual language, materials and lighting as the first attached image.");
+  }
+  if (opts.hasReferences) {
+    lines.push("The attached reference images are style evidence: match their palette, materials, textures and graphic language, with a new composition and original content.");
+  }
+  lines.push("Text in the image, if any, is short, legible and spelled exactly as given.");
+  return lines.join("\n");
+}
+
+/** data URL o http(s) → Blob para multipart. */
+async function imageToBlob(src: string, name: string): Promise<{ blob: Blob; name: string } | null> {
+  const part = await resolveImagePart(src, name);
+  if (!part) return null;
+  const ext = part.mimeType.split("/")[1] || "png";
+  const type = ["image/png", "image/jpeg", "image/webp"].includes(part.mimeType) ? part.mimeType : "image/png";
+  return { blob: new Blob([Buffer.from(part.data, "base64")], { type }), name: `${name}.${ext === "jpeg" ? "jpg" : ext}` };
+}
+
+function friendlyOpenAIError(msg: string): string {
+  const m = msg.toLowerCase();
+  if (m.includes("incorrect api key") || m.includes("invalid api key")) return "La OPENAI_API_KEY del archivo .env no es válida.";
+  if (m.includes("verif")) return "Tu organización de OpenAI tiene que estar verificada para usar los modelos GPT Image (platform.openai.com → Settings → Organization → Verify).";
+  if (m.includes("billing") || m.includes("quota") || m.includes("credit")) return "La cuenta de OpenAI no tiene saldo o alcanzó su límite (platform.openai.com → Billing).";
+  if (m.includes("safety") || m.includes("moderation") || m.includes("rejected")) return "OpenAI rechazó el pedido por sus políticas de contenido. Probá reformular la descripción.";
+  return msg;
+}
+
+async function callOpenAIImage(opts: {
+  key: string;
+  model: string;
+  prompt: string;
+  size: ImageSize;
+  quality: string;
+  images: { blob: Blob; name: string }[];
+}): Promise<string> {
+  const { key, model, prompt, size, quality, images } = opts;
+  let response: Response;
+  if (images.length) {
+    const form = new FormData();
+    form.append("model", model);
+    form.append("prompt", prompt);
+    form.append("size", size);
+    form.append("quality", quality);
+    form.append("n", "1");
+    // gpt-image-1 admite fidelidad alta a las imágenes de entrada; gpt-image-2 la aplica siempre.
+    if (model === "gpt-image-1") form.append("input_fidelity", "high");
+    images.forEach(img => form.append("image[]", img.blob, img.name));
+    response = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}` },
+      body: form,
+    });
+  } else {
+    response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model, prompt, size, quality, n: 1 }),
+    });
+  }
+  const data: any = await response.json().catch(() => ({}));
+  if (!response.ok || data.error) {
+    const err: any = new Error(data?.error?.message || `HTTP ${response.status}`);
+    err.status = response.status;
+    err.code = data?.error?.code;
+    throw err;
+  }
+  const b64 = data?.data?.[0]?.b64_json;
+  if (b64) return `data:image/png;base64,${b64}`;
+  const url = data?.data?.[0]?.url;
+  if (url) {
+    const img = await fetch(url);
+    return `data:image/png;base64,${Buffer.from(await img.arrayBuffer()).toString("base64")}`;
+  }
+  throw new Error("OpenAI no devolvió ninguna imagen.");
+}
+
 app.post("/api/generate-application", async (req, res) => {
   dotenv.config({ override: true });
   try {
     const {
-      objective = "",
-      context = "",
       system,
       projectName = "",
       confirmedPatterns = [],
       selectedResources = {},
-      relevantReferences = [],
+      references = [],
       userDescription = "",
       iterationPrompt = "",
       previousImageUrl = "",
-      aiEngine = "openai_dalle3",
-      prompt = "",
-    } = req.body;
-
-    console.log("ENGINE:", aiEngine);
-    console.log("OPENAI KEY PRESENTE:", !!process.env.OPENAI_API_KEY);
+      anchorImageUrl = "",
+    } = req.body || {};
 
     if (!system || !system.name) {
-      return res.status(400).json({
-        error: "Se requiere un sistema visual confirmado para generar una aplicación.",
+      return res.status(400).json({ error: "Se requiere un sistema visual para generar la pieza." });
+    }
+    const key = (process.env.OPENAI_API_KEY || "").trim();
+    if (!key) {
+      return res.status(400).json({ error: "Falta OPENAI_API_KEY en el archivo .env del servidor." });
+    }
+
+    const subject = String(userDescription || "").trim() || `A key brand piece for ${system.name}`;
+    const format = detectFormat(`${subject} ${iterationPrompt}`);
+    const revision = String(iterationPrompt || "").trim();
+
+    // Imágenes de entrada: primero la pieza a revisar (o el ancla de estilo), luego hasta 3 referencias de evidencia.
+    const inputs: { blob: Blob; name: string }[] = [];
+    const base = revision ? previousImageUrl : anchorImageUrl;
+    if (base) {
+      const b = await imageToBlob(base, revision ? "pieza_anterior" : "ancla_estilo");
+      if (b) inputs.push(b);
+    }
+    const usedRefs: string[] = [];
+    for (const r of (references || []).slice(0, 3)) {
+      if (!r?.image) continue;
+      const b = await imageToBlob(r.image, r.id || "ref");
+      if (b) {
+        inputs.push(b);
+        usedRefs.push(r.id);
+      }
+    }
+
+    const prompt = buildImagePrompt({
+      subject,
+      projectName,
+      system,
+      patterns: confirmedPatterns,
+      resources: selectedResources,
+      format,
+      hasReferences: usedRefs.length > 0,
+      revision: revision || undefined,
+      hasAnchor: !revision && !!anchorImageUrl && inputs.length > usedRefs.length,
+    });
+
+    const preferred = (process.env.OPENAI_IMAGE_MODEL || "gpt-image-2").trim();
+    const quality = (process.env.OPENAI_IMAGE_QUALITY || "high").trim();
+    const models = Array.from(new Set([preferred, "gpt-image-1"]));
+    let imageUrl = "";
+    let modelUsed = "";
+    let lastErr: any = null;
+    for (const model of models) {
+      try {
+        console.log(`[Imagen] ${model} · ${format.size} · ${inputs.length} imágenes de entrada`);
+        imageUrl = await callOpenAIImage({ key, model, prompt, size: format.size, quality, images: inputs });
+        modelUsed = model;
+        break;
+      } catch (err: any) {
+        lastErr = err;
+        const msg = String(err?.message || "").toLowerCase();
+        const modelProblem = err?.status === 404 || msg.includes("model") || msg.includes("does not exist") || msg.includes("not found");
+        console.warn(`[Imagen] ${model} falló: ${err?.message}`);
+        if (!modelProblem) break; // errores de contenido, saldo o verificación no se resuelven cambiando de modelo
+      }
+    }
+
+    if (!imageUrl) {
+      return res.status(502).json({
+        error: friendlyOpenAIError(String(lastErr?.message || "No se pudo generar la imagen.")),
+        details: lastErr?.message,
+        promptUsed: prompt,
       });
     }
-
-    // 1. Extract visual system parameters
-    const nombreProyecto = projectName || system.name || "Proyecto de Identidad Visual";
-    const objetivoProyecto = objective || "Branding y Sistema de Identidad Visual";
-    const textoUsuario = iterationPrompt
-      ? `${userDescription} (Ajuste / Iteración requerida: ${iterationPrompt})`
-      : (userDescription || 'Aplicar el sistema visual a una pieza de identidad de marca fotorrealista con alta fidelidad de materiales.');
-    const activeUserText = textoUsuario;
-
-    // Extraer el sujeto limpio
-    const cleanSubject = activeUserText
-      .replace(/^aplicar el sistema visual a /i, '')
-      .replace(/^apply the visual system to /i, '')
-      .trim()
-      .slice(0, 100);
-
-    const textLower = cleanSubject.toLowerCase();
-    const isLogo = /\b(logo|logotipo|isotipo|monograma|sello|emblema|marca|isologo)\b/i.test(textLower);
-    const isFlyer = /\b(flyer|afiche|poster|volante|folleto|publicidad|aviso)\b/i.test(textLower);
-    const isPackaging = /\b(envoltorio|papel|packaging|bolsa|caja|vaso|servilleta|etiqueta|envase)\b/i.test(textLower);
-    const isSpatial = /\b(pared|fachada|marquesina|local|interior|mostrador|cartel|espacio)\b/i.test(textLower);
-
-    const colorString = (system.colorPalette && system.colorPalette.length > 0)
-      ? `exact color palette ${system.colorPalette.map((c: any) => `${c.name ? `${c.name} ` : ''}${c.hex}`).join(' ')}`
-      : '';
-
-    let promptMaestroReal = "";
-    if (isLogo) {
-      promptMaestroReal = [
-        `Clean minimalist 2D flat vector logo mark design for brand "${nombreProyecto}"`,
-        `Subject: ${cleanSubject}`,
-        colorString,
-        (system.typographyRules || []).slice(0, 2).join(', '),
-        'solid clean neutral background, crisp vector graphic icon, high resolution',
-        '--no 3D scene, no room, no wall, no store interior, no mockup environment, no photography, no plastic'
-      ].filter(Boolean).join(', ').trim();
-    } else if (isFlyer) {
-      promptMaestroReal = [
-        `2D graphic design print flyer poster layout for "${nombreProyecto}"`,
-        `Subject: ${cleanSubject}`,
-        colorString,
-        (system.typographyRules || []).slice(0, 2).join(', '),
-        'flat 2D print layout, crisp typography, clean paper composition',
-        '--no 3D scene, no room, no store interior'
-      ].filter(Boolean).join(', ').trim();
-    } else if (isPackaging) {
-      promptMaestroReal = [
-        `Product packaging mockup for "${nombreProyecto}": ${cleanSubject}`,
-        colorString,
-        (system.typographyRules || []).slice(0, 1).join(', '),
-        (system.textureRules || []).slice(0, 2).join(', ') || 'tactile paper finish',
-        'studio flat lay photography, softbox lighting, photorealistic product packaging',
-        '--no store interior, no room, no plastic'
-      ].filter(Boolean).join(', ').trim();
-    } else if (isSpatial) {
-      promptMaestroReal = [
-        `Environmental graphic design and store interior architectural mockup for "${nombreProyecto}": ${cleanSubject}`,
-        colorString,
-        'realistic store interior wall signage, cinematic lighting, photorealistic',
-        '--no CGI, no watermark'
-      ].filter(Boolean).join(', ').trim();
-    } else {
-      promptMaestroReal = [
-        cleanSubject || 'commercial visual application design',
-        colorString,
-        (system.typographyRules || []).slice(0, 2).join(', '),
-        'clean direct focus strictly on the requested subject',
-        '--no plastic, no generic stock, no watermark'
-      ].filter(Boolean).join(', ').trim();
-    }
-
-    // Use prompt from request payload if provided, or generated master prompt
-    const visualPrompt = (prompt && typeof prompt === 'string' && prompt.trim())
-      ? prompt.trim()
-      : promptMaestroReal;
-
-    const aspectRatio: '1:1' | '3:4' | '4:3' | '9:16' | '16:9' = '1:1';
-
-    let generatedImageBase64: string | null = null;
-    let modelUsed = "OpenAI DALL-E 3";
-    let engineUsed = aiEngine || "openai_dalle3";
-
-    if (aiEngine === "huggingface_sdxl") {
-      const hfToken = process.env.HUGGINGFACE_TOKEN ? process.env.HUGGINGFACE_TOKEN.trim() : "";
-      if (!hfToken) {
-        return res.status(400).json({
-          error: "No se encontró la variable HUGGINGFACE_TOKEN en el archivo .env. Por favor agregá tu token de Hugging Face.",
-        });
-      }
-
-      try {
-        console.log("Generando imagen con Hugging Face Inference API...");
-        const hfClient = new InferenceClient(hfToken);
-        
-        let imageRes: any = null;
-        let selectedModel = "black-forest-labs/FLUX.1-schnell";
-        try {
-          imageRes = await hfClient.textToImage({
-            model: selectedModel,
-            inputs: visualPrompt,
-          });
-        } catch (fluxErr: any) {
-          console.warn("FLUX.1-schnell failed, attempting SDXL fallback:", fluxErr?.message || fluxErr);
-          selectedModel = "stabilityai/stable-diffusion-xl-base-1.0";
-          imageRes = await hfClient.textToImage({
-            model: selectedModel,
-            inputs: visualPrompt,
-          });
-        }
-
-        if (typeof imageRes === "string") {
-          generatedImageBase64 = imageRes.startsWith("data:") ? imageRes : `data:image/jpeg;base64,${imageRes}`;
-        } else if (imageRes && typeof imageRes.arrayBuffer === "function") {
-          const arrayBuffer = await imageRes.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString("base64");
-          generatedImageBase64 = `data:image/jpeg;base64,${base64}`;
-        }
-        modelUsed = selectedModel.includes("FLUX") ? "FLUX.1 Schnell (Hugging Face)" : "Stable Diffusion XL (Hugging Face)";
-        engineUsed = "huggingface_sdxl";
-      } catch (err: any) {
-        console.error("Hugging Face connection error:", err?.message || err);
-        return res.status(500).json({
-          error: `Error de conexión con Hugging Face: ${err.message || "No se pudo generar la imagen con Hugging Face"}`,
-        });
-      }
-    } else if (aiEngine === "openai_dalle3") {
-      const openaiKey = process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.trim() : "";
-      if (!openaiKey) {
-        return res.status(400).json({
-          error: "No se encontró la variable OPENAI_API_KEY en el archivo .env. Por favor agrega tu clave de OpenAI.",
-        });
-      }
-
-      try {
-        console.log("Generando imagen con OpenAI DALL-E 3...");
-        const response = await fetch("https://api.openai.com/v1/images/generations", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${openaiKey}`,
-          },
-          body: JSON.stringify({
-            model: "dall-e-3",
-            prompt: visualPrompt,
-            n: 1,
-            size: "1024x1024",
-          }),
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-          console.error("OpenAI DALL-E 3 API error:", data.error);
-          let userMsg = data.error.message || JSON.stringify(data.error);
-          if (userMsg.includes("does not exist")) {
-            userMsg = "Tu cuenta de OpenAI no tiene saldo prepago cargado. OpenAI requiere cargar crédito (mínimo $5) en platform.openai.com/settings/organization/billing para habilitar DALL-E 3.";
-          }
-          return res.status(400).json({
-            error: `Error de OpenAI DALL-E 3: ${userMsg}`,
-            details: data.error,
-          });
-        }
-
-        if (data.data && data.data[0]?.b64_json) {
-          generatedImageBase64 = `data:image/png;base64,${data.data[0].b64_json}`;
-        } else if (data.data && data.data[0]?.url) {
-          const imgResponse = await fetch(data.data[0].url);
-          const arrayBuf = await imgResponse.arrayBuffer();
-          const base64 = Buffer.from(arrayBuf).toString("base64");
-          generatedImageBase64 = `data:image/png;base64,${base64}`;
-        }
-        modelUsed = "OpenAI DALL-E 3";
-        engineUsed = "openai_dalle3";
-      } catch (err: any) {
-        console.error("OpenAI DALL-E 3 connection error:", err?.message || err);
-        return res.status(500).json({
-          error: `Error de conexión con OpenAI: ${err.message}`,
-        });
-      }
-    }
-
-    if (generatedImageBase64) {
-      return res.json({
-        success: true,
-        data: {
-          imageUrl: generatedImageBase64,
-          aspectRatio,
-          modelUsed,
-          engineUsed,
-          appliedResources: Object.keys(selectedResources).filter((k) => selectedResources[k as keyof typeof selectedResources]),
-          systemName: system.name,
-          promptUsed: visualPrompt,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    }
-
-    // 5. SVG Vector Engine (Only if explicitly selected or if all external APIs fail)
-    console.warn("Generating SVG vector application mockup...");
-    const fallbackColors = system.colorPalette && system.colorPalette.length > 0
-      ? system.colorPalette.map((c: any) => c.hex)
-      : ["#141414", "#E65100", "#C89D7C", "#F4F4F0"];
-
-    const primaryColor = fallbackColors[0] || "#141414";
-    const accentColor = fallbackColors[1] || "#E65100";
-    const tertiaryColor = fallbackColors[2] || "#C89D7C";
-    const lightColor = fallbackColors[3] || "#F4F4F0";
-
-    const svgVectorCode = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="100%" height="100%">
-      <defs>
-        <filter id="craft-noise" x="0%" y="0%" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" result="noise"/>
-          <feColorMatrix type="matrix" values="0 0 0 0 0.8  0 0 0 0 0.6  0 0 0 0 0.45  0 0 0 0.12 0" in="noise" result="coloredNoise"/>
-          <feComposite operator="in" in2="SourceGraphic"/>
-        </filter>
-        <pattern id="kraft-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="${primaryColor}" stroke-width="0.5" stroke-opacity="0.08"/>
-        </pattern>
-      </defs>
-      
-      <!-- Background Kraft Stock -->
-      <rect width="1000" height="1000" fill="${tertiaryColor}" />
-      <rect width="1000" height="1000" fill="url(#kraft-grid)" />
-      
-      <!-- Outer Frame & Trim Marks -->
-      <rect x="40" y="40" width="920" height="920" fill="none" stroke="${primaryColor}" stroke-width="3" />
-      <rect x="52" y="52" width="896" height="896" fill="none" stroke="${accentColor}" stroke-width="1.5" stroke-dasharray="8 6" />
-      
-      <!-- Corner Registration Marks -->
-      <path d="M 30 40 L 50 40 M 40 30 L 40 50" stroke="${primaryColor}" stroke-width="2"/>
-      <path d="M 950 40 L 970 40 M 960 30 L 960 50" stroke="${primaryColor}" stroke-width="2"/>
-      <path d="M 30 960 L 50 960 M 40 950 L 40 970" stroke="${primaryColor}" stroke-width="2"/>
-      <path d="M 950 960 L 970 960 M 960 950 L 960 970" stroke="${primaryColor}" stroke-width="2"/>
-
-      <!-- Header Label / System Info -->
-      <text x="80" y="95" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="14" fill="${primaryColor}" letter-spacing="4">
-        SISTEMA VISUAL: ${system.name.toUpperCase()}
-      </text>
-      <text x="920" y="95" text-anchor="end" font-family="monospace" font-size="12" fill="${accentColor}" font-weight="bold">
-        AUTENTICADO • ULTRA HD
-      </text>
-
-      <!-- Centerpiece Stamp / Monogram -->
-      <g transform="translate(500, 470)">
-        <circle r="220" fill="${primaryColor}" />
-        <circle r="205" fill="none" stroke="${lightColor}" stroke-width="2" stroke-dasharray="6 4" />
-        <circle r="190" fill="none" stroke="${accentColor}" stroke-width="3" />
-        
-        <!-- Big Brand Monogram -->
-        <text x="0" y="35" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="110" fill="${lightColor}" letter-spacing="-3">
-          ${system.name.slice(0, 3).toUpperCase()}
-        </text>
-        
-        <!-- Circular Stamp Arc Text -->
-        <path id="curveTop" d="M -150 -40 A 150 150 0 0 1 150 -40" fill="none" />
-        <text font-family="system-ui, sans-serif" font-size="16" font-weight="bold" fill="${accentColor}" letter-spacing="6">
-          <textPath href="#curveTop" startOffset="50%" text-anchor="middle">
-            CALIDAD ARTESANAL CONFIRMADA
-          </textPath>
-        </text>
-
-        <path id="curveBottom" d="M -140 70 A 140 140 0 0 0 140 70" fill="none" />
-        <text font-family="monospace" font-size="13" fill="${lightColor}" letter-spacing="4">
-          <textPath href="#curveBottom" startOffset="50%" text-anchor="middle">
-            EST. 2024 • CRAFT IDENTITY
-          </textPath>
-        </text>
-      </g>
-
-      <!-- User Instruction Label Banner -->
-      <g transform="translate(100, 770)">
-        <rect width="800" height="90" rx="12" fill="${primaryColor}" />
-        <text x="30" y="38" font-family="system-ui, sans-serif" font-weight="800" font-size="15" fill="${accentColor}" letter-spacing="1">
-          APLICACIÓN SOLICITADA POR EL USUARIO:
-        </text>
-        <text x="30" y="65" font-family="system-ui, sans-serif" font-size="14" fill="${lightColor}" font-weight="500">
-          ${activeUserText.slice(0, 85)}${activeUserText.length > 85 ? '...' : ''}
-        </text>
-      </g>
-
-      <!-- Bottom Palette Swatches and Technical Tag -->
-      <g transform="translate(80, 895)">
-        <rect x="0" y="0" width="36" height="36" rx="6" fill="${primaryColor}" stroke="#fff" stroke-width="1.5" />
-        <rect x="46" y="0" width="36" height="36" rx="6" fill="${accentColor}" stroke="#fff" stroke-width="1.5" />
-        <rect x="92" y="0" width="36" height="36" rx="6" fill="${tertiaryColor}" stroke="#fff" stroke-width="1.5" />
-        <rect x="138" y="0" width="36" height="36" rx="6" fill="${lightColor}" stroke="#141414" stroke-width="1.5" />
-        <text x="190" y="24" font-family="monospace" font-size="12" fill="${primaryColor}" font-weight="bold">
-          HEX: ${fallbackColors.slice(0, 4).join(' • ')}
-        </text>
-      </g>
-    </svg>`;
-
-    const fallbackSvgBase64 = `data:image/svg+xml;utf8,${encodeURIComponent(svgVectorCode)}`;
 
     return res.json({
       success: true,
       data: {
-        imageUrl: fallbackSvgBase64,
-        svgCode: svgVectorCode,
-        aspectRatio: '1:1',
-        modelUsed: "Vector SVG Engine",
-        engineUsed: "svg_vector",
-        appliedResources: Object.keys(selectedResources).filter((k) => selectedResources[k as keyof typeof selectedResources]),
+        imageUrl,
+        modelUsed,
+        size: format.size,
+        format: format.id,
+        referencesUsed: usedRefs,
+        appliedResources: Object.keys(selectedResources).filter(k => selectedResources[k]),
         systemName: system.name,
-        promptUsed: visualPrompt,
+        promptUsed: prompt,
         timestamp: new Date().toISOString(),
       },
     });
   } catch (error: any) {
-    console.error("Error in /api/generate-application:", error);
-    return res.status(500).json({
-      error: "Error interno al generar la aplicación visual.",
-      details: error.message,
-    });
+    console.error("Error en /api/generate-application:", error);
+    return res.status(500).json({ error: "Error interno al generar la pieza.", details: error?.message });
   }
 });
 
-// Vite middleware & Static Serving
 // Vite middleware & Static Serving
 async function setupVite() {
   const fs = await import("fs");

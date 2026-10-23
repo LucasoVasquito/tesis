@@ -21,3 +21,6 @@ Captura de pantalla*.png
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Compilación del servidor (se genera server.cjs)
+build-server/

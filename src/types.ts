@@ -209,10 +209,6 @@ export type ApplicationType =
   | 'website'
   | 'other';
 
-export type AIEngineType = 'openai_dalle3' | 'huggingface_sdxl' | 'svg_vector';
-
-export type RenderStyleType = 'photo_studio' | 'render_3d' | 'editorial' | 'craft_tactile' | 'architectural';
-
 export type SystemResourceKey =
   | 'palette'
   | 'typography'

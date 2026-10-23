@@ -935,14 +935,12 @@ export default function App() {
         />
       )}
       {applySystem && (
-        <div className="fixed inset-0 z-40 flex flex-col bg-bg" data-overlay-open="true">
-          <SystemApplicationView
-            project={project}
-            system={applySystem}
-            onBackToSystem={() => setOverlay({ kind: 'guidelines', systemId: applySystem.id })}
-            onOpenLightbox={setLightboxRef}
-          />
-        </div>
+        <SystemApplicationView
+          project={project}
+          system={applySystem}
+          onBack={() => setOverlay({ kind: 'guidelines', systemId: applySystem.id })}
+          onOpenLightbox={setLightboxRef}
+        />
       )}
     </div>
   );

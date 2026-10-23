@@ -22,5 +22,12 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build-server",
+    "scratch",
+    "design_handoff_emergent_rework"
+  ]
 }
