@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pattern, Project, Reference, VisitableStage, VisualSystem } from './types';
+import { Pattern, Project, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
+import { evidenceReferences, inferPalette } from './utils/palette';
 import { SAMPLE_PROJECTS, createEmptyProject } from './data/sampleProjects';
 import { compressImageString, compressReferences } from './utils/imageCompressor';
 import { clearCachedBreakdown, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
@@ -102,6 +103,7 @@ export default function App() {
   const [inspectingIds, setInspectingIds] = useState<string[]>([]);
   const [inspectErrors, setInspectErrors] = useState<Record<string, string>>({});
   const [synthesisErrors, setSynthesisErrors] = useState<Record<string, string>>({});
+  const [inferringIds, setInferringIds] = useState<string[]>([]);
 
   /* ========== Toast ========== */
   const [toast, setToast] = useState<Toast | null>(null);
@@ -233,7 +235,7 @@ export default function App() {
   };
 
   /** Desglose individual con caché por proyecto. `force` ignora el caché. */
-  const handleInspectReference = async (ref: Reference, force = false) => {
+  const handleInspectReference = async (ref: Reference, force = false): Promise<ReferenceBreakdown | null> => {
     const projectId = project.id;
     setInspectErrors(e => {
       const { [ref.id]: _, ...rest } = e;
@@ -243,7 +245,7 @@ export default function App() {
       const cached = ref.breakdown ?? getCachedBreakdown(projectId, ref.id);
       if (cached) {
         if (!ref.breakdown) updateProject(p => ({ ...p, references: p.references.map(r => (r.id === ref.id ? { ...r, breakdown: cached } : r)) }), projectId);
-        return;
+        return cached;
       }
     }
     setInspectingIds(ids => [...ids, ref.id]);
@@ -264,8 +266,10 @@ export default function App() {
       if (!res.ok || !result.success) throw new Error(result.error || result.details || 'Error al desglosar la referencia');
       setCachedBreakdown(projectId, ref.id, result.data);
       updateProject(p => ({ ...p, references: p.references.map(r => (r.id === ref.id ? { ...r, breakdown: result.data } : r)) }), projectId);
+      return result.data as ReferenceBreakdown;
     } catch (err: any) {
       setInspectErrors(e => ({ ...e, [ref.id]: err?.message || String(err) }));
+      return null;
     } finally {
       setInspectingIds(ids => ids.filter(x => x !== ref.id));
     }
@@ -502,6 +506,8 @@ export default function App() {
     });
     updateSystem(systemId, s => ({ ...s, isSynthesizing: true }));
     try {
+      // La paleta se infiere del corpus antes de redactar; la IA no la reemplaza.
+      if (!sys.colorPalette?.length) await handleInferPalette(systemId, true);
       const res = await fetch('/api/synthesize-system', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -528,8 +534,8 @@ export default function App() {
                   name: s.name,
                   description: d.description || s.description,
                   aestheticPillars: d.aestheticPillars || s.aestheticPillars,
-                  // La paleta inferida del corpus tiene prioridad: la de la IA solo se usa si no hay ninguna.
-                  colorPalette: s.colorPalette?.length ? s.colorPalette : d.colorPalette || s.colorPalette,
+                  // Se conserva la paleta inferida del corpus (con trazabilidad).
+                  colorPalette: s.colorPalette,
                   typographyRules: d.typographyRules || s.typographyRules,
                   textureRules: d.textureRules || s.textureRules,
                   compositionRules: d.compositionRules || s.compositionRules,
@@ -610,10 +616,82 @@ export default function App() {
     showToast({ message: `Sistema importado · ${data.system.name} (${data.confirmedPatterns?.length || 0} patrones)`, tone: 'confirmed' }, 4000);
   };
 
-  // Se completan en el paso de síntesis por agrupación.
-  const handleInferPalette = (_systemId: string) => {};
-  const handleAdoptSuggestion = (_id: string) => {};
-  const handleDismissSuggestion = (_id: string) => {};
+  /**
+   * Paleta inferida del corpus para un sistema. Si a alguna referencia de evidencia
+   * le falta el desglose, se pide a /api/inspect-reference antes de calcular.
+   */
+  const handleInferPalette = async (systemId: string, silent = false) => {
+    const p = projectRef.current;
+    const projectId = p.id;
+    const sys = p.systems.find(s => s.id === systemId);
+    if (!sys) return;
+    const patterns = p.patterns.filter(x => sys.patternIds.includes(x.id) && x.status === 'confirmed');
+    if (!patterns.length) return;
+    setInferringIds(ids => [...ids, systemId]);
+    try {
+      const refs = evidenceReferences(patterns, p.references);
+      const withBreakdown: Reference[] = [];
+      const missing = refs.filter(r => !r.breakdown && !getCachedBreakdown(projectId, r.id));
+      let done = 0;
+      for (const r of refs) {
+        let b = r.breakdown ?? getCachedBreakdown(projectId, r.id);
+        if (!b) {
+          done++;
+          showToast({ message: `Desglosando ${r.id} para inferir la paleta · ${done} / ${missing.length}`, tone: 'evidence' }, 60000);
+          b = await handleInspectReference(r);
+        }
+        withBreakdown.push(b ? { ...r, breakdown: b } : r);
+      }
+      const palette = inferPalette(patterns, withBreakdown);
+      updateProject(x => ({ ...x, systems: x.systems.map(s => (s.id === systemId ? { ...s, colorPalette: palette, updatedAt: new Date().toISOString() } : s)) }), projectId);
+      const failed = missing.filter(r => !withBreakdown.find(w => w.id === r.id)?.breakdown).length;
+      if (!palette.length) showToast({ message: 'La evidencia no tiene colores desglosados: no se pudo inferir la paleta', tone: 'discarded' }, 5000);
+      else if (failed) showToast({ message: `Paleta inferida con ${palette.length} colores · ${failed} referencias sin desglose`, tone: 'pending' }, 5000);
+      else if (!silent || missing.length) showToast({ message: `Paleta inferida · ${palette.length} colores de ${refs.length} referencias`, tone: 'confirmed' });
+      return palette;
+    } finally {
+      setInferringIds(ids => ids.filter(x => x !== systemId));
+    }
+  };
+
+  /** Adoptar una sugerencia de la IA: crea un sistema real solo con patrones confirmados. */
+  const handleAdoptSuggestion = (id: string) => {
+    const p = projectRef.current;
+    const sug = p.suggestedSystems?.find(s => s.id === id);
+    if (!sug) return;
+    const names = new Set((sug.associatedPatternNames ?? []).map(n => n.toLowerCase()));
+    const patternIds = p.patterns
+      .filter(x => x.status === 'confirmed' && (names.has(x.name.toLowerCase()) || x.suggestedSystemName?.toLowerCase() === sug.name.toLowerCase()))
+      .map(x => x.id);
+    const sysId = uid('sys');
+    const sys: VisualSystem = {
+      id: sysId,
+      name: sug.name,
+      description: sug.description,
+      patternIds,
+      referenceIds: [],
+      aestheticPillars: sug.aestheticPillars ?? [],
+      systemDetails: sug.systemDetails,
+      adoptedFrom: sug.id,
+      status: 'active',
+      createdAt: new Date().toISOString(),
+    };
+    updateProject(x => ({
+      ...x,
+      systems: [...x.systems, sys],
+      suggestedSystems: (x.suggestedSystems ?? []).filter(s => s.id !== id),
+      patterns: x.patterns.map(pt => (patternIds.includes(pt.id) ? { ...pt, assignedSystemId: sysId } : pt)),
+    }));
+    showToast({ message: `Sugerencia adoptada · ${sug.name} (${patternIds.length} patrones confirmados)`, tone: 'confirmed' });
+    // La paleta se infiere del corpus; no se toma la propuesta por la IA.
+    if (patternIds.length) setTimeout(() => handleInferPalette(sysId, true), 0);
+  };
+
+  const handleDismissSuggestion = (id: string) => {
+    const sug = projectRef.current.suggestedSystems?.find(s => s.id === id);
+    updateProject(x => ({ ...x, suggestedSystems: (x.suggestedSystems ?? []).filter(s => s.id !== id) }));
+    showToast({ message: `Sugerencia descartada · ${sug?.name ?? id}` });
+  };
 
   /* ========== ActionBar por etapa ========== */
   const counts = useMemo(() => {
@@ -806,6 +884,7 @@ export default function App() {
                 onAdoptSuggestion={handleAdoptSuggestion}
                 onDismissSuggestion={handleDismissSuggestion}
                 onImportFile={handleImportSystemFile}
+                inferringIds={inferringIds}
               />
             </div>
             <DockPanel open={!!detailSystem} title={detailSystem?.name ?? ''} meta={detailSystem ? `Sistema · ${detailSystem.id}` : undefined} onClose={() => setSystemDetailId(null)}>

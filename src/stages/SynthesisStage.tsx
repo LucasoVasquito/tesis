@@ -22,6 +22,7 @@ interface SynthesisStageProps {
   /** ID del sistema recién creado, para enfocar su nombre. */
   focusSystemId?: string | null;
   synthesisErrors: Record<string, string>;
+  inferringIds: string[];
 }
 
 /* ---------- Patrón confirmado (arrastrable / asignable con teclado) ---------- */
@@ -161,6 +162,7 @@ function SystemColumn(props: {
   patterns: Pattern[];
   autoFocusName: boolean;
   error?: string;
+  inferring: boolean;
 } & Pick<SynthesisStageProps, 'onRenameSystem' | 'onAssign' | 'onUnassign' | 'onSynthesize' | 'onOpenGuidelines' | 'onOpenDetail' | 'onDeleteSystem' | 'onInferPalette'>) {
   const { system: s, patterns } = props;
   const [name, setName] = useState(s.name);
@@ -262,16 +264,32 @@ function SystemColumn(props: {
       <div className="flex flex-col gap-2 border-b border-line p-4">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-ink-2">Paleta inferida del corpus</span>
-          <Button size="sm" variant="ghost" icon={<Pipette />} onClick={() => props.onInferPalette(s.id)} disabled={assigned.length === 0}>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<Pipette />}
+            loading={props.inferring}
+            loadingText="Infiriendo…"
+            onClick={() => props.onInferPalette(s.id)}
+            disabled={assigned.length === 0}
+          >
             {s.colorPalette?.length ? 'Recalcular' : 'Inferir'}
           </Button>
         </div>
         {s.colorPalette?.length ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
-            {s.colorPalette.map((c, i) => (
-              <Swatch key={`${c.hex}-${i}`} hex={c.hex} name={c.name} source={c.source} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
+              {s.colorPalette.map((c, i) => (
+                <Swatch key={`${c.hex}-${i}`} hex={c.hex} name={c.name} source={c.source} />
+              ))}
+            </div>
+            {s.colorPalette.length < 4 && (
+              <p className="m-0 text-xs text-ink-2">La evidencia solo aporta {s.colorPalette.length} colores distintos.</p>
+            )}
+            {s.colorPalette.some(c => !c.source) && (
+              <p className="m-0 text-xs text-pending-ink">Hay colores sin origen en el corpus. Recalculá para obtener trazabilidad.</p>
+            )}
+          </>
         ) : (
           <p className="m-0 text-13 text-ink-2">Se calcula con los colores de la evidencia de los patrones asignados.</p>
         )}
@@ -455,6 +473,7 @@ export function SynthesisStage(props: SynthesisStageProps) {
                     patterns={project.patterns}
                     autoFocusName={props.focusSystemId === s.id}
                     error={props.synthesisErrors[s.id]}
+                    inferring={props.inferringIds.includes(s.id)}
                     onRenameSystem={props.onRenameSystem}
                     onAssign={props.onAssign}
                     onUnassign={props.onUnassign}
