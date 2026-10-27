@@ -211,7 +211,9 @@ app.post("/api/analyze-references", async (req, res) => {
 
       for (const { ref, imgPart } of resolvedImages) {
         parts.push({
-          text: `[REFERENCIA_VISUAL: ID="${ref.id}", Nombre="${ref.name || ref.id}", Notas="${ref.notes || 'Ninguna'}"]`,
+          text: ref.parentId
+            ? `[REFERENCIA_VISUAL: ID="${ref.id}", Nombre="${ref.name || ref.id}", PARTE recortada de ${ref.parentId} (${ref.partKind || "parte"}), Notas="${ref.notes || 'Ninguna'}"]`
+            : `[REFERENCIA_VISUAL: ID="${ref.id}", Nombre="${ref.name || ref.id}", Notas="${ref.notes || 'Ninguna'}"]`,
         });
         if (imgPart) {
           parts.push({
@@ -221,7 +223,7 @@ app.post("/api/analyze-references", async (req, res) => {
             },
           });
         }
-        refSummaryList.push(`- ID: ${ref.id} (${ref.name || 'Sin título'})`);
+        refSummaryList.push(`- ID: ${ref.id} (${ref.name || 'Sin título'})${ref.parentId ? ` · parte de ${ref.parentId}` : ''}`);
       }
 
       const previousContext = `
@@ -263,6 +265,7 @@ Para cada descubrimiento o patrón que detectes, analiza y detalla rigurosamente
 4. RASGOS OBSERVABLES: Características visuales concretas y técnicas (ej: trazos porosos, grillas perimetrales, saturación controlada, iluminación cenital de estudio).
 
 5. EVIDENCIA CRUZADA: Vincula explícitamente los IDs exactos de las referencias del canvas que sostienen este hallazgo (ej: [ref_01, ref_05, ref_06]).
+   Algunas referencias son PARTES recortadas por el diseñador de otra referencia (ej. ref_07a es la tipografía de ref_07). Cuando un patrón trata justo sobre lo que muestra una parte, citá la parte (es evidencia más precisa); citá la referencia completa solo si el patrón depende de la pieza entera.
 
 6. HIPÓTESIS DE SISTEMA VISUAL: Fundamenta cómo este descubrimiento puede traducirse en un subsistema reutilizable para soportes físicos (espacio, envoltorios) y digitales (web, redes).
 
@@ -548,6 +551,84 @@ No inventes nada que no esté presente en la imagen. Devuelve el resultado en JS
       error: "Error al desglosar la referencia individual con Gemini.",
       details: error.message,
     });
+  }
+});
+
+// ==========================================
+// 2c. Separar una referencia en partes (tipografía, mascota, logo...)
+// ==========================================
+// Gemini devuelve cajas normalizadas (0-1000, [ymin, xmin, ymax, xmax]); el recorte se hace en el navegador.
+const PART_KINDS = ["typography", "logo", "mascot", "illustration", "photo", "texture", "graphic", "other"];
+
+app.post("/api/segment-reference", async (req, res) => {
+  dotenv.config({ override: true });
+  try {
+    const { reference, objective = "" } = req.body || {};
+    if (!reference?.image) return res.status(400).json({ error: "Se requiere una referencia con imagen." });
+    const imgPart = await resolveImagePart(reference.image, reference.id || "ref_segment");
+    if (!imgPart) return res.status(400).json({ error: "No se pudo leer la imagen de la referencia." });
+
+    const prompt = `You are helping a graphic designer take apart a reference image from their moodboard${objective ? ` (project goal: ${objective})` : ""}.
+Find the visually distinct components that a designer would want to keep as separate evidence: the typography or lettering, the logo or emblem, a mascot or character, an illustration, a product photo, a texture or pattern sample, a graphic resource (badge, frame, sticker, ornament, stripe pattern).
+
+Rules:
+- Return between 1 and 6 parts, most important first. Only components that are really visible; never invent.
+- Each box must tightly enclose ONE component, with a little margin. Do not return a box covering almost the whole image unless the image is a single component.
+- Group a block of lettering that reads as one unit (e.g. a headline) into one part; do not split word by word.
+- box_2d is [ymin, xmin, ymax, xmax] normalized 0-1000.
+- kind is one of: ${PART_KINDS.join(", ")}.
+- label: 2 to 5 words in Spanish naming the part concretely (e.g. "Lettering BUNKER VINYLS", "Mascota hamburguesa", "Sello circular rojo").
+- description: one short sentence in Spanish about its formal qualities (shape, weight, line, color).`;
+
+    const ai = getGeminiClient();
+    const response = await generateContentWithRetry(ai, {
+      model: "gemini-3.5-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: imgPart.mimeType, data: imgPart.data } }] }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            parts: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } },
+                  kind: { type: Type.STRING },
+                  label: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                },
+                required: ["box_2d", "kind", "label"],
+              },
+            },
+          },
+          required: ["parts"],
+        },
+      },
+    });
+    const parsed = parseModelJsonResponse(response.text || "{}");
+    const raw: any[] = Array.isArray(parsed?.parts) ? parsed.parts : [];
+    const parts = raw
+      .map(p => {
+        const b = Array.isArray(p?.box_2d) ? p.box_2d.map(Number) : [];
+        if (b.length !== 4 || b.some((n: number) => !Number.isFinite(n))) return null;
+        const [y0, x0, y1, x1] = b.map((n: number) => Math.min(1000, Math.max(0, n)) / 1000);
+        const box = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+        if (box.w < 0.04 || box.h < 0.04) return null;
+        return {
+          kind: PART_KINDS.includes(p.kind) ? p.kind : "other",
+          label: String(p.label || "Parte").slice(0, 60),
+          description: p.description ? String(p.description).slice(0, 240) : undefined,
+          box,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 6);
+    return res.json({ success: true, data: { parts } });
+  } catch (error: any) {
+    console.error("Error en /api/segment-reference:", error);
+    return res.status(500).json({ error: "No se pudo separar la referencia en partes.", details: error?.message });
   }
 });
 

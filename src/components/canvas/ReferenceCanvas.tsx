@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, us
 import { Maximize, Minus, Plus } from 'lucide-react';
 import { Reference } from '../../types';
 import { IconButton, ReferenceCard, Tone, zoomLevelFor } from '../ui';
+import { imageRatio, partKindInfo } from '../../utils/parts';
 
 export interface CanvasHandle {
   /** Encuadra y enfoca una ficha (reemplaza scrollIntoView). */
@@ -44,7 +45,7 @@ const MAX_SCALE = 3;
 const DEFAULT_W = 260;
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const cardW = (r: Reference) => r.width || DEFAULT_W;
-const imageH = (r: Reference) => cardW(r) * 1.25;
+const imageH = (r: Reference) => cardW(r) / imageRatio(r);
 const META_H = 76;
 
 export function ReferenceCanvas({
@@ -344,6 +345,24 @@ export function ReferenceCanvas({
     return { centers, node };
   }, [highlight, references]);
 
+  /* ---------- Partes: línea punteada desde la original ---------- */
+  const partLinks = useMemo(() => {
+    const byId = new Map(references.map(r => [r.id, r]));
+    return references
+      .filter(r => r.parentId && byId.has(r.parentId))
+      .map(r => {
+        const parent = byId.get(r.parentId!)!;
+        const pc = parent.position.x + cardW(parent) / 2;
+        const toRight = r.position.x + cardW(r) / 2 >= pc;
+        // Desde el borde de la original más cercano hasta el borde de la parte.
+        const x1 = toRight ? parent.position.x + cardW(parent) : parent.position.x;
+        const y1 = parent.position.y + Math.min(imageH(parent) - 16, Math.max(16, r.position.y + imageH(r) / 2 - parent.position.y));
+        const x2 = toRight ? r.position.x : r.position.x + cardW(r);
+        const y2 = r.position.y + imageH(r) / 2;
+        return { id: r.id, x1, y1, x2, y2, color: partKindInfo(r.partKind).family.color };
+      });
+  }, [references]);
+
   const highlightSet = new Set(highlight?.ids ?? []);
   const transition = animate ? 'transform 240ms var(--ease-emergent)' : 'none';
 
@@ -391,6 +410,23 @@ export function ReferenceCanvas({
         className="pointer-events-none absolute left-0 top-0 origin-top-left"
         style={{ transform: `translate(${t.x}px, ${t.y}px) scale(${t.scale})`, transition }}
       >
+        {partLinks.length > 0 && (
+          <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width="1" height="1" aria-hidden="true">
+            {partLinks.map(l => (
+              <g key={l.id} opacity={highlight || readingId ? 0.35 : 0.8}>
+                <path
+                  d={`M ${l.x1} ${l.y1} C ${(l.x1 + l.x2) / 2} ${l.y1}, ${(l.x1 + l.x2) / 2} ${l.y2}, ${l.x2} ${l.y2}`}
+                  fill="none"
+                  stroke={l.color}
+                  strokeWidth={1.25}
+                  strokeDasharray="4 4"
+                  vectorEffect="non-scaling-stroke"
+                />
+                <circle cx={l.x1} cy={l.y1} r={3} fill={l.color} />
+              </g>
+            ))}
+          </svg>
+        )}
         {evidence && (
           <>
             <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width="1" height="1" aria-hidden="true">

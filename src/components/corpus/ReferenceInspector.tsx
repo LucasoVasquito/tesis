@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Expand, ScanSearch, Trash2 } from 'lucide-react';
-import { Reference } from '../../types';
+import { CornerUpLeft, Expand, ScanSearch, Trash2 } from 'lucide-react';
+import { CropBox, Reference } from '../../types';
 import { Button, ErrorState, LoadingState, TextArea, TextInput } from '../ui';
+import { PartDraft, PartProposal, partKindInfo } from '../../utils/parts';
+import { PartsPicker, PickerBox } from './PartsPicker';
+import { PartsSection } from './PartsSection';
 
 interface ReferenceInspectorProps {
   reference: Reference;
@@ -13,6 +16,15 @@ interface ReferenceInspectorProps {
   onInspect: () => void;
   onOpenLightbox: () => void;
   onDelete: () => void;
+  /** Partes recortadas de esta referencia. */
+  parts: Reference[];
+  /** Si esta referencia es una parte: la original. */
+  parent: Reference | null;
+  partDraft?: PartDraft;
+  onDetectParts: () => void;
+  onPartDraftChange: (d: PartDraft | null) => void;
+  onAddParts: (proposals: PartProposal[]) => void;
+  onSelectReference: (id: string) => void;
 }
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -22,7 +34,8 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
   </div>
 );
 
-export function ReferenceInspector({ reference: r, evidenceCount, inspecting, inspectError, onUpdate, onInspect, onOpenLightbox, onDelete }: ReferenceInspectorProps) {
+export function ReferenceInspector(props: ReferenceInspectorProps) {
+  const { reference: r, evidenceCount, inspecting, inspectError, onUpdate, onInspect, onOpenLightbox, onDelete, parts, parent, partDraft } = props;
   const [name, setName] = useState(r.name);
   const [notes, setNotes] = useState(r.notes ?? '');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -43,10 +56,50 @@ export function ReferenceInspector({ reference: r, evidenceCount, inspecting, in
   };
 
   const b = r.breakdown;
+  const review = partDraft?.status === 'review' ? partDraft.proposals : null;
+  const addManual = (box: CropBox) =>
+    review &&
+    props.onPartDraftChange({
+      status: 'review',
+      proposals: [...review, { key: `m${Date.now().toString(36)}`, kind: 'other', label: 'Parte marcada', box, source: 'manual', selected: true }],
+    });
+  const partBoxes: PickerBox[] = parts
+    .filter(p => p.crop)
+    .map(p => ({ key: p.id, box: p.crop!, kind: p.partKind ?? 'other', badge: p.id.replace(r.id, ''), active: true, label: `${p.name} (${p.id})` }));
 
   return (
     <div className="flex flex-col">
-      <img src={r.image} alt={r.name} className="block max-h-[320px] w-full bg-bg object-contain" referrerPolicy="no-referrer" />
+      {review ? (
+        <div className="sticky top-0 z-10 border-b border-line bg-bg">
+        <PartsPicker
+          image={r.image}
+          alt={`${r.name}: marcá las partes`}
+          boxes={review.map((p, i) => ({ key: p.key, box: p.box, kind: p.kind, badge: String(i + 1), active: p.selected, label: p.label }))}
+          onDraw={addManual}
+          onBoxClick={key => props.onPartDraftChange({ status: 'review', proposals: review.map(p => (p.key === key ? { ...p, selected: !p.selected } : p)) })}
+          compact
+        />
+        </div>
+      ) : parts.length ? (
+        <PartsPicker image={r.image} alt={r.name} boxes={partBoxes} onBoxClick={props.onSelectReference} />
+      ) : (
+        <img src={r.image} alt={r.name} className="block max-h-[320px] w-full bg-bg object-contain" referrerPolicy="no-referrer" />
+      )}
+
+      {parent && (
+        <div className="flex items-center gap-3 border-b border-line px-5 py-3">
+          <img src={parent.image} alt="" className="size-10 shrink-0 rounded-[4px] bg-raised object-cover" referrerPolicy="no-referrer" />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate font-mono text-xs" style={{ color: partKindInfo(r.partKind).family.ink }}>
+              {partKindInfo(r.partKind).label} · de {parent.id}
+            </span>
+            <span className="truncate text-13 text-ink">{parent.name}</span>
+          </div>
+          <Button size="sm" variant="ghost" icon={<CornerUpLeft />} onClick={() => props.onSelectReference(parent.id)}>
+            Original
+          </Button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-5 p-5">
         <TextInput
@@ -86,7 +139,8 @@ export function ReferenceInspector({ reference: r, evidenceCount, inspecting, in
           <div role="alert" className="flex flex-col gap-3 rounded-card border border-discarded/35 bg-discarded/5 p-4">
             <span className="text-13 text-ink">
               ¿Eliminar {r.id} del corpus?
-              {evidenceCount > 0 && ` También sale de la evidencia de ${evidenceCount} ${evidenceCount === 1 ? 'patrón' : 'patrones'}.`}
+              {parts.length > 0 && ` También se eliminan sus ${parts.length} ${parts.length === 1 ? 'parte' : 'partes'}.`}
+              {evidenceCount > 0 && ` Sale de la evidencia de ${evidenceCount} ${evidenceCount === 1 ? 'patrón' : 'patrones'}.`}
             </span>
             <div className="flex gap-2">
               <Button size="sm" variant="discard" onClick={onDelete} autoFocus>
@@ -99,6 +153,18 @@ export function ReferenceInspector({ reference: r, evidenceCount, inspecting, in
           </div>
         )}
       </div>
+
+      {!parent && (
+        <PartsSection
+          reference={r}
+          parts={parts}
+          draft={partDraft}
+          onDetect={props.onDetectParts}
+          onDraftChange={props.onPartDraftChange}
+          onConfirm={props.onAddParts}
+          onSelectPart={props.onSelectReference}
+        />
+      )}
 
       {/* Desglose */}
       <section aria-labelledby={`bd-${r.id}`} className="flex flex-col gap-4 border-t border-line p-5">

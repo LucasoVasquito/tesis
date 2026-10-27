@@ -64,7 +64,22 @@ export interface Reference {
   notes?: string;
   isNew?: boolean; // Tag for incremental analysis
   breakdown?: ReferenceBreakdown;
+  /** Si es una parte recortada de otra referencia: el ID de la original. */
+  parentId?: string;
+  /** Recorte dentro de la original, normalizado 0..1. */
+  crop?: CropBox;
+  /** Qué es la parte (tipografía, mascota...). */
+  partKind?: PartKind;
 }
+
+export interface CropBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export type PartKind = 'typography' | 'logo' | 'mascot' | 'illustration' | 'photo' | 'texture' | 'graphic' | 'other';
 
 export interface Pattern {
   id: string;
@@ -197,7 +212,8 @@ export type LogKind =
   | 'system_delete'
   | 'synthesize'
   | 'import'
-  | 'feedback';
+  | 'feedback'
+  | 'split';
 
 export interface LogItem {
   id: string;

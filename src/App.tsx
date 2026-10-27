@@ -7,6 +7,7 @@ import { compressImageString, compressReferences } from './utils/imageCompressor
 import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
 import { downloadProjectMarkdown, exportProjectAsJSON, exportVisualSystemAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid } from './utils/project';
+import { PART_CARD_W, PartDraft, PartProposal, cropImage, nextPartIds, partKindInfo, placeParts, wholeReferences } from './utils/parts';
 import { MIN_REFERENCES, STAGE_LABEL, canEnter, initialStage, isBriefComplete, railItems } from './utils/stages';
 
 import { Button } from './components/ui';
@@ -115,6 +116,8 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null);
   const [inspectingIds, setInspectingIds] = useState<string[]>([]);
   const [inspectErrors, setInspectErrors] = useState<Record<string, string>>({});
+  /** Partes en revisión por referencia (no se guardan hasta confirmarlas). */
+  const [partDrafts, setPartDrafts] = useState<Record<string, PartDraft>>({});
   const [synthesisErrors, setSynthesisErrors] = useState<Record<string, string>>({});
   const [inferringIds, setInferringIds] = useState<string[]>([]);
 
@@ -243,16 +246,92 @@ export default function App() {
   const handleMoveReference = useCallback((id: string, position: { x: number; y: number }) => handleUpdateReference(id, { position }), [handleUpdateReference]);
   const handleResizeReference = useCallback((id: string, width: number) => handleUpdateReference(id, { width }), [handleUpdateReference]);
 
+  /** Borra una referencia y, si es una original, también sus partes. */
   const handleDeleteReference = (id: string) => {
+    const gone = new Set([id, ...project.references.filter(r => r.parentId === id).map(r => r.id)]);
     updateProject(p => ({
       ...p,
-      references: p.references.filter(r => r.id !== id),
-      patterns: p.patterns.map(pt => ({ ...pt, evidence: pt.evidence.filter(e => e !== id) })),
-      systems: p.systems.map(s => ({ ...s, referenceIds: s.referenceIds.filter(r => r !== id) })),
+      references: p.references.filter(r => !gone.has(r.id)),
+      patterns: p.patterns.map(pt => ({ ...pt, evidence: pt.evidence.filter(e => !gone.has(e)) })),
+      systems: p.systems.map(s => ({ ...s, referenceIds: s.referenceIds.filter(r => !gone.has(r)) })),
     }));
-    clearCachedBreakdown(project.id, id);
+    gone.forEach(x => clearCachedBreakdown(project.id, x));
     setSelectedRefId(null);
-    showToast({ message: `Referencia eliminada · ${id}`, tone: 'discarded' });
+    showToast({ message: gone.size > 1 ? `Referencia eliminada · ${id} y ${gone.size - 1} ${gone.size === 2 ? 'parte' : 'partes'}` : `Referencia eliminada · ${id}`, tone: 'discarded' });
+  };
+
+  /* ---------- Partes ---------- */
+  const setPartDraft = useCallback((id: string, d: PartDraft | null) => {
+    setPartDrafts(all => {
+      const { [id]: _, ...rest } = all;
+      return d ? { ...rest, [id]: d } : rest;
+    });
+  }, []);
+
+  /** Pide a Gemini las partes de una referencia; quedan en revisión hasta que el diseñador las confirme. */
+  const handleDetectParts = async (ref: Reference) => {
+    setPartDraft(ref.id, { status: 'loading' });
+    try {
+      const image = await compressImageString(ref.image, { maxWidth: 1024, maxHeight: 1024, quality: 0.85 });
+      const res = await fetch('/api/segment-reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: { id: ref.id, image }, objective: project.objective }),
+      });
+      const text = await res.text();
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw new Error(`El servidor no devolvió una respuesta válida (HTTP ${res.status}). ¿Está corriendo "npm run server"?`);
+      }
+      if (!res.ok || !result.success) throw new Error(result.details || result.error || 'Error al separar la referencia');
+      const parts: any[] = result.data?.parts ?? [];
+      if (!parts.length) throw new Error('Gemini no encontró partes separables. Podés marcarlas a mano.');
+      setPartDraft(ref.id, {
+        status: 'review',
+        proposals: parts.map((p, i) => ({ key: `ai${i}`, kind: p.kind, label: p.label, description: p.description, box: p.box, source: 'ai', selected: true })),
+      });
+    } catch (err: any) {
+      setPartDraft(ref.id, { status: 'error', message: err?.message || String(err) });
+    }
+  };
+
+  /** Recorta las partes elegidas y las suma al moodboard junto a la original. */
+  const handleAddParts = async (parentId: string, proposals: PartProposal[]): Promise<string[]> => {
+    const parent = projectRef.current.references.find(r => r.id === parentId);
+    const chosen = proposals.filter(p => p.selected);
+    if (!parent || !chosen.length) return [];
+    try {
+      const crops = await cropImage(parent.image, chosen.map(p => p.box));
+      const p = projectRef.current;
+      const ids = nextPartIds(parentId, p.references, chosen.length);
+      const positions = placeParts(parent, p.references.filter(r => r.id !== parentId), crops.map(c => c.aspectRatio));
+      const now = new Date().toISOString();
+      const parts: Reference[] = chosen.map((c, i) => ({
+        id: ids[i],
+        name: c.label.trim() || partKindInfo(c.kind).label,
+        image: crops[i].image,
+        aspectRatio: crops[i].aspectRatio,
+        position: positions[i],
+        width: PART_CARD_W,
+        createdAt: now,
+        notes: c.description,
+        tags: [partKindInfo(c.kind).label],
+        isNew: true,
+        parentId,
+        crop: c.box,
+        partKind: c.kind,
+      }));
+      updateProject(x => ({ ...x, references: [...x.references, ...parts] }), p.id);
+      setPartDraft(parentId, null);
+      addLog('split', parentId, `${parentId} separada en ${parts.length} ${parts.length === 1 ? 'parte' : 'partes'}`, parts.map(r => `${r.id} ${r.name}`).join(' · '), { projectId: p.id });
+      showToast({ message: `${parts.length} ${parts.length === 1 ? 'parte sumada' : 'partes sumadas'} al moodboard · reinducí para usarlas`, tone: 'pending' }, 4000);
+      return parts.map(r => r.id);
+    } catch (err: any) {
+      showToast({ message: err?.message || 'No se pudieron recortar las partes', tone: 'discarded' }, 5000);
+      return [];
+    }
   };
 
   /** Desglose individual con caché por proyecto. `force` ignora el caché. */
@@ -305,7 +384,7 @@ export default function App() {
 
   const handleInduce = async () => {
     const p = projectRef.current;
-    if (p.references.length < MIN_REFERENCES || induction.status === 'running') return;
+    if (wholeReferences(p.references).length < MIN_REFERENCES || induction.status === 'running') return;
     const projectId = p.id;
     const controller = new AbortController();
     abortRef.current = controller;
@@ -795,7 +874,8 @@ export default function App() {
   const counts = useMemo(() => {
     const ps = project.patterns;
     return {
-      refs: project.references.length,
+      refs: wholeReferences(project.references).length,
+      parts: project.references.length - wholeReferences(project.references).length,
       newRefs: project.references.filter(r => r.isNew).length,
       pending: ps.filter(p => p.status === 'detected').length,
       confirmed: ps.filter(p => p.status === 'confirmed').length,
@@ -827,14 +907,15 @@ export default function App() {
     );
   } else if (stage === 'corpus') {
     const running = induction.status === 'running';
-    status = `${counts.refs} ${counts.refs === 1 ? 'referencia' : 'referencias'}${counts.newRefs && project.patterns.length ? ` · ${counts.newRefs} ${counts.newRefs === 1 ? 'nueva' : 'nuevas'}` : ''}`;
+    status = `${counts.refs} ${counts.refs === 1 ? 'referencia' : 'referencias'}${counts.parts ? ` + ${counts.parts} ${counts.parts === 1 ? 'parte' : 'partes'}` : ''}${counts.newRefs && project.patterns.length ? ` · ${counts.newRefs} ${counts.newRefs === 1 ? 'nueva' : 'nuevas'}` : ''}`;
     const missing = MIN_REFERENCES - counts.refs;
     if (missing > 0) notice = `Faltan ${missing} para inducir`;
     const hasPatterns = project.patterns.length > 0;
     if (running) {
-      const n = (induction.tick % Math.max(counts.refs, 1)) + 1;
+      const total = Math.max(project.references.length, 1);
+      const n = (induction.tick % total) + 1;
       primary = (
-        <Button variant="primary" loading loadingText={`Induciendo ${n}/${counts.refs}`}>
+        <Button variant="primary" loading loadingText={`Induciendo ${n}/${total}`}>
           Inducir patrones
         </Button>
       );
@@ -940,6 +1021,10 @@ export default function App() {
             onUpdateReference={handleUpdateReference}
             onDeleteReference={handleDeleteReference}
             onInspect={handleInspectReference}
+            partDrafts={partDrafts}
+            onDetectParts={handleDetectParts}
+            onPartDraftChange={setPartDraft}
+            onAddParts={handleAddParts}
             onOpenLightbox={setLightboxRef}
             inspectingIds={inspectingIds}
             inspectErrors={inspectErrors}

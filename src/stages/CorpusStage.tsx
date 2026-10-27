@@ -6,6 +6,7 @@ import { CanvasHandle } from '../components/canvas/ReferenceCanvas';
 import { DockPanel } from '../components/shell/DockPanel';
 import { ReferenceInspector } from '../components/corpus/ReferenceInspector';
 import { MIN_REFERENCES } from '../utils/stages';
+import { PartDraft, PartProposal, partsOf } from '../utils/parts';
 
 export interface InductionState {
   status: 'idle' | 'running' | 'error';
@@ -32,6 +33,10 @@ interface CorpusStageProps {
   onOpenLightbox: (r: Reference) => void;
   inspectingIds: string[];
   inspectErrors: Record<string, string>;
+  partDrafts: Record<string, PartDraft>;
+  onDetectParts: (r: Reference) => void;
+  onPartDraftChange: (id: string, d: PartDraft | null) => void;
+  onAddParts: (parentId: string, proposals: PartProposal[]) => Promise<string[]>;
   induction: InductionState;
   onRetryInduction: () => void;
   onDismissInductionError: () => void;
@@ -84,7 +89,7 @@ export function CorpusStage(props: CorpusStageProps) {
   const dockOpen = running || induction.status === 'error' || !!selected;
 
   let dockTitle = selected?.name ?? '';
-  let dockMeta: React.ReactNode = selected ? `Referencia · ${selected.id}` : undefined;
+  let dockMeta: React.ReactNode = selected ? `${selected.parentId ? 'Parte' : 'Referencia'} · ${selected.id}` : undefined;
   if (running) {
     dockTitle = 'Inducción en curso';
     dockMeta = '03 · Inducción';
@@ -161,6 +166,20 @@ export function CorpusStage(props: CorpusStageProps) {
             onInspect={() => props.onInspect(selected, !!selected.breakdown)}
             onOpenLightbox={() => props.onOpenLightbox(selected)}
             onDelete={() => props.onDeleteReference(selected.id)}
+            parts={partsOf(refs, selected.id)}
+            parent={selected.parentId ? refs.find(r => r.id === selected.parentId) ?? null : null}
+            partDraft={props.partDrafts[selected.id]}
+            onDetectParts={() => props.onDetectParts(selected)}
+            onPartDraftChange={d => props.onPartDraftChange(selected.id, d)}
+            onAddParts={async proposals => {
+              const ids = await props.onAddParts(selected.id, proposals);
+              // Encuadrar la original con sus partes nuevas.
+              if (ids.length) setTimeout(() => canvasRef.current?.fitTo([selected.id, ...ids]), 80);
+            }}
+            onSelectReference={id => {
+              props.onSelect(id);
+              canvasRef.current?.focusReference(id, { focus: false });
+            }}
           />
         ) : null}
       </DockPanel>

@@ -2,6 +2,7 @@ import React from 'react';
 import { Reference } from '../../types';
 import { useDominantColor } from '../../utils/dominantColor';
 import { StatusDot, Tone } from './StatusPill';
+import { imageRatio, partKindInfo } from '../../utils/parts';
 
 export type ZoomLevel = 'far' | 'mid' | 'near';
 
@@ -37,6 +38,8 @@ export function ReferenceCard({ reference: ref, zoom, width, selected, evidence,
       ? 'border-signal/70'
       : 'border-line';
   const palette = (ref.breakdown?.colors ?? []).slice(0, 5).map(c => c.hex);
+  const part = ref.parentId ? partKindInfo(ref.partKind) : null;
+  const ratio = imageRatio(ref);
 
   return (
     <article
@@ -44,7 +47,7 @@ export function ReferenceCard({ reference: ref, zoom, width, selected, evidence,
       style={{ width, ...style }}
     >
       {zoom === 'far' ? (
-        <div className="flex aspect-[4/5] items-end p-2" style={{ background: dominant }}>
+        <div className="flex items-end p-2" style={{ background: dominant, aspectRatio: ratio }}>
           <span className="rounded-[3px] bg-[rgba(237,237,239,.85)] px-[5px] py-px font-mono text-xs font-medium text-bg">
             {shortRefId(ref.id)}
           </span>
@@ -54,14 +57,18 @@ export function ReferenceCard({ reference: ref, zoom, width, selected, evidence,
           <img
             src={ref.image}
             alt={ref.name}
-            className="block aspect-[4/5] w-full bg-raised object-cover"
+            className={`block w-full bg-raised ${part ? 'object-contain' : 'object-cover'}`}
+            style={{ aspectRatio: ratio }}
             loading="lazy"
             referrerPolicy="no-referrer"
             draggable={false}
           />
           <div className="flex flex-col gap-2 p-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-xs font-medium text-ink-2">{ref.id}</span>
+              <span className="min-w-0 truncate font-mono text-xs font-medium text-ink-2">
+                {ref.id}
+                {part && <span style={{ color: part.family.ink }}> · {part.label}</span>}
+              </span>
               {analysis && (
                 <span className="flex items-center gap-2" title={analysis.label}>
                   <span className="sr-only">{analysis.label}</span>
