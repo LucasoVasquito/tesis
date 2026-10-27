@@ -283,7 +283,11 @@ export default function App() {
       try {
         result = JSON.parse(text);
       } catch {
-        throw new Error(`El servidor no devolvió una respuesta válida (HTTP ${res.status}). ¿Está corriendo "npm run server"?`);
+        throw new Error(
+          text.trim().startsWith('<')
+            ? 'El servidor está corriendo una versión anterior sin esta función. Cortá "npm run server" (Ctrl+C) y volvé a ejecutarlo.'
+            : `El servidor no devolvió una respuesta válida (HTTP ${res.status}). ¿Está corriendo "npm run server"?`,
+        );
       }
       if (!res.ok || !result.success) throw new Error(result.details || result.error || 'Error al separar la referencia');
       const parts: any[] = result.data?.parts ?? [];
