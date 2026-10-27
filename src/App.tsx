@@ -580,7 +580,16 @@ export default function App() {
                   textureRules: d.textureRules ? normalizeRules(d.textureRules, 'X', 'evidence') : s.textureRules,
                   compositionRules: d.compositionRules ? normalizeRules(d.compositionRules, 'C', 'grid') : s.compositionRules,
                   systemDetails: d.systemDetails || s.systemDetails,
-                  sources: d.sources?.aestheticPillars ? { aestheticPillars: d.sources.aestheticPillars } : s.sources,
+                  // La imagen elegida a mano se conserva en los pilares que mantienen su texto.
+                  sources: d.sources?.aestheticPillars
+                    ? {
+                        aestheticPillars: d.sources.aestheticPillars,
+                        pillarRefs: (d.aestheticPillars || []).map((p: string) => {
+                          const k = (s.aestheticPillars ?? []).indexOf(p);
+                          return k >= 0 ? s.sources?.pillarRefs?.[k] ?? null : null;
+                        }),
+                      }
+                    : s.sources,
                   isSynthesizing: false,
                   updatedAt: new Date().toISOString(),
                 },
@@ -696,6 +705,41 @@ export default function App() {
     }
   };
 
+  /** Pide a Gemini qué patrones sostienen cada pilar (para sistemas adoptados o redactados sin trazabilidad). */
+  const handleTracePillars = async (systemId: string, silent = false) => {
+    const p = projectRef.current;
+    const projectId = p.id;
+    const sys = p.systems.find(s => s.id === systemId);
+    const pillars = sys?.aestheticPillars ?? [];
+    if (!sys || !pillars.length) return;
+    const patterns = p.patterns.filter(x => x.status === 'confirmed' && (sys.patternIds.includes(x.id) || !sys.patternIds.length));
+    try {
+      const res = await fetch('/api/trace-pillars', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pillars, patterns: patterns.map(x => ({ id: x.id, name: x.name, category: x.category, description: x.description })) }),
+      });
+      const result = await res.json().catch(() => ({ success: false }));
+      if (!result.success) throw new Error(result.error || result.details || `HTTP ${res.status}`);
+      const traced: string[][] = result.data.pillarSources ?? [];
+      updateProject(
+        x => ({
+          ...x,
+          systems: x.systems.map(s =>
+            s.id !== systemId || JSON.stringify(s.aestheticPillars) !== JSON.stringify(pillars)
+              ? s
+              : { ...s, sources: { ...s.sources, aestheticPillars: traced } },
+          ),
+        }),
+        projectId,
+      );
+      const n = traced.filter(t => t.length).length;
+      if (!silent || n) showToast({ message: `Pilares rastreados · ${n} de ${pillars.length} con patrones de sostén`, tone: 'signal' });
+    } catch (err: any) {
+      if (!silent) showToast({ message: `No se pudieron rastrear los pilares: ${err?.message || err}`, tone: 'discarded' }, 5000);
+    }
+  };
+
   /** Adoptar una sugerencia de la IA: crea un sistema real solo con patrones confirmados. */
   const handleAdoptSuggestion = (id: string) => {
     const p = projectRef.current;
@@ -729,6 +773,8 @@ export default function App() {
     showToast({ message: `Sugerencia adoptada · ${sug.name} (${patternIds.length} patrones confirmados)`, tone: 'confirmed' });
     // La paleta se infiere del corpus; no se toma la propuesta por la IA.
     if (patternIds.length) setTimeout(() => handleInferPalette(sysId, true), 0);
+    // Las sugerencias traen los pilares sin trazabilidad: se rastrean para que cada pilar muestre su evidencia.
+    if (sug.aestheticPillars?.length) setTimeout(() => handleTracePillars(sysId, true), 0);
   };
 
   const handleDismissSuggestion = (id: string) => {
@@ -939,6 +985,7 @@ export default function App() {
             }}
             onDeleteSystem={handleDeleteSystem}
             onInferPalette={handleInferPalette}
+            onTracePillars={handleTracePillars}
             onAdoptSuggestion={handleAdoptSuggestion}
             onDismissSuggestion={handleDismissSuggestion}
             onImportFile={handleImportSystemFile}

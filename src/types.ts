@@ -148,7 +148,11 @@ export interface VisualSystem {
   compositionRules?: Rule[];
   aestheticPillars?: string[];
   /** IDs de patrones que sostienen cada pilar, en el mismo orden. */
-  sources?: { aestheticPillars?: string[][] };
+  sources?: {
+    aestheticPillars?: string[][];
+    /** Referencia que eligió el diseñador como imagen de cada pilar (null = sin elección). */
+    pillarRefs?: (string | null)[];
+  };
   /** Si el sistema nació de una sugerencia de la IA, su ID. */
   adoptedFrom?: string;
   systemDetails?: VisualSystemDetails;

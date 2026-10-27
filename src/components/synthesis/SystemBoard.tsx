@@ -5,6 +5,8 @@ import { Button, IconButton, TextArea } from '../ui';
 import { FAMILIES, familyOf } from '../../utils/families';
 import { PaletteBand } from './PaletteBand';
 import { ColorCard, RULE_FAMILY, RuleCard } from './RuleCard';
+import { PillarTile } from './PillarTile';
+import { pillarCandidates, pillarImages } from '../../utils/pillars';
 
 export const DND_TYPE = 'application/x-emergent-pattern';
 
@@ -25,6 +27,7 @@ interface SystemBoardProps {
   onOpenGuidelines: () => void;
   onTryPiece: () => void;
   onInferPalette: () => void;
+  onTracePillars: () => void;
   onExportJson: () => void;
   onDelete: () => void;
 }
@@ -105,7 +108,10 @@ function TextEditor({ system: s, onSave, onCancel }: { system: VisualSystem; onS
       description: description.trim(),
       aestheticPillars: cleaned,
       // Un pilar editado pierde la trazabilidad por posición; uno intacto la conserva.
-      sources: { aestheticPillars: cleaned.map(p => (old.indexOf(p) >= 0 ? oldSrc[old.indexOf(p)] ?? [] : [])) },
+      sources: {
+        aestheticPillars: cleaned.map(p => (old.indexOf(p) >= 0 ? oldSrc[old.indexOf(p)] ?? [] : [])),
+        pillarRefs: cleaned.map(p => (old.indexOf(p) >= 0 ? s.sources?.pillarRefs?.[old.indexOf(p)] ?? null : null)),
+      },
       updatedAt: new Date().toISOString(),
     });
   };
@@ -189,6 +195,9 @@ export function SystemBoard(props: SystemBoardProps) {
   const brand = project.name.split(/\s[—–-]\s/)[0].trim() || s.name;
 
   const patternById = (id: string) => project.patterns.find(p => p.id === id);
+  const patternMap = new Map(project.patterns.map(p => [p.id, p]));
+  const images = pillarImages(s, project);
+  const candidates = pillarCandidates(s, project);
   const firstRefOf = (pids: string[]): Reference | undefined => {
     for (const pid of pids) for (const rid of patternById(pid)?.evidence ?? []) if (refById.has(rid)) return refById.get(rid);
     return undefined;
@@ -329,6 +338,7 @@ export function SystemBoard(props: SystemBoardProps) {
             items={[
               { label: 'Editar descripción y pilares', onSelect: () => setEditing(true) },
               { label: palette.length ? 'Recalcular paleta' : 'Inferir paleta', onSelect: props.onInferPalette, disabled: !patterns.length },
+              { label: 'Rastrear pilares con IA', onSelect: props.onTracePillars, disabled: !s.aestheticPillars?.length },
               { label: 'Probar en una pieza', onSelect: props.onTryPiece },
               { label: 'Exportar sistema .json', onSelect: props.onExportJson },
               { label: 'Eliminar sistema', onSelect: () => setConfirmDelete(true), danger: true },
@@ -369,26 +379,22 @@ export function SystemBoard(props: SystemBoardProps) {
         <span className="font-mono text-xs text-ink-2">Pilares · {s.aestheticPillars?.length ?? 0}</span>
         {s.aestheticPillars?.length ? (
           <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3 p-0">
-            {s.aestheticPillars.map((pillar, i) => {
-              const pids = s.sources?.aestheticPillars?.[i] ?? [];
-              const first = pids.map(patternById).find(Boolean);
-              const f = first ? familyOf(first.category) : null;
-              const img = firstRefOf(pids);
-              return (
-                <li key={i} className="relative flex aspect-[4/5] flex-col justify-end overflow-hidden rounded-card bg-raised">
-                  {img && <img src={img.image} alt="" className="absolute inset-0 h-full w-full object-cover" referrerPolicy="no-referrer" loading="lazy" />}
-                  <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(to_top,rgba(11,11,13,.95)_20%,rgba(11,11,13,0)_65%)]" />
-                  <div className="relative flex flex-col gap-2 p-4">
-                    <span className="font-mono text-xs" style={{ color: f?.ink ?? 'var(--color-ink-2)' }}>
-                      {String(i + 1).padStart(2, '0')}
-                      {f ? ` · ${f.label}` : ''}
-                    </span>
-                    <span className="font-serif text-[22px] font-medium leading-[1.15] text-ink">{pillar}</span>
-                    {pids.length > 0 && <span className="font-mono text-xs text-signal-ink">← {pids.join(' ')}</span>}
-                  </div>
-                </li>
-              );
-            })}
+            {s.aestheticPillars.map((pillar, i) => (
+              <PillarTile
+                key={i}
+                index={i}
+                pillar={pillar}
+                image={images[i] ?? null}
+                patterns={patternMap}
+                candidates={candidates}
+                onChoose={refId => {
+                  const refs = [...(s.sources?.pillarRefs ?? [])];
+                  while (refs.length < (s.aestheticPillars?.length ?? 0)) refs.push(null);
+                  refs[i] = refId;
+                  props.onUpdate({ ...s, sources: { ...s.sources, pillarRefs: refs }, updatedAt: new Date().toISOString() });
+                }}
+              />
+            ))}
           </ul>
         ) : (
           <p className="m-0 text-13 text-ink-2">Todavía no hay pilares. “Redactar con IA” los propone a partir de los patrones asignados.</p>

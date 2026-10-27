@@ -66,7 +66,7 @@ export function normalizeSystemRules<T extends Partial<VisualSystem>>(s: T): T {
     if ((s as any)[field] !== undefined) out[field] = normalizeRules((s as any)[field], prefix, exampleKind, legacy[field]);
   }
   // La trazabilidad de las reglas ahora vive en cada regla; en `sources` queda solo la de los pilares.
-  if (out.sources) out.sources = { aestheticPillars: out.sources.aestheticPillars };
+  if (out.sources) out.sources = { aestheticPillars: out.sources.aestheticPillars, pillarRefs: out.sources.pillarRefs };
   return out;
 }
 

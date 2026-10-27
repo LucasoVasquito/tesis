@@ -739,6 +739,47 @@ Generate JSON containing:
         });
     }
 });
+// ==========================================
+// 2b. Trazabilidad de pilares (para sistemas adoptados o redactados sin ella)
+// ==========================================
+app.post("/api/trace-pillars", async (req, res) => {
+    dotenv_1.default.config({ override: true });
+    try {
+        const { pillars = [], patterns = [] } = req.body || {};
+        if (!Array.isArray(pillars) || !pillars.length)
+            return res.json({ success: true, data: { pillarSources: [] } });
+        const valid = new Set(patterns.map((p) => String(p.id)));
+        const list = patterns.map((p) => `- [${p.id}] ${p.name} (${p.category}): ${p.description}`).join("\n");
+        const prompt = `Validated visual patterns of a design corpus:
+${list}
+
+Aesthetic pillars of a visual system built from them:
+${pillars.map((p, i) => `${i + 1}. ${p}`).join("\n")}
+
+For each pillar, in the same order, return the IDs (in square brackets above) of the patterns that support it. Use only IDs from the list; a pillar can have one or several; if none really supports it, return an empty array.`;
+        const ai = getGeminiClient();
+        const response = await generateContentWithRetry(ai, {
+            model: "gemini-3.5-flash-lite",
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: genai_1.Type.OBJECT,
+                    properties: { pillarSources: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } } },
+                    required: ["pillarSources"],
+                },
+            },
+        });
+        const parsed = parseModelJsonResponse(response.text || "{}");
+        const raw = Array.isArray(parsed?.pillarSources) ? parsed.pillarSources : [];
+        const pillarSources = pillars.map((_, i) => (Array.isArray(raw[i]) ? raw[i].map(String).filter((id) => valid.has(id)) : []));
+        return res.json({ success: true, data: { pillarSources } });
+    }
+    catch (error) {
+        console.error("Error en /api/trace-pillars:", error);
+        return res.status(500).json({ error: "No se pudo rastrear los pilares.", details: error?.message });
+    }
+});
 const PIECES = {
     logo: {
         label: "Logotipo",
