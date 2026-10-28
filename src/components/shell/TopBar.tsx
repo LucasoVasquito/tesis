@@ -13,7 +13,8 @@ interface TopBarProps {
   onEditBrief: () => void;
   onDeleteProject: () => void;
   onDeleteAllProjects: () => void;
-  onExportProjectJson: () => void;
+  onExportBackup: () => void;
+  onImportBackup: (file: File) => void;
   onDownloadDossier: () => void;
   onOpenLog: () => void;
   onOpenAbout: () => void;
@@ -47,6 +48,7 @@ function MenuItem({ children, onSelect, current, hint }: { children: React.React
 export function TopBar(props: TopBarProps) {
   const { project, projects, rail } = props;
   const [open, setOpen] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
   const menuId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -122,18 +124,32 @@ export function TopBar(props: TopBarProps) {
                 {p.name.trim() || 'Proyecto sin nombre'}
               </MenuItem>
             ))}
-            <MenuLabel>Exportar proyecto</MenuLabel>
+            <MenuItem onSelect={run(() => importRef.current?.click())}>Importar respaldo…</MenuItem>
+            <MenuLabel>Respaldo y exportación</MenuLabel>
+            <MenuItem onSelect={run(props.onExportBackup)} hint={project.lastBackupAt ? `último ${new Date(project.lastBackupAt).toLocaleDateString('es-AR')}` : 'nunca'}>
+              Descargar respaldo completo
+            </MenuItem>
             <MenuItem onSelect={run(props.onDownloadDossier)} hint=".md">
               Dossier académico
-            </MenuItem>
-            <MenuItem onSelect={run(props.onExportProjectJson)} hint=".json">
-              Proyecto completo
             </MenuItem>
             <MenuLabel>Eliminar</MenuLabel>
             <MenuItem onSelect={run(props.onDeleteProject)}>Eliminar este proyecto</MenuItem>
             {projects.length > 1 && <MenuItem onSelect={run(props.onDeleteAllProjects)}>Eliminar todos los proyectos</MenuItem>}
           </ul>
         )}
+        <input
+          ref={importRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={e => {
+            const f = e.target.files?.[0];
+            if (f) props.onImportBackup(f);
+            e.target.value = '';
+          }}
+        />
       </div>
 
       {/* Etapas */}

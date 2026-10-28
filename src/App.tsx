@@ -5,6 +5,7 @@ import { normalizeRules } from './utils/rules';
 import { createEmptyProject } from './data/emptyProject';
 import { compressImageString, compressReferences } from './utils/imageCompressor';
 import { deleteProjectPieces } from './utils/pieceStore';
+import { buildBackup, downloadBackup, restoreBackup } from './utils/backup';
 import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
 import { downloadProjectMarkdown, exportProjectAsJSON, exportVisualSystemAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid } from './utils/project';
@@ -227,6 +228,42 @@ export default function App() {
     setProjectsList(list => [...list, p]);
     setActiveProjectId(p.id);
     resetUiForProject(p);
+  };
+
+  /* ---------- Respaldo completo ---------- */
+  const handleExportBackup = async () => {
+    const p = projectRef.current;
+    showToast({ message: 'Preparando el respaldo…', tone: 'pending' }, 60000);
+    try {
+      const { backup, webMissing } = await buildBackup(p);
+      const at = backup.exportedAt;
+      downloadBackup({ ...backup, project: { ...backup.project, lastBackupAt: at } });
+      updateProject(x => ({ ...x, lastBackupAt: at }), p.id);
+      const pieces = Object.keys(backup.pieceImages).length;
+      showToast(
+        {
+          message: `Respaldo descargado · ${p.references.length} referencias, ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}${webMissing ? ` · ${webMissing} de la web quedaron como link` : ''}`,
+          tone: 'confirmed',
+        },
+        5000,
+      );
+    } catch (err: any) {
+      showToast({ message: `No se pudo armar el respaldo: ${err?.message || err}`, tone: 'discarded' }, 6000);
+    }
+  };
+
+  const handleImportBackup = async (file: File) => {
+    try {
+      const { project: imported, pieces } = await restoreBackup(await file.text(), projectsList.map(x => x.id));
+      // Un proyecto vacío de relleno (sin nombre ni referencias) se reemplaza por el importado.
+      const isBlank = (x: Project) => !x.name.trim() && !x.objective.trim() && !x.references.length && !x.patterns.length && !x.systems.length;
+      setProjectsList(list => [...list.filter(x => !isBlank(x)), imported]);
+      setActiveProjectId(imported.id);
+      resetUiForProject(imported);
+      showToast({ message: `Proyecto importado · ${imported.name || 'sin nombre'} · ${imported.references.length} referencias, ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}`, tone: 'confirmed' }, 5000);
+    } catch (err: any) {
+      showToast({ message: err?.message || 'No se pudo importar el respaldo', tone: 'discarded' }, 6000);
+    }
   };
 
   /** Elimina proyectos (y sus desgloses en caché). Si no queda ninguno, se crea uno vacío. */
@@ -1267,7 +1304,8 @@ export default function App() {
         onEditBrief={() => goToStage('brief')}
         onDeleteProject={() => setDeleteRequest('current')}
         onDeleteAllProjects={() => setDeleteRequest('all')}
-        onExportProjectJson={() => exportProjectAsJSON(project)}
+        onExportBackup={handleExportBackup}
+        onImportBackup={handleImportBackup}
         onDownloadDossier={() => downloadProjectMarkdown(project)}
         onOpenLog={() => setIsLogOpen(o => !o)}
         onOpenAbout={() => setOverlay({ kind: 'about' })}
@@ -1421,7 +1459,18 @@ export default function App() {
               ? `Se borran los ${projectsList.length} proyectos de este navegador, con sus referencias, patrones, sistemas y bitácora.`
               : `Se borra “${project.name.trim() || 'Proyecto sin nombre'}” con sus ${project.references.length} referencias, ${project.patterns.length} patrones, ${project.systems.length} sistemas y su bitácora.`}
           </p>
-          <p className="m-0 text-13 text-ink-2">Si querés conservar una copia, exportá antes el proyecto en .json desde este mismo menú.</p>
+          <p className="m-0 text-13 text-ink-2">
+            {deleteRequest === 'all'
+              ? 'Si querés conservar copias, descargá antes el respaldo completo de cada proyecto desde el menú del proyecto.'
+              : 'Si querés conservar una copia, descargá antes el respaldo completo: incluye referencias, sistemas y todas las piezas generadas.'}
+          </p>
+          {deleteRequest === 'current' && (
+            <div>
+              <Button size="sm" variant="secondary" onClick={handleExportBackup}>
+                Descargar respaldo completo
+              </Button>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               variant="discard"

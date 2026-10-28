@@ -86,3 +86,32 @@ export async function deleteProjectPieces(projectId: string): Promise<void> {
     console.warn('No se pudieron borrar las imágenes del proyecto', e);
   }
 }
+
+/** Todas las imágenes de piezas de un proyecto, como data URLs (para el respaldo). */
+export async function exportProjectPieces(projectId: string): Promise<Record<string, string>> {
+  const d = await db();
+  const entries: [string, Blob][] = await new Promise((resolve, reject) => {
+    const out: [string, Blob][] = [];
+    const t = d.transaction(STORE, 'readonly');
+    const req = t.objectStore(STORE).openCursor(IDBKeyRange.bound(`${projectId}/`, `${projectId}/￿`));
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) return resolve(out);
+      out.push([String(cur.key).slice(projectId.length + 1), cur.value as Blob]);
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+  const result: Record<string, string> = {};
+  for (const [id, blob] of entries) result[id] = await blobToDataUrl(blob);
+  return result;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}

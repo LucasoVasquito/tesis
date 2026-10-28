@@ -276,6 +276,8 @@ export interface Project {
   suggestedSystems?: SuggestedSystem[];
   log?: LogItem[];
   groups?: RefGroup[];
+  /** Último respaldo completo descargado. */
+  lastBackupAt?: string;
   /** Etapa 06: todo lo generado para cada sistema (las imágenes viven en IndexedDB). */
   applications?: Record<string, ApplicationSession>;
 }
