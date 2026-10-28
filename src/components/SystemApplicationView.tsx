@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Check, ClipboardCheck, Copy, Download, Plus, Sparkles } from 'lucide-react';
+import { BookOpen, Check, ClipboardCheck, Copy, Download, Plus, Sparkles } from 'lucide-react';
 import { Project, Reference, SystemResourceKey, VisualSystem } from '../types';
 import { Button, EmptyState, ErrorState, LoadingState, TextArea, TextInput } from './ui';
 import { FullView } from './shell/FullView';
@@ -10,7 +10,10 @@ import { AuditState, PieceAuditPanel, scoreLabel } from './application/PieceAudi
 interface SystemApplicationViewProps {
   project: Project;
   system: VisualSystem;
-  onBack: () => void;
+  /** Todos los sistemas del proyecto (para cambiar cuál se aplica). */
+  systems: VisualSystem[];
+  onSelectSystem: (id: string) => void;
+  onOpenGuidelines: () => void;
   onOpenLightbox: (ref: Reference) => void;
 }
 
@@ -108,7 +111,7 @@ const Block = ({ n, title, children }: { n: string; title: string; children: Rea
  * Verificación externa: piezas generadas con OpenAI a partir de los lineamientos.
  * Flujo: elegir pieza → pedir → comparar variantes → aprobar → la siguiente pieza usa el logo aprobado.
  */
-export function SystemApplicationView({ project, system, onBack, onOpenLightbox }: SystemApplicationViewProps) {
+export function SystemApplicationView({ project, system, systems, onSelectSystem, onOpenGuidelines, onOpenLightbox }: SystemApplicationViewProps) {
   const patterns = project.patterns.filter(p => system.patternIds.includes(p.id) && p.status === 'confirmed');
   const [pieceType, setPieceType] = useState<PieceType>('logo');
   const [mode, setMode] = useState<GenMode>('system');
@@ -313,7 +316,30 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
   const auditOf = (id: string) => (audits[id]?.status === 'done' ? (audits[id] as { audit: PieceAudit }).audit : null);
 
   return (
-    <FullView title={`Probar en una pieza · ${system.name}`} meta="VERIFICACIÓN EXTERNA · no forma parte del sistema" onBack={onBack} backLabel="Lineamientos">
+    <FullView
+      embedded
+      title={system.name}
+      meta="06 · Aplicación · verificación externa, no forma parte del sistema"
+      actions={
+        <>
+          {systems.length > 1 && (
+            <label className="flex items-center gap-2 text-13 text-ink-2">
+              <span className="hidden sm:inline">Sistema</span>
+              <select className="field-input h-9 w-auto max-w-[220px] text-13" value={system.id} onChange={e => onSelectSystem(e.target.value)} aria-label="Sistema que se aplica">
+                {systems.map(s => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <Button size="sm" variant="ghost" icon={<BookOpen />} onClick={onOpenGuidelines}>
+            Lineamientos
+          </Button>
+        </>
+      }
+    >
       <div className="mx-auto flex max-w-[1320px] flex-col gap-8 px-4 py-6 lg:px-8">
         {/* ---------- Tira de la marca ---------- */}
         <nav aria-label="Piezas de la marca" className="flex flex-col gap-3">

@@ -47,7 +47,7 @@ const DISCARDED_KEYS = [
   'emergent_visual_system_projects_store_v4',
 ];
 
-type Overlay = null | { kind: 'about' } | { kind: 'guidelines'; systemId: string } | { kind: 'apply'; systemId: string };
+type Overlay = null | { kind: 'about' };
 
 function loadProjects(): Project[] {
   try {
@@ -65,7 +65,7 @@ function loadProjects(): Project[] {
   return [createEmptyProject()];
 }
 
-const STAGE_NUM: Record<VisitableStage, string> = { brief: '01', corpus: '02', audit: '04', synthesis: '05' };
+const STAGE_NUM: Record<VisitableStage, string> = { brief: '01', corpus: '02', audit: '04', synthesis: '05', application: '06' };
 
 const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100) : 0);
 
@@ -110,6 +110,11 @@ export default function App() {
   const [auditFilter, setAuditFilter] = useState<AuditFilter>('pending');
   const [focusSystemId, setFocusSystemId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>(null);
+  /** Lineamientos abiertos dentro de Síntesis (ID del sistema). */
+  const [guidelinesId, setGuidelinesId] = useState<string | null>(null);
+  /** Sistema que se aplica en la etapa 06 y sistemas ya visitados (sus piezas se mantienen al cambiar de etapa). */
+  const [applySystemId, setApplySystemId] = useState<string | null>(null);
+  const [visitedApply, setVisitedApply] = useState<string[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<null | 'current' | 'all'>(null);
@@ -161,11 +166,23 @@ export default function App() {
     if (!canEnter(project, stage)) setStage(initialStage({ ...project, uiStage: undefined }));
   }, [project, stage]);
 
+  const applySystemRef = useRef<string | null>(null);
+  applySystemRef.current = applySystemId;
+
   const goToStage = useCallback(
     (s: VisitableStage) => {
       const p = projectRef.current;
       if (!canEnter(p, s) || induction.status === 'running') return;
       if (s === 'brief') setBriefDraft({ name: p.name, objective: p.objective, description: p.description });
+      setGuidelinesId(null);
+      if (s === 'application') {
+        const valid = p.systems.some(x => x.id === applySystemRef.current);
+        const id = valid ? applySystemRef.current! : p.systems[0]?.id;
+        if (id) {
+          setApplySystemId(id);
+          setVisitedApply(v => (v.includes(id) ? v : [...v, id]));
+        }
+      }
       setStage(s);
     },
     [induction.status],
@@ -179,6 +196,9 @@ export default function App() {
     setAuditIndex(0);
     setAuditFilter('pending');
     setOverlay(null);
+    setGuidelinesId(null);
+    setApplySystemId(null);
+    setVisitedApply([]);
     setBriefDraft({ name: p.name, objective: p.objective, description: p.description });
     setStage(initialStage(p));
   };
@@ -1017,6 +1037,18 @@ export default function App() {
     showToast({ message: 'Regla guardada · se usa en la próxima inducción', tone: 'signal' });
   };
 
+  /** Etapa 06 con un sistema concreto. */
+  const openApplication = (systemId: string) => {
+    applySystemRef.current = systemId;
+    setApplySystemId(systemId);
+    setVisitedApply(v => (v.includes(systemId) ? v : [...v, systemId]));
+    goToStage('application');
+  };
+  const openGuidelines = (systemId: string) => {
+    goToStage('synthesis');
+    setGuidelinesId(systemId);
+  };
+
   /* ========== ActionBar por etapa ========== */
   const counts = useMemo(() => {
     const ps = project.patterns;
@@ -1102,24 +1134,44 @@ export default function App() {
     const confirmedIds = project.patterns.filter(p => p.status === 'confirmed').map(p => p.id);
     const assignedCount = confirmedIds.filter(id => assigned.has(id)).length;
     status = `${project.systems.length} ${project.systems.length === 1 ? 'sistema' : 'sistemas'} · ${assignedCount} de ${confirmedIds.length} patrones asignados (${pct(assignedCount, confirmedIds.length)}%)`;
+    const sysForApply = project.systems.find(x => x.id === (guidelinesId ?? focusSystemId)) ?? project.systems[0];
+    if (guidelinesId) status = `Lineamientos · ${project.systems.find(x => x.id === guidelinesId)?.name ?? ''}`;
     secondary = (
-      <Button variant="ghost" onClick={() => downloadProjectMarkdown(project)}>
-        Dossier .md
-      </Button>
+      <>
+        <Button variant="ghost" onClick={() => downloadProjectMarkdown(project)}>
+          Dossier .md
+        </Button>
+        {sysForApply && (
+          <Button variant="ghost" onClick={() => createSystem()}>
+            Nuevo sistema
+          </Button>
+        )}
+      </>
     );
-    primary = (
+    primary = sysForApply ? (
+      <Button variant="primary" onClick={() => openApplication(sysForApply.id)}>
+        Continuar a aplicación
+      </Button>
+    ) : (
       <Button variant="primary" onClick={() => createSystem()}>
         Nuevo sistema
       </Button>
     );
+  } else if (stage === 'application') {
+    const sys = project.systems.find(x => x.id === applySystemId);
+    status = sys ? `Aplicando «${sys.name}» · verificación externa, no forma parte del sistema` : '';
+    secondary = sys ? (
+      <Button variant="ghost" onClick={() => openGuidelines(sys.id)}>
+        Ver lineamientos
+      </Button>
+    ) : null;
   }
 
   const rail = railItems(project, stage, induction.status === 'running');
-  const applySystem = overlay?.kind === 'apply' ? project.systems.find(s => s.id === overlay.systemId) ?? null : null;
-  const guidelinesSystem = overlay?.kind === 'guidelines' ? project.systems.find(s => s.id === overlay.systemId) ?? null : null;
+  const guidelinesSystem = stage === 'synthesis' && guidelinesId ? project.systems.find(s => s.id === guidelinesId) ?? null : null;
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink print:h-auto print:overflow-visible">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-ctrl focus:bg-ink focus:px-3 focus:py-2 focus:text-bg">
         Saltar al contenido
       </a>
@@ -1141,10 +1193,11 @@ export default function App() {
       />
 
       <p className="sr-only" aria-live="polite">
-        Etapa {STAGE_NUM[stage]} de 05: {STAGE_LABEL[stage]}
+        Etapa {STAGE_NUM[stage]} de 06: {STAGE_LABEL[stage]}
       </p>
-      <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none ${overlay ? 'print:hidden' : ''}`}>
-        <div key={`${project.id}-${stage}`} className="stage-enter h-full">
+      <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
+        {stage !== 'application' && (
+        <div key={`${project.id}-${stage}${guidelinesSystem ? '-g' : ''}`} className="stage-enter h-full print:h-auto">
         {stage === 'brief' && (
           <BriefStage
             project={project}
@@ -1206,7 +1259,15 @@ export default function App() {
             onViewChange={setView}
           />
         )}
-        {stage === 'synthesis' && (
+        {guidelinesSystem && (
+          <GuidelinesView
+            project={project}
+            system={guidelinesSystem}
+            onBack={() => setGuidelinesId(null)}
+            onTryPiece={() => openApplication(guidelinesSystem.id)}
+          />
+        )}
+        {stage === 'synthesis' && !guidelinesSystem && (
           <SynthesisStage
             project={project}
             focusSystemId={focusSystemId}
@@ -1218,8 +1279,8 @@ export default function App() {
             onUnassign={handleUnassign}
             onCreateSystemWithPattern={pid => createSystem([pid])}
             onSynthesize={handleSynthesize}
-            onOpenGuidelines={id => setOverlay({ kind: 'guidelines', systemId: id })}
-            onTryPiece={id => setOverlay({ kind: 'apply', systemId: id })}
+            onOpenGuidelines={setGuidelinesId}
+            onTryPiece={openApplication}
             onExportSystem={id => {
               const sys = project.systems.find(x => x.id === id);
               if (sys) exportVisualSystemAsJSON(sys, project);
@@ -1233,6 +1294,23 @@ export default function App() {
           />
         )}
         </div>
+        )}
+        {/* Etapa 06: cada sistema visitado queda montado para no perder las piezas al cambiar de etapa. */}
+        {visitedApply
+          .map(id => project.systems.find(x => x.id === id))
+          .filter(Boolean)
+          .map(sys => (
+            <div key={`${project.id}-${sys!.id}`} hidden={!(stage === 'application' && applySystemId === sys!.id)} className="stage-enter h-full">
+              <SystemApplicationView
+                project={project}
+                system={sys!}
+                systems={project.systems}
+                onSelectSystem={openApplication}
+                onOpenGuidelines={() => openGuidelines(sys!.id)}
+                onOpenLightbox={setLightboxRef}
+              />
+            </div>
+          ))}
       </main>
 
       <ActionBar status={status} notice={notice} toast={toast} onDismissToast={dismissToast} secondary={secondary} primary={primary} />
@@ -1272,22 +1350,6 @@ export default function App() {
       <LogDrawer open={isLogOpen} project={project} onClose={() => setIsLogOpen(false)} onAddRule={handleAddRule} />
 
       {overlay?.kind === 'about' && <AboutView onBack={() => setOverlay(null)} />}
-      {guidelinesSystem && (
-        <GuidelinesView
-          project={project}
-          system={guidelinesSystem}
-          onBack={() => setOverlay(null)}
-          onTryPiece={() => setOverlay({ kind: 'apply', systemId: guidelinesSystem.id })}
-        />
-      )}
-      {applySystem && (
-        <SystemApplicationView
-          project={project}
-          system={applySystem}
-          onBack={() => setOverlay({ kind: 'guidelines', systemId: applySystem.id })}
-          onOpenLightbox={setLightboxRef}
-        />
-      )}
     </div>
   );
 }

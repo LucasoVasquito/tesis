@@ -42,7 +42,7 @@ function isInteractive(s: StageRailItem) {
 export function StageRail({ stages, onSelect }: StageRailProps) {
   const baseId = useId();
   return (
-    <nav aria-label="Etapas del método" className="mx-auto hidden w-full min-w-0 max-w-[680px] lg:flex">
+    <nav aria-label="Etapas del método" className="mx-auto hidden w-full min-w-0 max-w-[800px] lg:flex">
       <ol className="flex h-11 w-full items-stretch rounded-card border border-line bg-surface">
         {stages.map((s, i) => {
           const interactive = isInteractive(s);
@@ -56,7 +56,7 @@ export function StageRail({ stages, onSelect }: StageRailProps) {
                 aria-current={s.state === 'current' ? 'step' : undefined}
                 aria-disabled={blocked || undefined}
                 aria-describedby={s.requirement && blocked ? tipId : undefined}
-                className={`flex h-full w-full min-w-0 flex-col items-center justify-center gap-0.5 px-3 text-center transition-colors duration-120 ease-emergent ${
+                className={`flex h-full w-full min-w-0 flex-col items-center justify-center gap-0.5 px-2 text-center transition-colors duration-120 ease-emergent ${
                   s.state === 'current' ? 'bg-signal/12 shadow-[inset_0_-2px_0_var(--color-signal)]' : 'hover:bg-white/[.03]'
                 } ${s.state === 'locked' ? 'text-ink-3' : 'text-ink'} ${blocked ? 'cursor-not-allowed hover:bg-transparent' : ''} ${
                   i === 0 ? 'rounded-l-card' : ''
@@ -69,8 +69,8 @@ export function StageRail({ stages, onSelect }: StageRailProps) {
                 >
                   <StatusDot tone={STATE_TONE[s.state]} glow={s.state === 'done' || s.state === 'current'} />
                   {s.num}
-                  <span className="hidden xl:inline">· {STATE_TEXT[s.state]}</span>
-                  <span className="sr-only xl:hidden">{STATE_TEXT[s.state]}</span>
+                  <span className="hidden 2xl:inline">· {STATE_TEXT[s.state]}</span>
+                  <span className="sr-only 2xl:hidden">{STATE_TEXT[s.state]}</span>
                 </span>
                 <span className="max-w-full truncate text-13 font-medium leading-4">{s.label}</span>
               </button>

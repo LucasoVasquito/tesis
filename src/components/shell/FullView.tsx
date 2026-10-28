@@ -4,14 +4,17 @@ import { ArrowLeft } from 'lucide-react';
 interface FullViewProps {
   title: string;
   meta?: React.ReactNode;
-  onBack: () => void;
+  /** Sin onBack no hay botón de volver (vista integrada como etapa). */
+  onBack?: () => void;
   backLabel?: string;
   actions?: React.ReactNode;
   children: React.ReactNode;
+  /** Integrada en la app (con la barra de etapas visible) en lugar de cubrir la pantalla. */
+  embedded?: boolean;
 }
 
 /** Vista a pantalla completa (manual de lineamientos, verificación, acerca del método). Esc vuelve. */
-export function FullView({ title, meta, onBack, backLabel = 'Volver', actions, children }: FullViewProps) {
+export function FullView({ title, meta, onBack, backLabel = 'Volver', actions, children, embedded }: FullViewProps) {
   const titleId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -19,7 +22,7 @@ export function FullView({ title, meta, onBack, backLabel = 'Volver', actions, c
     const previous = document.activeElement as HTMLElement | null;
     headingRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (embedded || !onBack || e.key !== 'Escape' || e.defaultPrevented) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
       onBack();
@@ -29,22 +32,28 @@ export function FullView({ title, meta, onBack, backLabel = 'Volver', actions, c
       window.removeEventListener('keydown', onKey);
       if (previous && document.contains(previous)) previous.focus({ preventScroll: true });
     };
-  }, [onBack]);
+  }, [onBack, embedded]);
 
   return (
     <section
-      role="dialog"
-      aria-modal="true"
+      role={embedded ? 'region' : 'dialog'}
+      aria-modal={embedded ? undefined : true}
       aria-labelledby={titleId}
-      data-overlay-open="true"
-      className="fixed inset-0 z-40 flex flex-col bg-bg motion-safe:animate-[em-fade-in_240ms_var(--ease-emergent)] print:static print:bg-white"
+      data-overlay-open={embedded ? undefined : 'true'}
+      className={`flex flex-col bg-bg print:static print:h-auto print:bg-white ${
+        embedded ? 'h-full' : 'fixed inset-0 z-40 motion-safe:animate-[em-fade-in_240ms_var(--ease-emergent)]'
+      }`}
     >
       <header className="no-print flex h-14 shrink-0 items-center gap-3 border-b border-line px-3 lg:px-4">
-        <button type="button" className="btn btn-ghost px-2" onClick={onBack}>
-          <ArrowLeft aria-hidden="true" />
-          {backLabel}
-        </button>
-        <span aria-hidden="true" className="h-4 w-px bg-line-mid" />
+        {onBack && (
+          <>
+            <button type="button" className="btn btn-ghost px-2" onClick={onBack}>
+              <ArrowLeft aria-hidden="true" />
+              {backLabel}
+            </button>
+            <span aria-hidden="true" className="h-4 w-px bg-line-mid" />
+          </>
+        )}
         <div className="flex min-w-0 flex-1 flex-col">
           {meta && <span className="truncate font-mono text-xs text-ink-2">{meta}</span>}
           <h1 id={titleId} ref={headingRef} tabIndex={-1} className="m-0 truncate text-sm font-medium text-ink outline-none">

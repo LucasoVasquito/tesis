@@ -251,7 +251,7 @@ export interface LogItem {
   feedbackId?: string;
 }
 
-export type Stage = 'brief' | 'corpus' | 'induction' | 'audit' | 'synthesis';
+export type Stage = 'brief' | 'corpus' | 'induction' | 'audit' | 'synthesis' | 'application';
 /** Etapas que se pueden visitar (Inducción es un estado transitorio). */
 export type VisitableStage = Exclude<Stage, 'induction'>;
 

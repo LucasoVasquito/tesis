@@ -3,7 +3,7 @@ import type { StageRailItem } from '../components/ui';
 
 export const MIN_REFERENCES = 3;
 
-export const STAGE_ORDER: VisitableStage[] = ['brief', 'corpus', 'audit', 'synthesis'];
+export const STAGE_ORDER: VisitableStage[] = ['brief', 'corpus', 'audit', 'synthesis', 'application'];
 
 export const STAGE_LABEL: Record<VisitableStage | 'induction', string> = {
   brief: 'Brief',
@@ -11,6 +11,7 @@ export const STAGE_LABEL: Record<VisitableStage | 'induction', string> = {
   induction: 'Inducción',
   audit: 'Auditoría',
   synthesis: 'Síntesis',
+  application: 'Aplicación',
 };
 
 export const isBriefComplete = (p: Project) => !!p.name.trim() && !!p.objective.trim();
@@ -37,6 +38,9 @@ export function stageRequirement(p: Project, stage: VisitableStage): string | nu
     case 'synthesis':
       if (!isBriefComplete(p)) return 'Completá el brief';
       return confirmedCount(p) > 0 || p.systems.length > 0 ? null : 'Necesitás al menos 1 patrón confirmado';
+    case 'application':
+      if (!isBriefComplete(p)) return 'Completá el brief';
+      return p.systems.length > 0 ? null : 'Creá o adoptá un sistema en Síntesis';
   }
 }
 
@@ -69,5 +73,5 @@ export function railItems(p: Project, current: VisitableStage, inducing: boolean
     visitable: false,
     requirement: inducing ? undefined : induced ? 'Se vuelve a ejecutar desde Corpus' : `Se ejecuta desde Corpus con ${MIN_REFERENCES} referencias o más`,
   };
-  return [item('brief', '01'), item('corpus', '02'), induction, item('audit', '04'), item('synthesis', '05')];
+  return [item('brief', '01'), item('corpus', '02'), induction, item('audit', '04'), item('synthesis', '05'), item('application', '06')];
 }

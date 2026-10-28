@@ -62,8 +62,9 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
     <FullView
       title={s.name}
       meta={`Lineamientos · ${project.name}`}
+      embedded
       onBack={onBack}
-      backLabel="Síntesis"
+      backLabel="Tablero"
       actions={
         <>
           <Button size="sm" variant="signal" icon={<Sparkles />} onClick={onTryPiece} title="Verificación externa: no forma parte del sistema">
