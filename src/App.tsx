@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LogItem, LogKind, Pattern, Project, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
+import { GroupHypothesis, LogItem, LogKind, Pattern, Project, RefGroup, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
 import { evidenceReferences, inferPalette } from './utils/palette';
 import { normalizeRules } from './utils/rules';
 import { createEmptyProject } from './data/emptyProject';
@@ -8,6 +8,8 @@ import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getC
 import { downloadProjectMarkdown, exportProjectAsJSON, exportVisualSystemAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid } from './utils/project';
 import { PART_CARD_W, PartDraft, PartProposal, cropImage, nextPartIds, partKindInfo, placeParts, wholeReferences } from './utils/parts';
+import { createGroup, dropOnto, addToGroup, freeSpotNear, groupOf, refRect, withoutRefs } from './utils/groups';
+import { GroupDrop } from './components/canvas/ReferenceCanvas';
 import { MIN_REFERENCES, STAGE_LABEL, canEnter, initialStage, isBriefComplete, railItems } from './utils/stages';
 
 import { Button } from './components/ui';
@@ -101,6 +103,9 @@ export default function App() {
   const [stage, setStage] = useState<VisitableStage>(() => initialStage(project));
   const [view, setView] = useState<CorpusView>('canvas');
   const [selectedRefId, setSelectedRefId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  /** Lectura de grupos en curso o con error (por ID de grupo). */
+  const [groupReads, setGroupReads] = useState<Record<string, { status: 'loading' } | { status: 'error'; message: string }>>({});
   const [auditIndex, setAuditIndex] = useState(0);
   const [auditFilter, setAuditFilter] = useState<AuditFilter>('pending');
   const [focusSystemId, setFocusSystemId] = useState<string | null>(null);
@@ -170,6 +175,7 @@ export default function App() {
     abortRef.current?.abort();
     setInduction({ status: 'idle', tick: 0 });
     setSelectedRefId(null);
+    setSelectedGroupId(null);
     setAuditIndex(0);
     setAuditFilter('pending');
     setOverlay(null);
@@ -254,10 +260,137 @@ export default function App() {
       references: p.references.filter(r => !gone.has(r.id)),
       patterns: p.patterns.map(pt => ({ ...pt, evidence: pt.evidence.filter(e => !gone.has(e)) })),
       systems: p.systems.map(s => ({ ...s, referenceIds: s.referenceIds.filter(r => !gone.has(r)) })),
+      groups: withoutRefs(p.groups ?? [], gone),
     }));
     gone.forEach(x => clearCachedBreakdown(project.id, x));
     setSelectedRefId(null);
     showToast({ message: gone.size > 1 ? `Referencia eliminada · ${id} y ${gone.size - 1} ${gone.size === 2 ? 'parte' : 'partes'}` : `Referencia eliminada · ${id}`, tone: 'discarded' });
+  };
+
+  /* ---------- Grupos ---------- */
+  const selectReference = useCallback((id: string | null) => {
+    setSelectedRefId(id);
+    if (id) setSelectedGroupId(null);
+  }, []);
+  const selectGroup = useCallback((id: string | null) => {
+    setSelectedGroupId(id);
+    if (id) setSelectedRefId(null);
+  }, []);
+
+  const setGroups = (fn: (g: RefGroup[]) => RefGroup[]) => updateProject(p => ({ ...p, groups: fn(p.groups ?? []) }));
+  const groupName = (id: string) => (projectRef.current.groups ?? []).find(g => g.id === id)?.name ?? id;
+
+  /** Resultado de soltar una ficha en el lienzo. */
+  const handleGroupDrop = (d: GroupDrop) => {
+    const groups = projectRef.current.groups ?? [];
+    if (d.kind === 'card') {
+      const r = dropOnto(groups, d.dragId, d.targetId);
+      setGroups(() => r.groups);
+      const name = r.groups.find(g => g.id === r.groupId)?.name ?? r.groupId;
+      if (r.created) {
+        addLog('group', r.groupId, `Grupo creado · ${d.targetId} + ${d.dragId}`);
+        // Abrir el grupo para que el diseñador le ponga nombre.
+        selectGroup(r.groupId);
+        showToast({ message: `Grupo nuevo · ponele un nombre`, tone: 'signal' });
+      } else {
+        addLog('group', r.groupId, `${d.dragId} sumada a «${name}»`);
+        showToast({ message: `${d.dragId} sumada a «${name}»`, tone: 'signal' });
+      }
+    } else if (d.kind === 'group') {
+      setGroups(g => addToGroup(g, d.dragId, d.groupId));
+      addLog('group', d.groupId, `${d.dragId} sumada a «${groupName(d.groupId)}»`);
+      showToast({ message: `${d.dragId} sumada a «${groupName(d.groupId)}»`, tone: 'signal' });
+    } else {
+      const name = groupName(d.groupId);
+      setGroups(g => withoutRefs(g, [d.dragId]));
+      addLog('group', d.groupId, `${d.dragId} sacada de «${name}»`);
+      showToast({ message: `${d.dragId} sacada de «${name}»`, tone: 'neutral' });
+    }
+  };
+
+  /** Desde el panel (teclado o lista): sumar a un grupo existente o crear uno nuevo. */
+  const handleAssignGroup = (refId: string, groupId: string | 'new') => {
+    const groups = projectRef.current.groups ?? [];
+    if (groupId === 'new') {
+      const r = createGroup(groups, [refId]);
+      setGroups(() => r.groups);
+      addLog('group', r.group.id, `Grupo creado · ${refId}`);
+      selectGroup(r.group.id);
+    } else {
+      // La ficha se mueve junto al grupo para que el marco no envuelva referencias ajenas.
+      const p = projectRef.current;
+      const ref = p.references.find(r => r.id === refId);
+      const members = p.references.filter(r => groups.find(g => g.id === groupId)?.refIds.includes(r.id));
+      const anchor = [...members].sort((a, b) => refRect(b).x + refRect(b).w - (refRect(a).x + refRect(a).w))[0];
+      if (ref && anchor) {
+        const position = freeSpotNear(refRect(anchor), refRect(ref), p.references.filter(r => r.id !== refId && r.id !== anchor.id).map(refRect));
+        handleUpdateReference(refId, { position });
+      }
+      setGroups(g => addToGroup(g, refId, groupId));
+      addLog('group', groupId, `${refId} sumada a «${groupName(groupId)}»`);
+      showToast({ message: `${refId} sumada a «${groupName(groupId)}»`, tone: 'signal' });
+    }
+  };
+
+  const handleRemoveFromGroup = (refId: string) => {
+    const g = groupOf(projectRef.current.groups, refId);
+    if (!g) return;
+    setGroups(gs => withoutRefs(gs, [refId]));
+    addLog('group', g.id, `${refId} sacada de «${g.name}»`);
+  };
+
+  const handleUpdateGroup = (id: string, updates: Partial<RefGroup>) => {
+    const prev = (projectRef.current.groups ?? []).find(g => g.id === id);
+    setGroups(gs => gs.map(g => (g.id === id ? { ...g, ...updates } : g)));
+    if (prev && updates.name && updates.name !== prev.name) addLog('group', id, `Grupo «${prev.name}» → «${updates.name}»`);
+  };
+
+  const handleUngroup = (id: string) => {
+    const g = (projectRef.current.groups ?? []).find(x => x.id === id);
+    if (!g) return;
+    setGroups(gs => gs.filter(x => x.id !== id));
+    setSelectedGroupId(null);
+    addLog('group', id, `Grupo «${g.name}» desarmado`, `${g.refIds.length} referencias vuelven a estar sueltas.`);
+    showToast({ message: `Grupo «${g.name}» desarmado`, tone: 'neutral' });
+  };
+
+  /** Le pregunta a Gemini qué comparten las referencias de un grupo. */
+  const handleReadGroup = async (id: string) => {
+    const p = projectRef.current;
+    const g = (p.groups ?? []).find(x => x.id === id);
+    if (!g) return;
+    setGroupReads(r => ({ ...r, [id]: { status: 'loading' } }));
+    try {
+      const refs = p.references.filter(r => g.refIds.includes(r.id));
+      const compressed = await compressReferences(refs, { maxWidth: 768, maxHeight: 768, quality: 0.8 });
+      const res = await fetch('/api/group-hypothesis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          group: { name: g.name, note: g.note },
+          references: compressed.map(r => ({ id: r.id, name: r.name, image: r.image, parentId: r.parentId })),
+          objective: p.objective,
+        }),
+      });
+      const text = await res.text();
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw new Error(
+          text.trim().startsWith('<')
+            ? 'El servidor está corriendo una versión anterior sin esta función. Cortá "npm run server" (Ctrl+C) y volvé a ejecutarlo.'
+            : `El servidor no devolvió una respuesta válida (HTTP ${res.status}).`,
+        );
+      }
+      if (!res.ok || !result.success) throw new Error(result.details || result.error || 'Error al leer el grupo');
+      const hypothesis = result.data as GroupHypothesis;
+      updateProject(x => ({ ...x, groups: (x.groups ?? []).map(y => (y.id === id ? { ...y, hypothesis } : y)) }), p.id);
+      addLog('group', id, `Hipótesis de la IA sobre «${g.name}»`, hypothesis.summary, { projectId: p.id });
+      setGroupReads(({ [id]: _, ...rest }) => rest);
+    } catch (err: any) {
+      setGroupReads(r => ({ ...r, [id]: { status: 'error', message: err?.message || String(err) } }));
+    }
   };
 
   /* ---------- Partes ---------- */
@@ -411,6 +544,7 @@ export default function App() {
           confirmedPatterns: p.patterns.filter(x => x.status === 'confirmed'),
           discardedPatterns: p.patterns.filter(x => x.status === 'discarded'),
           feedback: p.feedback,
+          designerGroups: (p.groups ?? []).map(g => ({ id: g.id, name: g.name, note: g.note, refIds: g.refIds, hypothesis: g.hypothesis?.summary })),
         }),
       });
       const text = await res.text();
@@ -426,7 +560,16 @@ export default function App() {
 
       const { patterns: detected = [], suggestedSystems = [] } = result.data || {};
       // La fusión se calcula una vez (el corpus está bloqueado durante la inducción).
-      const { merged, newCount } = mergeInducedPatterns(projectRef.current.patterns, detected);
+      const { merged: mergedRaw, newCount } = mergeInducedPatterns(projectRef.current.patterns, detected);
+      // Patrones que responden a un grupo del diseñador: guardar a cuál y qué dijo la IA.
+      const groupsNow = projectRef.current.groups ?? [];
+      const merged = mergedRaw.map((m: any) => {
+        const g = groupsNow.find(x => x.id === m.designerGroupId);
+        const { designerGroupId, groupVerdict, ...rest } = m;
+        if (!g) return rest as Pattern;
+        const verdict = ['supports', 'refines', 'contradicts'].includes(groupVerdict) ? groupVerdict : undefined;
+        return { ...rest, designerGroup: { id: g.id, name: g.name, verdict } } as Pattern;
+      });
       updateProject(prev => {
         return {
           ...prev,
@@ -1017,7 +1160,7 @@ export default function App() {
             view={view}
             onViewChange={setView}
             selectedId={selectedRefId}
-            onSelect={setSelectedRefId}
+            onSelect={selectReference}
             onAdd={() => setIsUploadOpen(true)}
             onMove={handleMoveReference}
             onResize={handleResizeReference}
@@ -1029,6 +1172,15 @@ export default function App() {
             onDetectParts={handleDetectParts}
             onPartDraftChange={setPartDraft}
             onAddParts={handleAddParts}
+            selectedGroupId={selectedGroupId}
+            onSelectGroup={selectGroup}
+            onGroupDrop={handleGroupDrop}
+            onAssignGroup={handleAssignGroup}
+            onRemoveFromGroup={handleRemoveFromGroup}
+            onUpdateGroup={handleUpdateGroup}
+            onUngroup={handleUngroup}
+            onReadGroup={handleReadGroup}
+            groupReads={groupReads}
             onOpenLightbox={setLightboxRef}
             inspectingIds={inspectingIds}
             inspectErrors={inspectErrors}

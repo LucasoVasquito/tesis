@@ -22,6 +22,7 @@ export function migrateProject(raw: any): Project {
     feedback: Array.isArray(raw?.feedback) ? raw.feedback : [],
     suggestedSystems: Array.isArray(raw?.suggestedSystems) ? raw.suggestedSystems : [],
     log: Array.isArray(raw?.log) ? raw.log : [],
+    groups: Array.isArray(raw?.groups) ? raw.groups : [],
   };
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';
   return p;

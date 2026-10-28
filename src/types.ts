@@ -97,6 +97,30 @@ export interface Pattern {
   previousEvidenceCount?: number;
   discardReason?: string;
   designerNotes?: string;
+  /** Si el patrón responde a un grupo armado por el diseñador: cuál (copia del nombre al inducir). */
+  designerGroup?: { id: string; name: string; verdict?: 'supports' | 'refines' | 'contradicts' };
+}
+
+/** Hipótesis de la IA sobre qué comparte un grupo. No es un patrón hasta que la inducción la sostiene. */
+export interface GroupHypothesis {
+  summary: string;
+  sharedTraits: string[];
+  differences: string[];
+  category: PatternCategory;
+  at: string;
+}
+
+/** Grupo armado por el diseñador en el lienzo (diagrama de afinidad). */
+export interface RefGroup {
+  id: string;
+  name: string;
+  /** Por qué las agrupó (se usa en la inducción). */
+  note?: string;
+  refIds: string[];
+  /** Índice de color del marco. */
+  color: number;
+  hypothesis?: GroupHypothesis;
+  createdAt: string;
 }
 
 export interface VisualSystemDetails {
@@ -213,7 +237,8 @@ export type LogKind =
   | 'synthesize'
   | 'import'
   | 'feedback'
-  | 'split';
+  | 'split'
+  | 'group';
 
 export interface LogItem {
   id: string;
@@ -246,6 +271,7 @@ export interface Project {
   uiStage?: VisitableStage;
   suggestedSystems?: SuggestedSystem[];
   log?: LogItem[];
+  groups?: RefGroup[];
 }
 
 export type ApplicationType =

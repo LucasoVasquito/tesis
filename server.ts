@@ -182,6 +182,7 @@ app.post("/api/analyze-references", async (req, res) => {
       confirmedPatterns = [],
       discardedPatterns = [],
       feedback = [],
+      designerGroups = [],
     } = req.body;
 
     if (!references || references.length === 0) {
@@ -232,7 +233,14 @@ HISTORIAL DE DECISIONES PREVIAS DEL DISEÑADOR:
 - Patrones previamente descartados por el diseñador: ${JSON.stringify(discardedPatterns.map((p: any) => ({ id: p.id, name: p.name, reason: p.discardReason })))}
 - Feedback explícito del diseñador: ${JSON.stringify(feedback.map((f: any) => ({ type: f.type, comment: f.comment, refId: f.referenceId, patternId: f.patternId })))}
 - Patrones de análisis anterior: ${JSON.stringify(previousPatterns.map((p: any) => ({ id: p.id, name: p.name, evidenceCount: p.evidence?.length })))}
-`;
+${designerGroups.length ? `
+AGRUPACIONES DEL DISEÑADOR (diagrama de afinidad armado a mano en el lienzo):
+${designerGroups.map((g: any) => `- [${g.id}] "${g.name}": ${(g.refIds || []).join(', ')}${g.note ? ` · por qué: ${g.note}` : ''}${g.hypothesis ? ` · hipótesis previa: ${g.hypothesis}` : ''}`).join('\n')}
+Tratá cada grupo como una hipótesis del diseñador, no como una verdad. Para cada grupo, buscá en las imágenes si comparte rasgos formales concretos:
+- si los comparte, generá (o reforzá) el patrón correspondiente citando esas referencias y marcá designerGroupId con el ID del grupo y groupVerdict "supports";
+- si lo comparten solo en parte, generá el patrón con las referencias que sí lo sostienen y groupVerdict "refines" (explicá en la descripción qué referencia no encaja);
+- si lo que las une no es formal (ej. solo el tema), generá igual un patrón breve que lo explique con groupVerdict "contradicts" y confianza baja.
+` : ''}`;
 
       const nombre_proyecto = projectName || "Identidad Visual";
       const objetivo_proyecto = objective || "Exploración de identidad y universo estético";
@@ -323,6 +331,8 @@ Devuelve el análisis en formato JSON estricto cumpliendo el schema provisto.`;
                       type: Type.STRING,
                       description: "new | strengthened | weakened | stable",
                     },
+                    designerGroupId: { type: Type.STRING, description: "ID del grupo del diseñador al que responde este patrón (ej. grp_01), si responde a uno" },
+                    groupVerdict: { type: Type.STRING, description: "supports | refines | contradicts (solo si hay designerGroupId)" },
                   },
                   required: ["id", "name", "category", "description", "evidence", "confidence", "relatedObservations", "systemHypothesis"],
                 },
@@ -629,6 +639,68 @@ Rules:
   } catch (error: any) {
     console.error("Error en /api/segment-reference:", error);
     return res.status(500).json({ error: "No se pudo separar la referencia en partes.", details: error?.message });
+  }
+});
+
+// ==========================================
+// 2d. ¿Qué comparte un grupo armado por el diseñador?
+// ==========================================
+const PATTERN_CATEGORIES = ["typography", "color", "texture", "composition", "logo_identity", "packaging", "photography_treatment", "mascot_illustration", "flyer_poster", "social_media", "geometry", "graphic_elements", "mood"];
+
+app.post("/api/group-hypothesis", async (req, res) => {
+  dotenv.config({ override: true });
+  try {
+    const { group, references = [], objective = "" } = req.body || {};
+    if (!group || !references.length) return res.status(400).json({ error: "Se requiere un grupo con referencias." });
+    const parts: any[] = [];
+    for (const ref of references) {
+      const img = await resolveImagePart(ref.image, ref.id);
+      parts.push({ text: `[${ref.id}] ${ref.name || ""}${ref.parentId ? ` (parte recortada de ${ref.parentId})` : ""}` });
+      if (img) parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+    }
+    parts.push({
+      text: `A graphic designer grouped these ${references.length} references by hand on their moodboard and named the group "${group.name}"${group.note ? `, explaining: "${group.note}"` : ""}.${objective ? ` Project goal: ${objective}.` : ""}
+
+As a rigorous design critic, say what these images really share in formal terms (type, shape, line, color, texture, composition, image treatment), only what is visible. Then say where they differ, and which reference fits the group least if any. Do not flatter the grouping: if what unites them is only the subject or the mood, say so.
+
+Answer in Spanish:
+- summary: one or two sentences with the hypothesis of what the group shares.
+- sharedTraits: 2 to 5 concrete shared formal traits, each citing the reference IDs in brackets.
+- differences: 0 to 3 differences or tensions, citing IDs.
+- category: the closest one of ${PATTERN_CATEGORIES.join(", ")}.`,
+    });
+    const ai = getGeminiClient();
+    const response = await generateContentWithRetry(ai, {
+      model: "gemini-3.5-flash",
+      contents: [{ role: "user", parts }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            summary: { type: Type.STRING },
+            sharedTraits: { type: Type.ARRAY, items: { type: Type.STRING } },
+            differences: { type: Type.ARRAY, items: { type: Type.STRING } },
+            category: { type: Type.STRING },
+          },
+          required: ["summary", "sharedTraits", "differences", "category"],
+        },
+      },
+    });
+    const parsed = parseModelJsonResponse(response.text || "{}");
+    return res.json({
+      success: true,
+      data: {
+        summary: String(parsed.summary || ""),
+        sharedTraits: Array.isArray(parsed.sharedTraits) ? parsed.sharedTraits.map(String).slice(0, 5) : [],
+        differences: Array.isArray(parsed.differences) ? parsed.differences.map(String).slice(0, 3) : [],
+        category: PATTERN_CATEGORIES.includes(parsed.category) ? parsed.category : "mood",
+        at: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error("Error en /api/group-hypothesis:", error);
+    return res.status(500).json({ error: "No se pudo leer el grupo.", details: error?.message });
   }
 });
 

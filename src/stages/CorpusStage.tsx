@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Project, Reference } from '../types';
+import { Project, RefGroup, Reference } from '../types';
+import { GroupInspector } from '../components/corpus/GroupInspector';
+import { GroupDrop } from '../components/canvas/ReferenceCanvas';
 import { Button, EmptyState, ErrorState, LoadingState, LoadingStep } from '../components/ui';
 import { CanvasArea, CorpusView } from '../components/canvas/CanvasArea';
 import { CanvasHandle } from '../components/canvas/ReferenceCanvas';
@@ -37,6 +39,15 @@ interface CorpusStageProps {
   onDetectParts: (r: Reference) => void;
   onPartDraftChange: (id: string, d: PartDraft | null) => void;
   onAddParts: (parentId: string, proposals: PartProposal[]) => Promise<string[]>;
+  selectedGroupId: string | null;
+  onSelectGroup: (id: string | null) => void;
+  onGroupDrop: (d: GroupDrop) => void;
+  onAssignGroup: (refId: string, groupId: string | 'new') => void;
+  onRemoveFromGroup: (refId: string) => void;
+  onUpdateGroup: (id: string, updates: Partial<RefGroup>) => void;
+  onUngroup: (id: string) => void;
+  onReadGroup: (id: string) => void;
+  groupReads: Record<string, { status: 'loading' } | { status: 'error'; message: string }>;
   induction: InductionState;
   onRetryInduction: () => void;
   onDismissInductionError: () => void;
@@ -48,6 +59,8 @@ export function CorpusStage(props: CorpusStageProps) {
   const canvasRef = useRef<CanvasHandle>(null);
   const running = induction.status === 'running';
   const selected = refs.find(r => r.id === props.selectedId) ?? null;
+  const groups = project.groups ?? [];
+  const selectedGroup = !selected ? groups.find(g => g.id === props.selectedGroupId) ?? null : null;
 
   // Pegar imágenes desde el portapapeles (Ctrl/Cmd + V) en el centro visible del lienzo.
   useEffect(() => {
@@ -86,10 +99,21 @@ export function CorpusStage(props: CorpusStageProps) {
   );
 
   const evidenceCount = selected ? project.patterns.filter(p => p.evidence.includes(selected.id)).length : 0;
-  const dockOpen = running || induction.status === 'error' || !!selected;
+  // Al abrir un grupo, encuadrarlo para que se vea el marco completo con su etiqueta.
+  const groupKey = selectedGroup ? `${selectedGroup.id}` : '';
+  useEffect(() => {
+    if (selectedGroup) setTimeout(() => canvasRef.current?.fitTo(selectedGroup.refIds), 60);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupKey]);
+
+  const dockOpen = running || induction.status === 'error' || !!selected || !!selectedGroup;
 
   let dockTitle = selected?.name ?? '';
   let dockMeta: React.ReactNode = selected ? `${selected.parentId ? 'Parte' : 'Referencia'} · ${selected.id}` : undefined;
+  if (selectedGroup) {
+    dockTitle = selectedGroup.name;
+    dockMeta = `Grupo · ${selectedGroup.refIds.length} ${selectedGroup.refIds.length === 1 ? 'referencia' : 'referencias'}`;
+  }
   if (running) {
     dockTitle = 'Inducción en curso';
     dockMeta = '03 · Inducción';
@@ -123,6 +147,10 @@ export function CorpusStage(props: CorpusStageProps) {
                 : null
           }
           emptyState={empty}
+          groups={groups}
+          selectedGroupId={props.selectedGroupId}
+          onSelectGroup={id => !running && props.onSelectGroup(id)}
+          onGroupDrop={running ? undefined : props.onGroupDrop}
         />
       </div>
 
@@ -132,7 +160,10 @@ export function CorpusStage(props: CorpusStageProps) {
         meta={dockMeta}
         onClose={() => {
           if (induction.status === 'error') props.onDismissInductionError();
-          else if (!running) props.onSelect(null);
+          else if (!running) {
+            props.onSelect(null);
+            props.onSelectGroup(null);
+          }
         }}
       >
         {running ? (
@@ -180,6 +211,24 @@ export function CorpusStage(props: CorpusStageProps) {
               props.onSelect(id);
               canvasRef.current?.focusReference(id, { focus: false });
             }}
+            groups={groups}
+            onAssignGroup={g => props.onAssignGroup(selected.id, g)}
+            onRemoveFromGroup={() => props.onRemoveFromGroup(selected.id)}
+            onSelectGroup={props.onSelectGroup}
+          />
+        ) : selectedGroup ? (
+          <GroupInspector
+            group={selectedGroup}
+            members={selectedGroup.refIds.map(id => refs.find(r => r.id === id)).filter(Boolean) as Reference[]}
+            read={props.groupReads[selectedGroup.id]}
+            onUpdate={u => props.onUpdateGroup(selectedGroup.id, u)}
+            onRead={() => props.onReadGroup(selectedGroup.id)}
+            onRemoveMember={id => props.onRemoveFromGroup(id)}
+            onSelectReference={id => {
+              props.onSelect(id);
+              canvasRef.current?.focusReference(id, { focus: false });
+            }}
+            onUngroup={() => props.onUngroup(selectedGroup.id)}
           />
         ) : null}
       </DockPanel>

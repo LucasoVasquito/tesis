@@ -1,9 +1,9 @@
 import React from 'react';
 import { ImagePlus } from 'lucide-react';
-import { Reference } from '../../types';
+import { RefGroup, Reference } from '../../types';
 import { Tone } from '../ui';
 import { useIsDesktop } from '../../hooks/useMediaQuery';
-import { CanvasHandle, CanvasHighlight, ReferenceCanvas } from './ReferenceCanvas';
+import { CanvasHandle, CanvasHighlight, GroupDrop, ReferenceCanvas } from './ReferenceCanvas';
 import { ReferenceList } from './ReferenceList';
 
 export type CorpusView = 'canvas' | 'list';
@@ -27,6 +27,10 @@ interface CanvasAreaProps {
   canvasRef?: React.Ref<CanvasHandle>;
   /** Contenido extra para la barra (p. ej. "Mostrar patrón" en Auditoría). */
   extraTools?: React.ReactNode;
+  groups?: RefGroup[];
+  selectedGroupId?: string | null;
+  onSelectGroup?: (id: string) => void;
+  onGroupDrop?: (drop: GroupDrop) => void;
 }
 
 /** Lienzo o lista de referencias, con la barra flotante común. En < 1024px siempre es Lista. */
@@ -116,6 +120,10 @@ export function CanvasArea(props: CanvasAreaProps) {
       locked={props.locked}
       toolbarStart={tools}
       emptyState={props.emptyState}
+      groups={props.groups}
+      selectedGroupId={props.selectedGroupId}
+      onSelectGroup={props.onSelectGroup}
+      onGroupDrop={props.onGroupDrop}
     />
   );
 }

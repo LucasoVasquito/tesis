@@ -198,7 +198,7 @@ app.get("/api/health", (req, res) => {
 // ==========================================
 app.post("/api/analyze-references", async (req, res) => {
     try {
-        const { references = [], objective = "", projectName = "", description = "", previousPatterns = [], confirmedPatterns = [], discardedPatterns = [], feedback = [], } = req.body;
+        const { references = [], objective = "", projectName = "", description = "", previousPatterns = [], confirmedPatterns = [], discardedPatterns = [], feedback = [], designerGroups = [], } = req.body;
         if (!references || references.length === 0) {
             return res.status(400).json({
                 error: "Se requiere al menos una referencia visual para el análisis.",
@@ -221,7 +221,9 @@ app.post("/api/analyze-references", async (req, res) => {
             const refSummaryList = [];
             for (const { ref, imgPart } of resolvedImages) {
                 parts.push({
-                    text: `[REFERENCIA_VISUAL: ID="${ref.id}", Nombre="${ref.name || ref.id}", Notas="${ref.notes || 'Ninguna'}"]`,
+                    text: ref.parentId
+                        ? `[REFERENCIA_VISUAL: ID="${ref.id}", Nombre="${ref.name || ref.id}", PARTE recortada de ${ref.parentId} (${ref.partKind || "parte"}), Notas="${ref.notes || 'Ninguna'}"]`
+                        : `[REFERENCIA_VISUAL: ID="${ref.id}", Nombre="${ref.name || ref.id}", Notas="${ref.notes || 'Ninguna'}"]`,
                 });
                 if (imgPart) {
                     parts.push({
@@ -231,7 +233,7 @@ app.post("/api/analyze-references", async (req, res) => {
                         },
                     });
                 }
-                refSummaryList.push(`- ID: ${ref.id} (${ref.name || 'Sin título'})`);
+                refSummaryList.push(`- ID: ${ref.id} (${ref.name || 'Sin título'})${ref.parentId ? ` · parte de ${ref.parentId}` : ''}`);
             }
             const previousContext = `
 HISTORIAL DE DECISIONES PREVIAS DEL DISEÑADOR:
@@ -239,7 +241,14 @@ HISTORIAL DE DECISIONES PREVIAS DEL DISEÑADOR:
 - Patrones previamente descartados por el diseñador: ${JSON.stringify(discardedPatterns.map((p) => ({ id: p.id, name: p.name, reason: p.discardReason })))}
 - Feedback explícito del diseñador: ${JSON.stringify(feedback.map((f) => ({ type: f.type, comment: f.comment, refId: f.referenceId, patternId: f.patternId })))}
 - Patrones de análisis anterior: ${JSON.stringify(previousPatterns.map((p) => ({ id: p.id, name: p.name, evidenceCount: p.evidence?.length })))}
-`;
+${designerGroups.length ? `
+AGRUPACIONES DEL DISEÑADOR (diagrama de afinidad armado a mano en el lienzo):
+${designerGroups.map((g) => `- [${g.id}] "${g.name}": ${(g.refIds || []).join(', ')}${g.note ? ` · por qué: ${g.note}` : ''}${g.hypothesis ? ` · hipótesis previa: ${g.hypothesis}` : ''}`).join('\n')}
+Tratá cada grupo como una hipótesis del diseñador, no como una verdad. Para cada grupo, buscá en las imágenes si comparte rasgos formales concretos:
+- si los comparte, generá (o reforzá) el patrón correspondiente citando esas referencias y marcá designerGroupId con el ID del grupo y groupVerdict "supports";
+- si lo comparten solo en parte, generá el patrón con las referencias que sí lo sostienen y groupVerdict "refines" (explicá en la descripción qué referencia no encaja);
+- si lo que las une no es formal (ej. solo el tema), generá igual un patrón breve que lo explique con groupVerdict "contradicts" y confianza baja.
+` : ''}`;
             const nombre_proyecto = projectName || "Identidad Visual";
             const objetivo_proyecto = objective || "Exploración de identidad y universo estético";
             const instructions = `
@@ -270,6 +279,7 @@ Para cada descubrimiento o patrón que detectes, analiza y detalla rigurosamente
 4. RASGOS OBSERVABLES: Características visuales concretas y técnicas (ej: trazos porosos, grillas perimetrales, saturación controlada, iluminación cenital de estudio).
 
 5. EVIDENCIA CRUZADA: Vincula explícitamente los IDs exactos de las referencias del canvas que sostienen este hallazgo (ej: [ref_01, ref_05, ref_06]).
+   Algunas referencias son PARTES recortadas por el diseñador de otra referencia (ej. ref_07a es la tipografía de ref_07). Cuando un patrón trata justo sobre lo que muestra una parte, citá la parte (es evidencia más precisa); citá la referencia completa solo si el patrón depende de la pieza entera.
 
 6. HIPÓTESIS DE SISTEMA VISUAL: Fundamenta cómo este descubrimiento puede traducirse en un subsistema reutilizable para soportes físicos (espacio, envoltorios) y digitales (web, redes).
 
@@ -325,6 +335,8 @@ Devuelve el análisis en formato JSON estricto cumpliendo el schema provisto.`;
                                             type: genai_1.Type.STRING,
                                             description: "new | strengthened | weakened | stable",
                                         },
+                                        designerGroupId: { type: genai_1.Type.STRING, description: "ID del grupo del diseñador al que responde este patrón (ej. grp_01), si responde a uno" },
+                                        groupVerdict: { type: genai_1.Type.STRING, description: "supports | refines | contradicts (solo si hay designerGroupId)" },
                                     },
                                     required: ["id", "name", "category", "description", "evidence", "confidence", "relatedObservations", "systemHypothesis"],
                                 },
@@ -548,6 +560,148 @@ No inventes nada que no esté presente en la imagen. Devuelve el resultado en JS
             error: "Error al desglosar la referencia individual con Gemini.",
             details: error.message,
         });
+    }
+});
+// ==========================================
+// 2c. Separar una referencia en partes (tipografía, mascota, logo...)
+// ==========================================
+// Gemini devuelve cajas normalizadas (0-1000, [ymin, xmin, ymax, xmax]); el recorte se hace en el navegador.
+const PART_KINDS = ["typography", "logo", "mascot", "illustration", "photo", "texture", "graphic", "other"];
+app.post("/api/segment-reference", async (req, res) => {
+    dotenv_1.default.config({ override: true });
+    try {
+        const { reference, objective = "" } = req.body || {};
+        if (!reference?.image)
+            return res.status(400).json({ error: "Se requiere una referencia con imagen." });
+        const imgPart = await resolveImagePart(reference.image, reference.id || "ref_segment");
+        if (!imgPart)
+            return res.status(400).json({ error: "No se pudo leer la imagen de la referencia." });
+        const prompt = `You are helping a graphic designer take apart a reference image from their moodboard${objective ? ` (project goal: ${objective})` : ""}.
+Find the visually distinct components that a designer would want to keep as separate evidence: the typography or lettering, the logo or emblem, a mascot or character, an illustration, a product photo, a texture or pattern sample, a graphic resource (badge, frame, sticker, ornament, stripe pattern).
+
+Rules:
+- Return between 1 and 6 parts, most important first. Only components that are really visible; never invent.
+- Each box must tightly enclose ONE component, with a little margin. Do not return a box covering almost the whole image unless the image is a single component.
+- Group a block of lettering that reads as one unit (e.g. a headline) into one part; do not split word by word.
+- box_2d is [ymin, xmin, ymax, xmax] normalized 0-1000.
+- kind is one of: ${PART_KINDS.join(", ")}.
+- label: 2 to 5 words in Spanish naming the part concretely (e.g. "Lettering BUNKER VINYLS", "Mascota hamburguesa", "Sello circular rojo").
+- description: one short sentence in Spanish about its formal qualities (shape, weight, line, color).`;
+        const ai = getGeminiClient();
+        const response = await generateContentWithRetry(ai, {
+            model: "gemini-3.5-flash",
+            contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: imgPart.mimeType, data: imgPart.data } }] }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: genai_1.Type.OBJECT,
+                    properties: {
+                        parts: {
+                            type: genai_1.Type.ARRAY,
+                            items: {
+                                type: genai_1.Type.OBJECT,
+                                properties: {
+                                    box_2d: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.NUMBER } },
+                                    kind: { type: genai_1.Type.STRING },
+                                    label: { type: genai_1.Type.STRING },
+                                    description: { type: genai_1.Type.STRING },
+                                },
+                                required: ["box_2d", "kind", "label"],
+                            },
+                        },
+                    },
+                    required: ["parts"],
+                },
+            },
+        });
+        const parsed = parseModelJsonResponse(response.text || "{}");
+        const raw = Array.isArray(parsed?.parts) ? parsed.parts : [];
+        const parts = raw
+            .map(p => {
+            const b = Array.isArray(p?.box_2d) ? p.box_2d.map(Number) : [];
+            if (b.length !== 4 || b.some((n) => !Number.isFinite(n)))
+                return null;
+            const [y0, x0, y1, x1] = b.map((n) => Math.min(1000, Math.max(0, n)) / 1000);
+            const box = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+            if (box.w < 0.04 || box.h < 0.04)
+                return null;
+            return {
+                kind: PART_KINDS.includes(p.kind) ? p.kind : "other",
+                label: String(p.label || "Parte").slice(0, 60),
+                description: p.description ? String(p.description).slice(0, 240) : undefined,
+                box,
+            };
+        })
+            .filter(Boolean)
+            .slice(0, 6);
+        return res.json({ success: true, data: { parts } });
+    }
+    catch (error) {
+        console.error("Error en /api/segment-reference:", error);
+        return res.status(500).json({ error: "No se pudo separar la referencia en partes.", details: error?.message });
+    }
+});
+// ==========================================
+// 2d. ¿Qué comparte un grupo armado por el diseñador?
+// ==========================================
+const PATTERN_CATEGORIES = ["typography", "color", "texture", "composition", "logo_identity", "packaging", "photography_treatment", "mascot_illustration", "flyer_poster", "social_media", "geometry", "graphic_elements", "mood"];
+app.post("/api/group-hypothesis", async (req, res) => {
+    dotenv_1.default.config({ override: true });
+    try {
+        const { group, references = [], objective = "" } = req.body || {};
+        if (!group || !references.length)
+            return res.status(400).json({ error: "Se requiere un grupo con referencias." });
+        const parts = [];
+        for (const ref of references) {
+            const img = await resolveImagePart(ref.image, ref.id);
+            parts.push({ text: `[${ref.id}] ${ref.name || ""}${ref.parentId ? ` (parte recortada de ${ref.parentId})` : ""}` });
+            if (img)
+                parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+        }
+        parts.push({
+            text: `A graphic designer grouped these ${references.length} references by hand on their moodboard and named the group "${group.name}"${group.note ? `, explaining: "${group.note}"` : ""}.${objective ? ` Project goal: ${objective}.` : ""}
+
+As a rigorous design critic, say what these images really share in formal terms (type, shape, line, color, texture, composition, image treatment), only what is visible. Then say where they differ, and which reference fits the group least if any. Do not flatter the grouping: if what unites them is only the subject or the mood, say so.
+
+Answer in Spanish:
+- summary: one or two sentences with the hypothesis of what the group shares.
+- sharedTraits: 2 to 5 concrete shared formal traits, each citing the reference IDs in brackets.
+- differences: 0 to 3 differences or tensions, citing IDs.
+- category: the closest one of ${PATTERN_CATEGORIES.join(", ")}.`,
+        });
+        const ai = getGeminiClient();
+        const response = await generateContentWithRetry(ai, {
+            model: "gemini-3.5-flash",
+            contents: [{ role: "user", parts }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: genai_1.Type.OBJECT,
+                    properties: {
+                        summary: { type: genai_1.Type.STRING },
+                        sharedTraits: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
+                        differences: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
+                        category: { type: genai_1.Type.STRING },
+                    },
+                    required: ["summary", "sharedTraits", "differences", "category"],
+                },
+            },
+        });
+        const parsed = parseModelJsonResponse(response.text || "{}");
+        return res.json({
+            success: true,
+            data: {
+                summary: String(parsed.summary || ""),
+                sharedTraits: Array.isArray(parsed.sharedTraits) ? parsed.sharedTraits.map(String).slice(0, 5) : [],
+                differences: Array.isArray(parsed.differences) ? parsed.differences.map(String).slice(0, 3) : [],
+                category: PATTERN_CATEGORIES.includes(parsed.category) ? parsed.category : "mood",
+                at: new Date().toISOString(),
+            },
+        });
+    }
+    catch (error) {
+        console.error("Error en /api/group-hypothesis:", error);
+        return res.status(500).json({ error: "No se pudo leer el grupo.", details: error?.message });
     }
 });
 // ==========================================

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CornerUpLeft, Expand, ScanSearch, Trash2 } from 'lucide-react';
-import { CropBox, Reference } from '../../types';
+import { CropBox, RefGroup, Reference } from '../../types';
+import { groupColor } from '../../utils/groups';
 import { Button, ErrorState, LoadingState, TextArea, TextInput } from '../ui';
 import { PartDraft, PartProposal, partKindInfo } from '../../utils/parts';
 import { PartsPicker, PickerBox } from './PartsPicker';
@@ -25,6 +26,10 @@ interface ReferenceInspectorProps {
   onPartDraftChange: (d: PartDraft | null) => void;
   onAddParts: (proposals: PartProposal[]) => void;
   onSelectReference: (id: string) => void;
+  groups: RefGroup[];
+  onAssignGroup: (groupId: string | 'new') => void;
+  onRemoveFromGroup: () => void;
+  onSelectGroup: (id: string) => void;
 }
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -125,6 +130,13 @@ export function ReferenceInspector(props: ReferenceInspectorProps) {
             ))}
           </ul>
         )}
+        <GroupRow
+          refId={r.id}
+          groups={props.groups}
+          onAssign={props.onAssignGroup}
+          onRemove={props.onRemoveFromGroup}
+          onSelectGroup={props.onSelectGroup}
+        />
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" icon={<Expand />} onClick={onOpenLightbox}>
             Lightbox
@@ -235,6 +247,54 @@ export function ReferenceInspector(props: ReferenceInspectorProps) {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Grupo de la referencia: ir al grupo, sacarla, o sumarla a uno (alternativa a arrastrar en el lienzo). */
+function GroupRow({ refId, groups, onAssign, onRemove, onSelectGroup }: { refId: string; groups: RefGroup[]; onAssign: (id: string | 'new') => void; onRemove: () => void; onSelectGroup: (id: string) => void }) {
+  const current = groups.find(g => g.refIds.includes(refId));
+  const selectId = `grp-select-${refId}`;
+  if (current) {
+    return (
+      <div className="flex flex-col gap-2">
+        <span className="text-13 text-ink-2">Grupo</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onSelectGroup(current.id)}
+            className="inline-flex h-8 max-w-full items-center gap-2 rounded-full border px-3 text-13 font-medium text-ink transition-colors duration-120 hover:bg-white/5"
+            style={{ borderColor: groupColor(current, 0.6) }}
+          >
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ background: groupColor(current) }} />
+            <span className="truncate">{current.name}</span>
+          </button>
+          <Button size="sm" variant="ghost" onClick={onRemove}>
+            Sacar del grupo
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={selectId} className="text-13 text-ink-2">
+        Grupo · opcional
+      </label>
+      <select
+        id={selectId}
+        className="field-input h-10"
+        value=""
+        onChange={e => e.target.value && onAssign(e.target.value)}
+      >
+        <option value="">Sin grupo · arrastrala sobre otra para agrupar</option>
+        {groups.map(g => (
+          <option key={g.id} value={g.id}>
+            Sumar a «{g.name}» ({g.refIds.length})
+          </option>
+        ))}
+        <option value="new">Nuevo grupo con esta referencia</option>
+      </select>
     </div>
   );
 }

@@ -104,6 +104,18 @@ export function PatternCard({
           {pattern.name}
         </h3>
         <p className="m-0 font-serif text-base leading-normal text-ink-2">{pattern.description}</p>
+        {pattern.designerGroup && (
+          <p className="m-0 font-mono text-xs text-signal-ink">
+            ← tu grupo «{pattern.designerGroup.name}»
+            {pattern.designerGroup.verdict === 'supports'
+              ? ' · la IA lo sostiene'
+              : pattern.designerGroup.verdict === 'refines'
+                ? ' · la IA lo matiza'
+                : pattern.designerGroup.verdict === 'contradicts'
+                  ? ' · la IA lo discute'
+                  : ''}
+          </p>
+        )}
       </header>
 
       {/* 2 · Evidencia */}

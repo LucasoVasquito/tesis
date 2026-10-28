@@ -23,6 +23,7 @@ export const LOG_TONE: Record<LogKind, Tone> = {
   import: 'signal',
   feedback: 'signal',
   split: 'pending',
+  group: 'signal',
 };
 
 interface LogDrawerProps {

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Maximize, Minus, Plus } from 'lucide-react';
-import { Reference } from '../../types';
+import { RefGroup, Reference } from '../../types';
+import { freeSpotNear, groupColor, groupInk, groupOf } from '../../utils/groups';
 import { IconButton, ReferenceCard, Tone, zoomLevelFor } from '../ui';
 import { imageRatio, partKindInfo } from '../../utils/parts';
 
@@ -38,7 +39,23 @@ interface ReferenceCanvasProps {
   toolbarStart?: React.ReactNode;
   emptyState?: React.ReactNode;
   ref?: React.Ref<CanvasHandle>;
+  /** Grupos del diseñador (marcos en el lienzo). */
+  groups?: RefGroup[];
+  selectedGroupId?: string | null;
+  onSelectGroup?: (id: string) => void;
+  /** Soltar una ficha sobre otra, dentro de un marco o fuera de su grupo. */
+  onGroupDrop?: (drop: GroupDrop) => void;
 }
+
+export type GroupDrop =
+  | { kind: 'card'; dragId: string; targetId: string }
+  | { kind: 'group'; dragId: string; groupId: string }
+  | { kind: 'out'; dragId: string; groupId: string };
+
+type Rect = { x: number; y: number; w: number; h: number };
+const inside = (p: { x: number; y: number }, r: Rect) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+const FRAME_PAD = 20;
+const FRAME_TOP = 44;
 
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 3;
@@ -63,6 +80,10 @@ export function ReferenceCanvas({
   toolbarStart,
   emptyState,
   ref,
+  groups = [],
+  selectedGroupId,
+  onSelectGroup,
+  onGroupDrop,
 }: ReferenceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [t, setT] = useState({ x: 0, y: 0, scale: 1 });
@@ -70,9 +91,14 @@ export function ReferenceCanvas({
   tRef.current = t;
   const [animate, setAnimate] = useState(false);
   const [interacting, setInteracting] = useState<null | 'pan' | 'drag' | 'resize'>(null);
+  /** Ficha que se está arrastrando y qué pasaría al soltarla. */
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [drop, setDrop] = useState<{ target: GroupDrop | null; sx: number; sy: number } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const gesture = useRef<{
-    kind: 'pan' | 'card' | 'resize';
+    kind: 'pan' | 'card' | 'resize' | 'group';
+    /** Grupo: posiciones de partida de cada miembro. */
+    origins?: Record<string, { x: number; y: number }>;
     id?: string;
     startX: number;
     startY: number;
@@ -83,6 +109,42 @@ export function ReferenceCanvas({
 
   const zoom = zoomLevelFor(t.scale);
   const cardH = (r: Reference) => imageH(r) + (zoom === 'far' ? 0 : META_H);
+  const rectOf = (r: Reference): Rect => ({ x: r.position.x, y: r.position.y, w: cardW(r), h: imageH(r) + META_H });
+
+  /* ---------- Grupos: marcos ---------- */
+  const refById = useMemo(() => new Map(references.map(r => [r.id, r])), [references]);
+  // Mientras se arrastra una ficha, el marco de su grupo se calcula sin ella (se ve si sale).
+  const frames = useMemo(
+    () =>
+      groups
+        .map(g => {
+          const members = g.refIds.filter(id => id !== dragId).map(id => refById.get(id)).filter(Boolean) as Reference[];
+          if (!members.length) return null;
+          const rs = members.map(rectOf);
+          const minX = Math.min(...rs.map(r => r.x)) - FRAME_PAD;
+          const minY = Math.min(...rs.map(r => r.y)) - FRAME_TOP;
+          const maxX = Math.max(...rs.map(r => r.x + r.w)) + FRAME_PAD;
+          const maxY = Math.max(...rs.map(r => r.y + r.h)) + FRAME_PAD;
+          return { group: g, rect: { x: minX, y: minY, w: maxX - minX, h: maxY - minY } };
+        })
+        .filter(Boolean) as { group: RefGroup; rect: Rect }[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groups, refById, dragId],
+  );
+
+  /** Qué pasa si se suelta `id` en el punto `p` (coordenadas del lienzo). */
+  const dropTargetAt = (id: string, p: { x: number; y: number }): GroupDrop | null => {
+    const own = groupOf(groups, id);
+    for (let i = references.length - 1; i >= 0; i--) {
+      const r = references[i];
+      if (r.id === id || !inside(p, rectOf(r))) continue;
+      if (own && own.refIds.includes(r.id)) return null;
+      return { kind: 'card', dragId: id, targetId: r.id };
+    }
+    const frame = frames.find(f => inside(p, f.rect));
+    if (frame) return frame.group.id === own?.id ? null : { kind: 'group', dragId: id, groupId: frame.group.id };
+    return own ? { kind: 'out', dragId: id, groupId: own.id } : null;
+  };
 
   /* ---------- Encuadre ---------- */
   const frame = useCallback(
@@ -117,8 +179,11 @@ export function ReferenceCanvas({
   );
 
   const fitAll = useCallback(() => {
-    if (references.length) frame(bounds(references));
-  }, [references, frame, bounds]);
+    if (!references.length) return;
+    // Aire arriba para la barra flotante y, si hay grupos, para las etiquetas de los marcos.
+    const b = bounds(references);
+    frame({ ...b, minY: b.minY - (groups.length ? 96 : 48) });
+  }, [references, frame, bounds, groups.length]);
 
   const fitTo = useCallback(
     (ids: string[]) => {
@@ -238,6 +303,19 @@ export function ReferenceCanvas({
     containerRef.current?.setPointerCapture(e.pointerId);
   };
 
+  const onGroupPointerDown = (e: React.PointerEvent, g: RefGroup) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    setAnimate(false);
+    const origins: Record<string, { x: number; y: number }> = {};
+    g.refIds.forEach(id => {
+      const r = refById.get(id);
+      if (r) origins[id] = { ...r.position };
+    });
+    gesture.current = { kind: 'group', id: g.id, origins, startX: e.clientX, startY: e.clientY, origin: { x: 0, y: 0 }, moved: false };
+    containerRef.current?.setPointerCapture(e.pointerId);
+  };
+
   const onResizePointerDown = (e: React.PointerEvent, r: Reference) => {
     e.stopPropagation();
     e.preventDefault();
@@ -254,12 +332,20 @@ export function ReferenceCanvas({
     if (!g.moved) {
       g.moved = true;
       setInteracting(g.kind === 'pan' ? 'pan' : g.kind === 'resize' ? 'resize' : 'drag');
+      if (g.kind === 'card' && onGroupDrop && !locked) setDragId(g.id ?? null);
     }
     if (g.kind === 'pan') {
       setT(prev => ({ ...prev, x: g.origin.x + dx, y: g.origin.y + dy }));
     } else if (g.kind === 'card' && g.id && onMove && !locked) {
       const s = tRef.current.scale;
       onMove(g.id, { x: Math.round(g.origin.x + dx / s), y: Math.round(g.origin.y + dy / s) });
+      if (onGroupDrop) {
+        const rect = containerRef.current!.getBoundingClientRect();
+        setDrop({ target: dropTargetAt(g.id, toCanvas(e.clientX, e.clientY)), sx: e.clientX - rect.left, sy: e.clientY - rect.top });
+      }
+    } else if (g.kind === 'group' && g.origins && onMove && !locked) {
+      const s = tRef.current.scale;
+      Object.entries(g.origins).forEach(([id, o]) => onMove(id, { x: Math.round(o.x + dx / s), y: Math.round(o.y + dy / s) }));
     } else if (g.kind === 'resize' && g.id && onResize && !locked) {
       const s = tRef.current.scale;
       onResize(g.id, Math.round(clamp((g.width ?? DEFAULT_W) + dx / s, 140, 800)));
@@ -270,7 +356,27 @@ export function ReferenceCanvas({
     const g = gesture.current;
     gesture.current = null;
     setInteracting(null);
+    const pending = drop?.target;
+    setDragId(null);
+    setDrop(null);
     if (!g) return;
+    if (g.kind === 'card' && g.moved && pending && onGroupDrop && !locked) {
+      // Al soltar sobre una ficha, la arrastrada se acomoda al lado del destino.
+      if (pending.kind === 'card' && onMove) {
+        const t = refById.get(pending.targetId);
+        const d = refById.get(pending.dragId);
+        if (t && d) onMove(d.id, freeSpotNear(rectOf(t), rectOf(d), references.filter(r => r.id !== d.id && r.id !== t.id).map(rectOf)));
+      }
+      // Al soltar dentro de un marco, la ficha se acomoda junto al último miembro del grupo.
+      if (pending.kind === 'group' && onMove) {
+        const d = refById.get(pending.dragId);
+        const members = (groups.find(x => x.id === pending.groupId)?.refIds ?? []).map(id => refById.get(id)).filter(Boolean) as Reference[];
+        const anchor = members.sort((a, b) => b.position.x + cardW(b) - (a.position.x + cardW(a)))[0];
+        if (d && anchor) onMove(d.id, freeSpotNear(rectOf(anchor), rectOf(d), references.filter(r => r.id !== d.id && r.id !== anchor.id).map(rectOf)));
+      }
+      onGroupDrop(pending);
+    }
+    if (g.kind === 'group' && !g.moved && g.id) onSelectGroup?.(g.id);
     try {
       containerRef.current?.releasePointerCapture(e.pointerId);
     } catch {
@@ -410,6 +516,50 @@ export function ReferenceCanvas({
         className="pointer-events-none absolute left-0 top-0 origin-top-left"
         style={{ transform: `translate(${t.x}px, ${t.y}px) scale(${t.scale})`, transition }}
       >
+        {frames.map(({ group: g, rect }) => {
+          const isTarget = drop?.target?.kind === 'group' && drop.target.groupId === g.id;
+          const leaving = drop?.target?.kind === 'out' && drop.target.groupId === g.id;
+          const sel = g.id === selectedGroupId;
+          return (
+            <div
+              key={g.id}
+              className="pointer-events-none absolute rounded-[14px] transition-[background-color,border-color] duration-120"
+              style={{
+                left: rect.x,
+                top: rect.y,
+                width: rect.w,
+                height: rect.h,
+                border: `${sel || isTarget ? 2 : 1}px ${leaving ? 'dashed' : 'solid'} ${groupColor(g, sel || isTarget ? 0.9 : 0.45)}`,
+                background: groupColor(g, isTarget ? 0.12 : 0.05),
+                opacity: highlight || readingId ? 0.5 : 1,
+              }}
+            >
+              <button
+                type="button"
+                data-card
+                onPointerDown={e => onGroupPointerDown(e, g)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectGroup?.(g.id);
+                  }
+                }}
+                aria-label={`Grupo ${g.name}, ${g.refIds.length} ${g.refIds.length === 1 ? 'referencia' : 'referencias'}${g.hypothesis ? ', con hipótesis' : ''}`}
+                aria-pressed={sel}
+                className="pointer-events-auto absolute left-3 top-2.5 flex max-w-[calc(100%-24px)] origin-top-left cursor-grab items-center gap-2 rounded-full border px-3 py-1 text-13 font-medium text-ink"
+                style={{ borderColor: groupColor(g, 0.6), background: 'var(--color-raised)', transform: t.scale < 1 ? `scale(${1 / t.scale})` : undefined }}
+              >
+                <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ background: groupColor(g) }} />
+                <span className="truncate">{g.name}</span>
+                <span className="font-mono text-xs" style={{ color: groupInk(g) }}>
+                  {g.refIds.length}
+                  {g.hypothesis ? ' · H' : ''}
+                </span>
+              </button>
+            </div>
+          );
+        })}
+
         {partLinks.length > 0 && (
           <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width="1" height="1" aria-hidden="true">
             {partLinks.map(l => (
@@ -475,7 +625,13 @@ export function ReferenceCanvas({
                 if (e.currentTarget.matches(':focus-visible')) ensureVisible(r);
               }}
               className="group pointer-events-auto absolute rounded-card outline-offset-4 transition-opacity duration-180 ease-emergent"
-              style={{ transform: `translate(${r.position.x}px, ${r.position.y}px)`, opacity, zIndex: selected || isEv ? 2 : 1 }}
+              style={{
+                transform: `translate(${r.position.x}px, ${r.position.y}px)`,
+                opacity,
+                zIndex: r.id === dragId ? 4 : selected || isEv ? 2 : 1,
+                outline: drop?.target?.kind === 'card' && drop.target.targetId === r.id ? '2px solid var(--color-signal)' : undefined,
+                outlineOffset: 6,
+              }}
             >
               <ReferenceCard
                 reference={r}
@@ -505,6 +661,16 @@ export function ReferenceCanvas({
         </div>
       )}
 
+      {drop?.target && (
+        <div
+          role="status"
+          className="pointer-events-none absolute z-30 whitespace-nowrap rounded-full border border-line-mid bg-raised px-3 py-1 text-13 text-ink shadow-float"
+          style={{ left: drop.sx + 16, top: drop.sy + 16 }}
+        >
+          {dropLabel(drop.target, groups)}
+        </div>
+      )}
+
       {isDragOver && (
         <div className="pointer-events-none absolute inset-4 z-30 flex items-center justify-center rounded-card border border-dashed border-ink/40 bg-bg/80">
           <span className="text-15 font-medium text-ink">Soltá las imágenes para sumarlas al corpus</span>
@@ -513,3 +679,14 @@ export function ReferenceCanvas({
     </div>
   );
 }
+
+function dropLabel(d: GroupDrop, groups: RefGroup[]) {
+  const name = (id: string) => groups.find(x => x.id === id)?.name ?? '';
+  if (d.kind === 'card') {
+    const tg = groupOf(groups, d.targetId);
+    return tg ? `Sumar a «${tg.name}»` : `Agrupar con ${d.targetId}`;
+  }
+  if (d.kind === 'group') return `Sumar a «${name(d.groupId)}»`;
+  return `Sacar de «${name(d.groupId)}»`;
+}
+
