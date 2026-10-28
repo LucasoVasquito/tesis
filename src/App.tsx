@@ -24,6 +24,7 @@ import { AboutView } from './components/AboutView';
 import { SystemApplicationView } from './components/SystemApplicationView';
 import { GuidelinesView } from './components/GuidelinesView';
 import { LogDrawer } from './components/LogDrawer';
+import { TraceMap } from './components/TraceMap';
 import { Modal } from './components/shell/Modal';
 
 import { BriefDraft, BriefStage } from './stages/BriefStage';
@@ -112,6 +113,8 @@ export default function App() {
   const [auditFilter, setAuditFilter] = useState<AuditFilter>('pending');
   const [focusSystemId, setFocusSystemId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>(null);
+  /** Mapa de trazabilidad abierto (reemplaza la etapa hasta que se elija otra). */
+  const [mapOpen, setMapOpen] = useState(false);
   /** Lineamientos abiertos dentro de Síntesis (ID del sistema). */
   const [guidelinesId, setGuidelinesId] = useState<string | null>(null);
   /** Sistema que se aplica en la etapa 06 y sistemas ya visitados (sus piezas se mantienen al cambiar de etapa). */
@@ -187,6 +190,7 @@ export default function App() {
       if (!canEnter(p, s) || induction.status === 'running') return;
       if (s === 'brief') setBriefDraft({ name: p.name, objective: p.objective, description: p.description });
       setGuidelinesId(null);
+      setMapOpen(false);
       if (s === 'application') {
         const valid = p.systems.some(x => x.id === applySystemRef.current);
         const id = valid ? applySystemRef.current! : p.systems[0]?.id;
@@ -209,6 +213,7 @@ export default function App() {
     setAuditFilter('pending');
     setOverlay(null);
     setGuidelinesId(null);
+    setMapOpen(false);
     setApplySystemId(null);
     setVisitedApply([]);
     setBriefDraft({ name: p.name, objective: p.objective, description: p.description });
@@ -1308,6 +1313,8 @@ export default function App() {
         onImportBackup={handleImportBackup}
         onDownloadDossier={() => downloadProjectMarkdown(project)}
         onOpenLog={() => setIsLogOpen(o => !o)}
+        onOpenMap={() => setMapOpen(o => !o)}
+        isMapOpen={mapOpen}
         onOpenAbout={() => setOverlay({ kind: 'about' })}
         isLogOpen={isLogOpen}
       />
@@ -1316,7 +1323,8 @@ export default function App() {
         Etapa {STAGE_NUM[stage]} de 05: {STAGE_LABEL[stage]}
       </p>
       <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
-        {stage !== 'application' && (
+        {mapOpen && <TraceMap project={project} onBack={() => setMapOpen(false)} />}
+        {!mapOpen && stage !== 'application' && (
         <div key={`${project.id}-${stage}${guidelinesSystem ? '-g' : ''}`} className="stage-enter h-full print:h-auto">
         {stage === 'brief' && (
           <BriefStage
@@ -1422,7 +1430,7 @@ export default function App() {
           .map(id => project.systems.find(x => x.id === id))
           .filter(Boolean)
           .map(sys => (
-            <div key={`${project.id}-${sys!.id}`} hidden={!(stage === 'application' && applySystemId === sys!.id)} className="stage-enter h-full">
+            <div key={`${project.id}-${sys!.id}`} hidden={mapOpen || !(stage === 'application' && applySystemId === sys!.id)} className="stage-enter h-full">
               <SystemApplicationView
                 project={project}
                 system={sys!}

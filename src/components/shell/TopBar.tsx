@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Check, ChevronDown, CircleHelp, ScrollText } from 'lucide-react';
+import { Check, ChevronDown, CircleHelp, ScrollText, Waypoints } from 'lucide-react';
 import { Project } from '../../types';
 import { IconButton, StageRail, StageRailCompact, StageRailItem } from '../ui';
 
@@ -17,6 +17,8 @@ interface TopBarProps {
   onImportBackup: (file: File) => void;
   onDownloadDossier: () => void;
   onOpenLog: () => void;
+  onOpenMap: () => void;
+  isMapOpen: boolean;
   onOpenAbout: () => void;
   isLogOpen: boolean;
 }
@@ -160,6 +162,12 @@ export function TopBar(props: TopBarProps) {
 
       {/* Global */}
       <div className="flex shrink-0 items-center gap-1 lg:w-[240px] lg:justify-end">
+        <button type="button" className="btn btn-ghost hidden px-3 sm:inline-flex" aria-pressed={props.isMapOpen} onClick={props.onOpenMap}>
+          Mapa
+        </button>
+        <IconButton label="Mapa de trazabilidad" bare className="sm:hidden" aria-pressed={props.isMapOpen} onClick={props.onOpenMap}>
+          <Waypoints className="size-4 stroke-[1.5]" />
+        </IconButton>
         <button type="button" className="btn btn-ghost hidden px-3 sm:inline-flex" aria-pressed={props.isLogOpen} onClick={props.onOpenLog}>
           Bitácora
         </button>
