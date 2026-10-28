@@ -53,7 +53,7 @@ export function PieceAuditPanel({ state, brandText, photo, onAudit, onFix, busy 
           Revisá si la pieza respeta el sistema: la paleta se mide en tu navegador; el texto y las reglas los revisa Gemini.
         </p>
         <Button size="sm" variant="secondary" icon={<ClipboardCheck />} onClick={onAudit} disabled={busy}>
-          Auditar contra el sistema
+          Verificar contra el sistema
         </Button>
       </div>
     );
@@ -61,7 +61,7 @@ export function PieceAuditPanel({ state, brandText, photo, onAudit, onFix, busy 
   if (state.status === 'loading') {
     return (
       <LoadingState
-        meta="AUDITORÍA · GEMINI"
+        meta="VERIFICACIÓN · GEMINI"
         title="Revisando la pieza"
         steps={[
           { label: 'paleta', state: 'done' },
@@ -74,7 +74,7 @@ export function PieceAuditPanel({ state, brandText, photo, onAudit, onFix, busy 
     );
   }
   if (state.status === 'error') {
-    return <ErrorState code="AUDITORÍA" title="No se pudo auditar la pieza" body="La pieza no se modificó." detail={state.message} onRetry={onAudit} className="min-h-0" />;
+    return <ErrorState code="VERIFICACIÓN" title="No se pudo verificar la pieza" body="La pieza no se modificó." detail={state.message} onRetry={onAudit} className="min-h-0" />;
   }
 
   const a = state.audit;
@@ -83,10 +83,10 @@ export function PieceAuditPanel({ state, brandText, photo, onAudit, onFix, busy 
   const failing = hasFailures(a, !!brandText);
 
   return (
-    <section aria-label="Auditoría de la pieza" className="flex flex-col gap-4 rounded-ctrl border border-line p-4">
+    <section aria-label="Verificación de la pieza" className="flex flex-col gap-4 rounded-ctrl border border-line p-4">
       {/* Resumen */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <span className="font-mono text-xs text-ink-2">AUDITORÍA</span>
+        <span className="font-mono text-xs text-ink-2">VERIFICACIÓN</span>
         <span className="text-13 text-ink">
           reglas <b className="font-mono font-medium">{total ? `${fmt(got)}/${total}` : '—'}</b>
         </span>
@@ -171,10 +171,10 @@ export function PieceAuditPanel({ state, brandText, photo, onAudit, onFix, busy 
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={onAudit} disabled={busy}>
-          Volver a auditar
+          Volver a verificar
         </Button>
       </div>
-      <p className="m-0 text-xs text-ink-2">La auditoría es una lectura de la IA: vos decidís si la pieza sirve.</p>
+      <p className="m-0 text-xs text-ink-2">La verificación es una lectura de la IA: vos decidís si la pieza sirve.</p>
     </section>
   );
 }

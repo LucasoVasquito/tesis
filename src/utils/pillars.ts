@@ -39,7 +39,7 @@ const overlap = (a: Set<string>, b: Set<string>) => {
 };
 
 const patternText = (p: Pattern) => `${p.name} ${p.description} ${(p.relatedObservations ?? []).join(' ')} ${p.systemHypothesis ?? ''}`;
-const referenceText = (r: Reference) => {
+export const referenceText = (r: Reference) => {
   const b = r.breakdown;
   return [
     r.name,

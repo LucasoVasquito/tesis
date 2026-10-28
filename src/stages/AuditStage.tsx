@@ -141,7 +141,7 @@ export function AuditStage(props: AuditStageProps) {
         open={dockOpen}
         width={420}
         title="Auditoría"
-        meta="04 · patrón actual"
+        meta="03 · patrón actual"
         onClose={() => setDockOpen(false)}
         toolbar={nav}
         scrollKey={current?.id}

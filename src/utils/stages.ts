@@ -59,19 +59,12 @@ export function railItems(p: Project, current: VisitableStage, inducing: boolean
   const item = (s: VisitableStage, num: string): StageRailItem => {
     const req = stageRequirement(p, s);
     let state: StageRailItem['state'];
-    if (s === current && !inducing) state = 'current';
+    if (s === current) state = 'current';
     else if (req) state = 'locked';
-    else state = idx(s) < cur || (inducing && s === current) ? 'done' : 'available';
-    return { id: s, num, label: STAGE_LABEL[s], state, requirement: req ?? undefined };
+    else state = idx(s) < cur ? 'done' : 'available';
+    // La inducción no es una etapa: es la transición de Corpus a Auditoría y se ve en Corpus mientras corre.
+    const label = inducing && s === 'corpus' ? 'Induciendo…' : STAGE_LABEL[s];
+    return { id: s, num, label, state, requirement: req ?? undefined };
   };
-  const induced = p.patterns.length > 0;
-  const induction: StageRailItem = {
-    id: 'induction',
-    num: '03',
-    label: STAGE_LABEL.induction,
-    state: inducing ? 'current' : induced ? 'done' : 'locked',
-    visitable: false,
-    requirement: inducing ? undefined : induced ? 'Se vuelve a ejecutar desde Corpus' : `Se ejecuta desde Corpus con ${MIN_REFERENCES} referencias o más`,
-  };
-  return [item('brief', '01'), item('corpus', '02'), induction, item('audit', '04'), item('synthesis', '05'), item('application', '06')];
+  return [item('brief', '01'), item('corpus', '02'), item('audit', '03'), item('synthesis', '04'), item('application', '05')];
 }

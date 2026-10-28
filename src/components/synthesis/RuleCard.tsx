@@ -2,6 +2,8 @@ import React from 'react';
 import { PaletteColor, Reference, Rule } from '../../types';
 import { FAMILIES, Family } from '../../utils/families';
 import { contrast, guessStyle, Specimen } from './Specimen';
+import { TextureSwatch } from './TextureSwatch';
+import { RuleEvidence } from '../../utils/ruleEvidence';
 
 const lum = (hex: string) => contrast(hex, '#000000');
 const FALLBACK = ['#111111', '#EDEDEF'];
@@ -10,13 +12,27 @@ const FALLBACK = ['#111111', '#EDEDEF'];
 const lightest = (palette: PaletteColor[]) => [...(palette.length ? palette.map(c => c.hex) : FALLBACK)].sort((a, b) => lum(b) - lum(a))[0];
 
 /* ---------- Ejemplos visuales ---------- */
-function EvidenceCrop({ refs }: { refs: Reference[] }) {
-  if (!refs.length) return <div className="h-[200px] bg-raised" aria-hidden="true" />;
+function EvidenceCrop({ refs, approx }: { refs: Reference[]; approx?: boolean }) {
   return (
-    <div className={`grid h-[200px] gap-0.5 bg-bg ${refs.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+    <div className={`relative grid h-[200px] gap-0.5 bg-bg ${refs.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
       {refs.slice(0, 2).map(r => (
-        <img key={r.id} src={r.image} alt={`Evidencia ${r.id}: ${r.name}`} className="h-full w-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+        <img
+          key={r.id}
+          src={r.image}
+          alt={`${approx ? 'Referencia aproximada' : 'Evidencia'} ${r.id}: ${r.name}`}
+          className={`h-full w-full object-cover ${approx ? 'opacity-85' : ''}`}
+          referrerPolicy="no-referrer"
+          loading="lazy"
+        />
       ))}
+      {approx && (
+        <span
+          className="absolute bottom-2 left-2 rounded-[3px] border border-line-mid bg-raised px-1.5 py-0.5 font-mono text-xs text-ink-2"
+          title="La app eligió estas referencias comparando el texto de la regla con tu corpus; no es trazabilidad de la IA."
+        >
+          ≈ aproximada · {refs.slice(0, 2).map(r => r.id).join(' ')}
+        </span>
+      )}
     </div>
   );
 }
@@ -60,19 +76,24 @@ interface RuleCardProps {
   family: Family;
   palette: PaletteColor[];
   references: Reference[];
-  /** Referencias de evidencia de los patrones de la regla (si la regla no trae las suyas). */
-  fallbackRefIds: string[];
+  /** Imágenes si la regla no trae las suyas: evidencia de sus patrones o una coincidencia con el corpus. */
+  fallback: RuleEvidence;
   specimenText: string;
   showWhy: boolean;
   /** Posición de la ficha dentro de su familia: rota las combinaciones de color del espécimen. */
   index?: number;
 }
 
-export function RuleCard({ rule, family, palette, references, fallbackRefIds, specimenText, showWhy, index = 0 }: RuleCardProps) {
+export function RuleCard({ rule, family, palette, references, fallback, specimenText, showWhy, index = 0 }: RuleCardProps) {
   const byId = new Map(references.map(r => [r.id, r]));
   let kind = rule.example?.kind ?? 'evidence';
-  const refIds = rule.example?.refIds?.length ? rule.example.refIds : rule.refIds.length ? rule.refIds : fallbackRefIds;
+  const ownIds = rule.example?.refIds?.length ? rule.example.refIds : rule.refIds;
+  const refIds = ownIds.length ? ownIds : fallback.ids;
+  const approx = !ownIds.length && fallback.approx;
   const refs = refIds.map(id => byId.get(id)).filter(Boolean) as Reference[];
+  // Reglas redactadas como texto corrido: el título es el comienzo truncado del detalle. Se muestra la frase entera.
+  const truncated = rule.title.endsWith('…') && rule.detail.startsWith(rule.title.slice(0, -1).trim());
+  const title = truncated ? rule.detail : rule.title;
   const trace = [rule.patternIds.join(' '), rule.refIds.join(' ')].filter(Boolean).join(' · ');
   // Una regla tipográfica sin espécimen propio (redactada antes de este cambio) muestra la tipografía real
   // del corpus: el recorte de su evidencia, en lugar de repetir el nombre de la marca.
@@ -90,14 +111,20 @@ export function RuleCard({ rule, family, palette, references, fallbackRefIds, sp
         />
       ) : kind === 'grid' ? (
         <GridDiagram cols={rule.example?.cols} rows={rule.example?.rows} palette={palette} />
+      ) : refs.length ? (
+        <EvidenceCrop refs={refs} approx={approx} />
+      ) : family.id === 'typography' ? (
+        <Specimen text={specimenText} style={guessStyle(`${rule.title} ${rule.detail}`, index)} palette={palette} index={index} />
+      ) : family.id === 'composition' ? (
+        <GridDiagram palette={palette} />
       ) : (
-        <EvidenceCrop refs={refs} />
+        <TextureSwatch text={`${rule.title} ${rule.detail}`} palette={palette} index={index} />
       )}
       <div className="flex flex-1 flex-col gap-3 p-4">
         <span className="font-mono text-xs" style={{ color: family.ink }}>
           {rule.code} · {family.label}
         </span>
-        <h4 className="m-0 text-base font-semibold leading-[1.3] text-ink">{rule.title}</h4>
+        <h4 className="m-0 text-base font-semibold leading-[1.3] text-ink">{title}</h4>
         {(rule.use?.length || rule.avoid?.length || (kind === 'grid' && rule.example?.cols)) && (
           <div className="flex flex-wrap gap-1.5">
             {rule.use?.length ? (
@@ -113,7 +140,7 @@ export function RuleCard({ rule, family, palette, references, fallbackRefIds, sp
             ) : null}
           </div>
         )}
-        {showWhy && rule.detail && rule.detail !== rule.title && <p className="m-0 font-serif text-15 leading-normal text-ink-2">{rule.detail}</p>}
+        {showWhy && !truncated && rule.detail && rule.detail !== rule.title && <p className="m-0 font-serif text-15 leading-normal text-ink-2">{rule.detail}</p>}
         {trace && <span className="mt-auto font-mono text-xs text-signal-ink">← {trace}</span>}
       </div>
     </article>

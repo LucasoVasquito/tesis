@@ -3,6 +3,7 @@ import { MoreHorizontal, Pipette, Plus, Sparkles, X } from 'lucide-react';
 import { Pattern, Project, Reference, Rule, RuleField, VisualSystem } from '../../types';
 import { Button, IconButton, TextArea } from '../ui';
 import { FAMILIES, familyOf } from '../../utils/families';
+import { ruleEvidence } from '../../utils/ruleEvidence';
 import { PaletteBand } from './PaletteBand';
 import { ColorCard, RULE_FAMILY, RuleCard } from './RuleCard';
 import { PillarTile } from './PillarTile';
@@ -460,7 +461,7 @@ export function SystemBoard(props: SystemBoardProps) {
                   family={RULE_FAMILY[tab as RuleField] ?? FAMILIES.image}
                   palette={palette}
                   references={project.references}
-                  fallbackRefIds={r.patternIds.flatMap(pid => patternById(pid)?.evidence ?? [])}
+                  fallback={ruleEvidence(r, tab as RuleField, s, project, i)}
                   specimenText={brand}
                   showWhy={showWhy}
                 />

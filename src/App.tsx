@@ -66,7 +66,7 @@ function loadProjects(): Project[] {
   return [createEmptyProject()];
 }
 
-const STAGE_NUM: Record<VisitableStage, string> = { brief: '01', corpus: '02', audit: '04', synthesis: '05', application: '06' };
+const STAGE_NUM: Record<VisitableStage, string> = { brief: '01', corpus: '02', audit: '03', synthesis: '04', application: '05' };
 
 const pct = (n: number, total: number) => (total ? Math.round((n / total) * 100) : 0);
 
@@ -1207,7 +1207,7 @@ export default function App() {
       />
 
       <p className="sr-only" aria-live="polite">
-        Etapa {STAGE_NUM[stage]} de 06: {STAGE_LABEL[stage]}
+        Etapa {STAGE_NUM[stage]} de 05: {STAGE_LABEL[stage]}
       </p>
       <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
         {stage !== 'application' && (

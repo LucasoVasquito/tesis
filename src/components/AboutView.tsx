@@ -3,10 +3,10 @@ import { FullView } from './shell/FullView';
 
 const STEPS: [string, string, string][] = [
   ['01', 'Brief', 'El diseñador define nombre, objetivo y contexto. Orienta la lectura, no la condiciona.'],
-  ['02', 'Corpus', 'Las referencias se cargan y organizan en un lienzo espacial; cada una puede desglosarse.'],
-  ['03', 'Inducción', 'Gemini detecta recurrencias formales y vincula cada patrón a su evidencia exacta.'],
-  ['04', 'Auditoría', 'El diseñador confirma o descarta cada hallazgo, con motivo. Es el núcleo del método.'],
-  ['05', 'Síntesis', 'Con los patrones confirmados se arman sistemas divergentes y sus lineamientos.'],
+  ['02', 'Corpus', 'Las referencias se cargan, se agrupan y se separan en partes en un lienzo espacial. Al inducir, Gemini detecta recurrencias formales y vincula cada patrón a su evidencia exacta.'],
+  ['03', 'Auditoría', 'El diseñador confirma o descarta cada hallazgo, con motivo. Es el núcleo del método.'],
+  ['04', 'Síntesis', 'Con los patrones confirmados se arman sistemas divergentes y sus lineamientos.'],
+  ['05', 'Aplicación', 'Verificación externa: se generan piezas con el sistema y se verifica, regla por regla, si se sostiene fuera del corpus.'],
 ];
 
 /** Marco conceptual de la tesis (antes ThesisConceptModal). */

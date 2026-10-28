@@ -7,6 +7,7 @@ import { RULE_FIELDS } from '../utils/rules';
 import { Button, CategoryTag, Swatch } from './ui';
 import { FullView } from './shell/FullView';
 import { ApprovedPieces } from './application/ApprovedPieces';
+import { ruleEvidence } from '../utils/ruleEvidence';
 import { buildSystemMarkdown, downloadSystemMarkdown, exportVisualSystemAsJSON } from '../utils/exportHelpers';
 
 interface GuidelinesViewProps {
@@ -141,7 +142,7 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
                           family={RULE_FAMILY[field]}
                           palette={s.colorPalette ?? []}
                           references={project.references}
-                          fallbackRefIds={r.patternIds.flatMap(pid => project.patterns.find(p => p.id === pid)?.evidence ?? [])}
+                          fallback={ruleEvidence(r, field, s, project, i)}
                           specimenText={project.name.split(/\s[—–-]\s/)[0].trim() || s.name}
                           showWhy
                         />

@@ -51,7 +51,7 @@ export function ApprovedPieces({ projectId, session }: { projectId: string; sess
                 <span className="block aspect-square w-full rounded-ctrl border border-dashed border-line-strong" />
               )}
               <span className="text-13 font-medium text-ink">{LABEL[a.type]}</span>
-              {score && <span className="font-mono text-xs text-ink-2">auditoría · {score}</span>}
+              {score && <span className="font-mono text-xs text-ink-2">verificación · {score}</span>}
             </li>
           );
         })}

@@ -116,10 +116,10 @@ export function CorpusStage(props: CorpusStageProps) {
   }
   if (running) {
     dockTitle = 'Inducción en curso';
-    dockMeta = '03 · Inducción';
+    dockMeta = '02 · Corpus → 03 · Auditoría';
   } else if (induction.status === 'error') {
     dockTitle = 'La inducción no terminó';
-    dockMeta = '03 · Inducción';
+    dockMeta = '02 · Corpus · inducción';
   }
 
   return (

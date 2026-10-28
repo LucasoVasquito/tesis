@@ -322,7 +322,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
             : `El servidor no devolvió una respuesta válida (HTTP ${res.status}).`,
         );
       }
-      if (!res.ok || !result.success) throw new Error(result.details || result.error || 'No se pudo auditar la pieza');
+      if (!res.ok || !result.success) throw new Error(result.details || result.error || 'No se pudo verificar la pieza');
       const audit: PieceAudit = { ...result.data, palette: checkPalette(colors, system.colorPalette ?? []) };
       setAudits(a => ({ ...a, [piece.id]: { status: 'done', audit } }));
     } catch (err: any) {
@@ -330,9 +330,9 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
     }
   };
 
-  /** Corrige lo que falló en la auditoría y audita la versión nueva. */
+  /** Corrige lo que falló en la verificación y verifica la versión nueva. */
   const fixPiece = async (piece: Piece, text: string) => {
-    const next = await runRevision(piece, text, 'corrección según la auditoría');
+    const next = await runRevision(piece, text, 'corrección según la verificación');
     if (next) auditPiece(next);
   };
 
@@ -362,7 +362,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
     <FullView
       embedded
       title={system.name}
-      meta="06 · Aplicación · verificación externa, no forma parte del sistema"
+      meta="05 · Aplicación · verificación externa, no forma parte del sistema"
       actions={
         <>
           {systems.length > 1 && (
@@ -628,7 +628,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                   <div className="flex items-center gap-3">
                     {lastRound.pieces.length > 1 && lastRound.pieces.some(p => !audits[p.id]) && (
                       <Button size="sm" variant="ghost" icon={<ClipboardCheck />} onClick={() => lastRound.pieces.map(withImg).filter(p => !audits[p.id]).forEach(auditPiece)}>
-                        Auditar las {lastRound.pieces.length}
+                        Verificar las {lastRound.pieces.length}
                       </Button>
                     )}
                     {lastRound.referencesUsed.length > 0 && <span className="font-mono text-xs text-ink-2">evidencia {lastRound.referencesUsed.join(', ')}</span>}
@@ -692,7 +692,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                   </Button>
                   {!audits[selected.id] && (
                     <Button size="sm" variant="secondary" icon={<ClipboardCheck />} onClick={() => auditPiece(selected)} disabled={!!busy}>
-                      Auditar
+                      Verificar
                     </Button>
                   )}
                   <a className="btn btn-ghost btn-sm" href={selected.imageUrl || undefined} download={`${system.name.replace(/\s+/g, '_')}_${selected.pieceType}_${selected.id}.png`}>
