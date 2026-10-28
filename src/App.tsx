@@ -128,6 +128,8 @@ export default function App() {
 
   /* ========== Asincronía ========== */
   const [induction, setInduction] = useState<InductionState>({ status: 'idle', tick: 0 });
+  /** Patrones recién inducidos que se muestran emergiendo en el corpus. */
+  const [emergence, setEmergence] = useState<Pattern[] | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [inspectingIds, setInspectingIds] = useState<string[]>([]);
   const [inspectErrors, setInspectErrors] = useState<Record<string, string>>({});
@@ -191,6 +193,7 @@ export default function App() {
       if (s === 'brief') setBriefDraft({ name: p.name, objective: p.objective, description: p.description });
       setGuidelinesId(null);
       setMapOpen(false);
+      setEmergence(null);
       if (s === 'application') {
         const valid = p.systems.some(x => x.id === applySystemRef.current);
         const id = valid ? applySystemRef.current! : p.systems[0]?.id;
@@ -214,6 +217,7 @@ export default function App() {
     setOverlay(null);
     setGuidelinesId(null);
     setMapOpen(false);
+    setEmergence(null);
     setApplySystemId(null);
     setVisitedApply([]);
     setBriefDraft({ name: p.name, objective: p.objective, description: p.description });
@@ -661,8 +665,16 @@ export default function App() {
       if (projectRef.current.id === projectId) {
         setAuditFilter('pending');
         setAuditIndex(0);
-        setStage('audit');
-        showToast({ message: `Inducción · ${p.references.length} referencias, ${detected.length} patrones`, tone: 'signal' }, 4000);
+        // Los patrones nuevos (pendientes) emergen en el lienzo antes de pasar a Auditoría.
+        const fresh = merged.filter(x => x.status === 'detected' && x.evidence?.length).sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+        if (fresh.length) {
+          setSelectedRefId(null);
+          setSelectedGroupId(null);
+          setEmergence(fresh);
+        } else {
+          setStage('audit');
+          showToast({ message: `Inducción · ${p.references.length} referencias, ${detected.length} patrones`, tone: 'signal' }, 4000);
+        }
       }
     } catch (err: any) {
       updateProject(x => ({ ...x, status: x.patterns.length ? 'analyzed' : 'draft' }), projectId);
@@ -1362,6 +1374,11 @@ export default function App() {
             onUngroup={handleUngroup}
             onReadGroup={handleReadGroup}
             groupReads={groupReads}
+            emergence={emergence}
+            onEmergenceEnd={go => {
+              setEmergence(null);
+              if (go) goToStage('audit');
+            }}
             onOpenLightbox={setLightboxRef}
             inspectingIds={inspectingIds}
             inspectErrors={inspectErrors}

@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from 'react';
-import { Project, RefGroup, Reference } from '../types';
+import React, { useEffect, useRef, useState } from 'react';
+import { Emergence } from '../components/corpus/Emergence';
+import { Pattern, Project, RefGroup, Reference } from '../types';
 import { GroupInspector } from '../components/corpus/GroupInspector';
 import { GroupDrop } from '../components/canvas/ReferenceCanvas';
 import { Button, EmptyState, ErrorState, LoadingState, LoadingStep } from '../components/ui';
 import { CanvasArea, CorpusView } from '../components/canvas/CanvasArea';
-import { CanvasHandle } from '../components/canvas/ReferenceCanvas';
+import { CanvasHandle, CanvasHighlight } from '../components/canvas/ReferenceCanvas';
 import { DockPanel } from '../components/shell/DockPanel';
 import { ReferenceInspector } from '../components/corpus/ReferenceInspector';
 import { MIN_REFERENCES } from '../utils/stages';
@@ -48,6 +49,9 @@ interface CorpusStageProps {
   onUngroup: (id: string) => void;
   onReadGroup: (id: string) => void;
   groupReads: Record<string, { status: 'loading' } | { status: 'error'; message: string }>;
+  /** Patrones recién inducidos: se muestran emergiendo en el lienzo. */
+  emergence: Pattern[] | null;
+  onEmergenceEnd: (goToAudit: boolean) => void;
   induction: InductionState;
   onRetryInduction: () => void;
   onDismissInductionError: () => void;
@@ -58,6 +62,8 @@ export function CorpusStage(props: CorpusStageProps) {
   const refs = project.references;
   const canvasRef = useRef<CanvasHandle>(null);
   const running = induction.status === 'running';
+  const [emergeHighlight, setEmergeHighlight] = useState<CanvasHighlight | null>(null);
+  const emerging = !!props.emergence?.length;
   const selected = refs.find(r => r.id === props.selectedId) ?? null;
   const groups = project.groups ?? [];
   const selectedGroup = !selected ? groups.find(g => g.id === props.selectedGroupId) ?? null : null;
@@ -137,8 +143,9 @@ export function CorpusStage(props: CorpusStageProps) {
           onResize={props.onResize}
           onDropFiles={running ? undefined : props.onAddFiles}
           readingId={reading?.id ?? null}
+          highlight={emerging ? emergeHighlight : undefined}
           dimAll={running ? 0.4 : undefined}
-          locked={running}
+          locked={running || emerging}
           analysisFor={r =>
             r.isNew
               ? { tone: 'pending', label: project.patterns.length ? 'Nueva: todavía no se indujo' : 'Sin inducir' }
@@ -152,6 +159,7 @@ export function CorpusStage(props: CorpusStageProps) {
           onSelectGroup={id => !running && props.onSelectGroup(id)}
           onGroupDrop={running ? undefined : props.onGroupDrop}
         />
+        {emerging && <Emergence patterns={props.emergence!} onHighlight={setEmergeHighlight} onFinish={props.onEmergenceEnd} />}
       </div>
 
       <DockPanel

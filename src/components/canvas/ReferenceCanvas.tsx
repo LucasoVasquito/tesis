@@ -20,6 +20,10 @@ export interface CanvasHighlight {
   label?: string;
   /** Opacidad del resto de las fichas. */
   dimOthers: number;
+  /** Líneas en color señal (momento de emergencia tras la inducción). */
+  emphasis?: boolean;
+  /** Espacio a reservar abajo al encuadrar (una tarjeta flotante tapa esa zona). */
+  padBottom?: number;
 }
 
 interface ReferenceCanvasProps {
@@ -186,11 +190,11 @@ export function ReferenceCanvas({
   }, [references, frame, bounds, groups.length]);
 
   const fitTo = useCallback(
-    (ids: string[]) => {
+    (ids: string[], padBottom = 0) => {
       const refs = references.filter(r => ids.includes(r.id));
       if (!refs.length) return;
       const b = bounds(refs);
-      frame({ ...b, minY: b.minY - 96 }, 120, 1.1);
+      frame({ ...b, minY: b.minY - 96, maxY: b.maxY + padBottom }, 120, padBottom ? 0.9 : 1.1);
     },
     [references, frame, bounds],
   );
@@ -245,7 +249,7 @@ export function ReferenceCanvas({
   const highlightKey = highlight?.ids.join('|') ?? '';
   useEffect(() => {
     if (!highlightKey || !didInitialFit.current) return;
-    fitTo(highlightKey.split('|'));
+    fitTo(highlightKey.split('|'), highlight?.padBottom ?? 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightKey]);
 
@@ -579,25 +583,32 @@ export function ReferenceCanvas({
         )}
         {evidence && (
           <>
-            <svg className="pointer-events-none absolute left-0 top-0 overflow-visible" width="1" height="1" aria-hidden="true">
-              {evidence.centers.map(c => (
+            {/* La clave por etiqueta reinicia el dibujo de las líneas en cada patrón. */}
+            <svg key={highlight?.label} className="pointer-events-none absolute left-0 top-0 overflow-visible" width="1" height="1" aria-hidden="true">
+              {evidence.centers.map((c, i) => (
                 <line
                   key={c.id}
                   x1={c.x}
                   y1={c.y}
                   x2={evidence.node.x}
                   y2={evidence.node.y}
-                  stroke="rgba(255,255,255,.18)"
-                  strokeWidth={1}
+                  pathLength={1}
+                  className="em-draw"
+                  style={{ animationDelay: `${i * 70}ms` }}
+                  stroke={highlight?.emphasis ? 'var(--color-signal)' : 'rgba(255,255,255,.18)'}
+                  strokeOpacity={highlight?.emphasis ? 0.75 : 1}
+                  strokeWidth={highlight?.emphasis ? 1.5 : 1}
                   vectorEffect="non-scaling-stroke"
                 />
               ))}
             </svg>
             <span
-              className="absolute z-10 whitespace-nowrap rounded-full border border-signal/70 bg-raised px-3 py-0.5 font-mono text-xs text-ink"
+              className="absolute z-10 whitespace-nowrap"
               style={{ left: evidence.node.x, top: evidence.node.y, transform: `translate(-50%, -50%) scale(${1 / t.scale})` }}
             >
-              {highlight?.label}
+              <span key={highlight?.label} className="em-pop rounded-full border border-signal/70 bg-raised px-3 py-0.5 font-mono text-xs text-ink">
+                {highlight?.label}
+              </span>
             </span>
           </>
         )}
