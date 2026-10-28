@@ -6,6 +6,7 @@ import { RULE_FAMILY, RuleCard } from './synthesis/RuleCard';
 import { RULE_FIELDS } from '../utils/rules';
 import { Button, CategoryTag, Swatch } from './ui';
 import { FullView } from './shell/FullView';
+import { ApprovedPieces } from './application/ApprovedPieces';
 import { buildSystemMarkdown, downloadSystemMarkdown, exportVisualSystemAsJSON } from '../utils/exportHelpers';
 
 interface GuidelinesViewProps {
@@ -210,6 +211,12 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
                   </div>
                 ))}
             </dl>
+          </Section>
+        )}
+
+        {project.applications?.[s.id]?.approved && Object.values(project.applications[s.id].approved).some(Boolean) && (
+          <Section n="06" title="Piezas aprobadas">
+            <ApprovedPieces projectId={project.id} session={project.applications[s.id]} />
           </Section>
         )}
 

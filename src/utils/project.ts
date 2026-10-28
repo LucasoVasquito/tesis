@@ -23,6 +23,7 @@ export function migrateProject(raw: any): Project {
     suggestedSystems: Array.isArray(raw?.suggestedSystems) ? raw.suggestedSystems : [],
     log: Array.isArray(raw?.log) ? raw.log : [],
     groups: Array.isArray(raw?.groups) ? raw.groups : [],
+    applications: raw?.applications && typeof raw.applications === 'object' ? raw.applications : {},
   };
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';
   return p;

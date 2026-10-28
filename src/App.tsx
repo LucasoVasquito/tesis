@@ -4,6 +4,7 @@ import { evidenceReferences, inferPalette } from './utils/palette';
 import { normalizeRules } from './utils/rules';
 import { createEmptyProject } from './data/emptyProject';
 import { compressImageString, compressReferences } from './utils/imageCompressor';
+import { deleteProjectPieces } from './utils/pieceStore';
 import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
 import { downloadProjectMarkdown, exportProjectAsJSON, exportVisualSystemAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid } from './utils/project';
@@ -169,6 +170,16 @@ export default function App() {
   const applySystemRef = useRef<string | null>(null);
   applySystemRef.current = applySystemId;
 
+  // Al abrir la app en la etapa 06 (o si el sistema se borró), se aplica el primer sistema.
+  useEffect(() => {
+    if (stage !== 'application') return;
+    if (applySystemId && project.systems.some(x => x.id === applySystemId)) return;
+    const id = project.systems[0]?.id;
+    if (!id) return;
+    setApplySystemId(id);
+    setVisitedApply(v => (v.includes(id) ? v : [...v, id]));
+  }, [stage, applySystemId, project.systems]);
+
   const goToStage = useCallback(
     (s: VisitableStage) => {
       const p = projectRef.current;
@@ -223,6 +234,7 @@ export default function App() {
     const remaining = projectsList.filter(p => !ids.includes(p.id));
     const next = remaining.length ? remaining : [createEmptyProject()];
     ids.forEach(clearProjectBreakdowns);
+    ids.forEach(deleteProjectPieces);
     setProjectsList(next);
     if (ids.includes(activeProjectId)) {
       setActiveProjectId(next[0].id);
@@ -774,7 +786,9 @@ export default function App() {
       ...p,
       systems: p.systems.filter(s => s.id !== id),
       patterns: p.patterns.map(x => (x.assignedSystemId === id ? { ...x, assignedSystemId: null } : x)),
+      applications: Object.fromEntries(Object.entries(p.applications ?? {}).filter(([sid]) => sid !== id)),
     }));
+    setVisitedApply(v => v.filter(x => x !== id));
     addLog('system_delete', id, `Sistema eliminado · ${sys?.name ?? id}`);
     showToast({ message: `Sistema eliminado · ${sys?.name ?? id}`, tone: 'discarded' });
   };
@@ -1308,6 +1322,12 @@ export default function App() {
                 onSelectSystem={openApplication}
                 onOpenGuidelines={() => openGuidelines(sys!.id)}
                 onOpenLightbox={setLightboxRef}
+                session={project.applications?.[sys!.id]}
+                onSaveSession={session => {
+                  const pid = project.id;
+                  const sid = sys!.id;
+                  updateProject(x => ({ ...x, applications: { ...(x.applications ?? {}), [sid]: session } }), pid);
+                }}
               />
             </div>
           ))}

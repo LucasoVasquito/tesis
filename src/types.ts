@@ -272,6 +272,74 @@ export interface Project {
   suggestedSystems?: SuggestedSystem[];
   log?: LogItem[];
   groups?: RefGroup[];
+  /** Etapa 06: todo lo generado para cada sistema (las imágenes viven en IndexedDB). */
+  applications?: Record<string, ApplicationSession>;
+}
+
+/* ---------- Etapa 06 · Aplicación ---------- */
+export type PieceType = 'logo' | 'poster' | 'packaging' | 'post' | 'story' | 'facade' | 'web' | 'other';
+/** system: el director de arte recibe lo esencial del sistema. direct: solo el pedido (para comparar). */
+export type GenMode = 'system' | 'direct';
+
+/** Una imagen generada (sin la imagen: se guarda aparte por ID). */
+export interface GeneratedPiece {
+  id: string;
+  roundId: string;
+  responseId: string;
+  direction: string;
+  rationale: string;
+  revisedPrompt: string;
+  model: string;
+  pieceType: PieceType;
+  mode: GenMode;
+  parentId?: string;
+  createdAt?: string;
+}
+
+/** Una tanda de variantes, o una iteración sobre una pieza. */
+export interface GenerationRound {
+  id: string;
+  label: string;
+  brief: string;
+  /** Pedido del diseñador ("Qué querés ver") o el cambio pedido. */
+  request?: string;
+  referencesUsed: string[];
+  pieces: GeneratedPiece[];
+  failed: number;
+  failureMessage?: string;
+  createdAt?: string;
+}
+
+export interface ExtractedColor {
+  hex: string;
+  share: number;
+}
+
+export interface PaletteCheck {
+  colors: ExtractedColor[];
+  system: { hex: string; name: string; found: boolean; match?: string }[];
+  outside: ExtractedColor[];
+}
+
+/** Auditoría de una pieza generada contra el sistema. */
+export interface PieceAudit {
+  textRead: string;
+  textOk: boolean;
+  textIssue: string;
+  rules: { code: string; title: string; verdict: 'cumple' | 'parcial' | 'no_cumple'; reason: string }[];
+  quality: string;
+  fixes: string[];
+  palette: PaletteCheck;
+  at: string;
+}
+
+export interface ApplicationSession {
+  rounds: GenerationRound[];
+  /** Pieza aprobada por tipo. */
+  approved: Partial<Record<PieceType, string>>;
+  audits: Record<string, PieceAudit>;
+  requests: Partial<Record<PieceType, string>>;
+  brandText?: string;
 }
 
 export type ApplicationType =

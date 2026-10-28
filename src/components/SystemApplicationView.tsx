@@ -1,6 +1,7 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Check, ClipboardCheck, Copy, Download, Plus, Sparkles } from 'lucide-react';
-import { Project, Reference, SystemResourceKey, VisualSystem } from '../types';
+import { ApplicationSession, GeneratedPiece, GenerationRound, GenMode, PieceType, Project, Reference, SystemResourceKey, VisualSystem } from '../types';
+import { loadPieceImage, savePieceImage, toDataUrl } from '../utils/pieceStore';
 import { Button, EmptyState, ErrorState, LoadingState, TextArea, TextInput } from './ui';
 import { FullView } from './shell/FullView';
 import { compressImageString } from '../utils/imageCompressor';
@@ -15,9 +16,11 @@ interface SystemApplicationViewProps {
   onSelectSystem: (id: string) => void;
   onOpenGuidelines: () => void;
   onOpenLightbox: (ref: Reference) => void;
+  /** Lo generado antes para este sistema. */
+  session?: ApplicationSession;
+  onSaveSession: (session: ApplicationSession) => void;
 }
 
-type PieceType = 'logo' | 'poster' | 'packaging' | 'post' | 'story' | 'facade' | 'web' | 'other';
 type RuleFamily = 'typography' | 'texture' | 'composition';
 
 /** Igual que en el servidor: formato, si es foto y qué familias de reglas importan en cada soporte. */
@@ -62,33 +65,9 @@ function directionLabel(p: { direction: string; pieceType: PieceType }) {
   return (DIRECTIONS[p.pieceType] ?? DIRECTIONS.default)['ABCD'.indexOf(m[1])];
 }
 
-/** system: el director de arte recibe lo esencial del sistema. direct: solo el pedido, como en ChatGPT (para comparar). */
-type GenMode = 'system' | 'direct';
-
-/** Una imagen generada: una variante de una ronda, o una iteración sobre una variante. */
-interface Piece {
-  id: string;
-  roundId: string;
-  imageUrl: string;
-  responseId: string;
-  direction: string;
-  rationale: string;
-  revisedPrompt: string;
-  model: string;
-  pieceType: PieceType;
-  mode: GenMode;
-  parentId?: string;
-}
-
-interface Round {
-  id: string;
-  label: string;
-  brief: string;
-  referencesUsed: string[];
-  pieces: Piece[];
-  failed: number;
-  failureMessage?: string;
-}
+/** Pieza con su imagen ya resuelta (data URL recién generada u object URL guardado). */
+type Piece = GeneratedPiece & { imageUrl: string };
+type Round = GenerationRound;
 
 const RESOURCES: { key: SystemResourceKey; label: string }[] = [
   { key: 'palette', label: 'Paleta' },
@@ -111,31 +90,68 @@ const Block = ({ n, title, children }: { n: string; title: string; children: Rea
  * Verificación externa: piezas generadas con OpenAI a partir de los lineamientos.
  * Flujo: elegir pieza → pedir → comparar variantes → aprobar → la siguiente pieza usa el logo aprobado.
  */
-export function SystemApplicationView({ project, system, systems, onSelectSystem, onOpenGuidelines, onOpenLightbox }: SystemApplicationViewProps) {
+export function SystemApplicationView({ project, system, systems, onSelectSystem, onOpenGuidelines, onOpenLightbox, session, onSaveSession }: SystemApplicationViewProps) {
   const patterns = project.patterns.filter(p => system.patternIds.includes(p.id) && p.status === 'confirmed');
   const [pieceType, setPieceType] = useState<PieceType>('logo');
   const [mode, setMode] = useState<GenMode>('system');
-  const [brandText, setBrandText] = useState(() => project.name.split(/\s[—–-]\s/)[0].trim());
+  const [brandText, setBrandText] = useState(() => session?.brandText ?? project.name.split(/\s[—–-]\s/)[0].trim());
   /** "Qué querés ver", por tipo de pieza: no se arrastra de una pieza a otra. */
-  const [requests, setRequests] = useState<Partial<Record<PieceType, string>>>({});
+  const [requests, setRequests] = useState<Partial<Record<PieceType, string>>>(() => session?.requests ?? {});
   const [variantCount, setVariantCount] = useState(2);
   const [transparent, setTransparent] = useState(false);
   const [useLogo, setUseLogo] = useState(true);
   const [resources, setResources] = useState<Record<string, boolean>>({ palette: true, typography: true, texture: true, composition: true });
-  const [rounds, setRounds] = useState<Round[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [rounds, setRounds] = useState<Round[]>(() => session?.rounds ?? []);
+  const [selectedId, setSelectedId] = useState<string | null>(() => session?.rounds?.[session.rounds.length - 1]?.pieces[0]?.id ?? null);
+  /** Imágenes por ID de pieza. */
+  const [images, setImages] = useState<Record<string, string>>({});
   /** Pieza aprobada por tipo. El logo aprobado se usa en las demás piezas. */
-  const [approved, setApproved] = useState<Partial<Record<PieceType, string>>>({});
+  const [approved, setApproved] = useState<Partial<Record<PieceType, string>>>(() => session?.approved ?? {});
   const [justApproved, setJustApproved] = useState<PieceType | null>(null);
   const [revision, setRevision] = useState('');
   const [busy, setBusy] = useState<null | { kind: 'new' | 'revision'; count: number }>(null);
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [audits, setAudits] = useState<Record<string, AuditState>>({});
+  const [audits, setAudits] = useState<Record<string, AuditState>>(() =>
+    Object.fromEntries(Object.entries(session?.audits ?? {}).map(([id, audit]) => [id, { status: 'done', audit } as AuditState])),
+  );
+
+  // Imágenes guardadas: se cargan de IndexedDB al abrir.
+  useEffect(() => {
+    let alive = true;
+    const ids = rounds.flatMap(r => r.pieces.map(p => p.id)).filter(id => !images[id]);
+    if (!ids.length) return;
+    Promise.all(ids.map(async id => [id, await loadPieceImage(project.id, id)] as const)).then(found => {
+      if (!alive) return;
+      const loaded = Object.fromEntries(found.filter(([, url]) => url)) as Record<string, string>;
+      if (Object.keys(loaded).length) setImages(im => ({ ...loaded, ...im }));
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Todo lo generado se guarda en el proyecto (las imágenes, aparte).
+  const firstSave = useRef(true);
+  useEffect(() => {
+    if (firstSave.current) {
+      firstSave.current = false;
+      return;
+    }
+    const doneAudits = Object.fromEntries(
+      Object.entries(audits)
+        .filter(([, a]) => a.status === 'done')
+        .map(([id, a]) => [id, (a as { audit: PieceAudit }).audit]),
+    );
+    onSaveSession({ rounds, approved, audits: doneAudits, requests, brandText });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rounds, approved, audits, requests, brandText]);
   const formRef = useRef<HTMLFormElement>(null);
   const requestRef = useRef<HTMLTextAreaElement>(null);
 
-  const allPieces = rounds.flatMap(r => r.pieces);
+  const withImg = (p: GeneratedPiece): Piece => ({ ...p, imageUrl: images[p.id] ?? '' });
+  const allPieces = rounds.flatMap(r => r.pieces).map(withImg);
   const byId = (id?: string) => allPieces.find(p => p.id === id) ?? null;
   const selected = byId(selectedId ?? undefined);
   const lastRound = rounds[rounds.length - 1] ?? null;
@@ -187,11 +203,14 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
     mode,
   });
 
-  const toPieces = (data: any, roundId: string, parentId?: string): Piece[] =>
-    (data.variants || []).map((v: any, i: number) => ({
+  /** Piezas nuevas de una respuesta: sus imágenes se muestran ya y se guardan en IndexedDB. */
+  const toPieces = (data: any, roundId: string, parentId?: string): Piece[] => {
+    const now = new Date().toISOString();
+    const pieces: Piece[] = (data.variants || []).map((v: any, i: number) => ({
       id: `${roundId}_${i}`,
       roundId,
       imageUrl: v.imageUrl,
+      createdAt: now,
       responseId: v.responseId,
       direction: v.direction || '',
       rationale: v.rationale || '',
@@ -201,6 +220,12 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
       mode: data.renderMode === 'direct' ? 'direct' : 'system',
       parentId,
     }));
+    setImages(im => ({ ...im, ...Object.fromEntries(pieces.map(p => [p.id, p.imageUrl])) }));
+    pieces.forEach(p => savePieceImage(project.id, p.id, p.imageUrl));
+    return pieces;
+  };
+  /** Sin la imagen (para guardar en el proyecto). */
+  const strip = ({ imageUrl, ...p }: Piece): GeneratedPiece => p;
 
   const generate = async () => {
     setBusy({ kind: 'new', count: variantCount });
@@ -210,11 +235,25 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
       const refs = sendsRefs
         ? await Promise.all(evidenceRefs.map(async r => ({ id: r.id, image: await compressImageString(r.image, { maxWidth: 1024, maxHeight: 1024, quality: 0.9 }) })))
         : [];
-      const data = await post({ ...common(), references: refs, variants: variantCount, anchorImageUrl: anchor?.imageUrl, anchorPieceType: anchor?.pieceType });
+      const anchorImageUrl = anchor?.imageUrl ? await toDataUrl(anchor.imageUrl) : undefined;
+      const data = await post({ ...common(), references: refs, variants: variantCount, anchorImageUrl, anchorPieceType: anchor?.pieceType });
       const roundId = `r${Date.now()}`;
       const label = `${pieceInfo.label}${mode === 'direct' ? ' · directo' : ''}`;
       const pieces = toPieces(data, roundId);
-      setRounds(rs => [...rs, { id: roundId, label, brief: data.brief, referencesUsed: data.referencesUsed ?? [], pieces, failed: data.failed ?? 0, failureMessage: data.failureMessage }]);
+      setRounds(rs => [
+        ...rs,
+        {
+          id: roundId,
+          label,
+          brief: data.brief,
+          request: details.trim() || undefined,
+          referencesUsed: data.referencesUsed ?? [],
+          pieces: pieces.map(strip),
+          failed: data.failed ?? 0,
+          failureMessage: data.failureMessage,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
       setSelectedId(pieces[0]?.id ?? null);
     } catch (err: any) {
       setError({ message: err?.message || String(err), detail: err?.detail });
@@ -229,10 +268,14 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
     setError(null);
     setJustApproved(null);
     try {
-      const data = await post({ ...common(), pieceType: base.pieceType, mode: base.mode, revision: { text, responseId: base.responseId, imageUrl: base.imageUrl } });
+      const baseImage = base.imageUrl ? await toDataUrl(base.imageUrl) : undefined;
+      const data = await post({ ...common(), pieceType: base.pieceType, mode: base.mode, revision: { text, responseId: base.responseId, imageUrl: baseImage } });
       const roundId = `r${Date.now()}`;
       const pieces = toPieces(data, roundId, base.id).map(p => ({ ...p, mode: base.mode }));
-      setRounds(rs => [...rs, { id: roundId, label: `${pieceInfoOf(base.pieceType).label} · ${label}`, brief: data.brief, referencesUsed: [], pieces, failed: 0 }]);
+      setRounds(rs => [
+        ...rs,
+        { id: roundId, label: `${pieceInfoOf(base.pieceType).label} · ${label}`, brief: data.brief, request: text, referencesUsed: [], pieces: pieces.map(strip), failed: 0, createdAt: new Date().toISOString() },
+      ]);
       setSelectedId(pieces[0]?.id ?? null);
       return pieces[0] ?? null;
     } catch (err: any) {
@@ -362,7 +405,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                     }`}
                   >
                     {p ? (
-                      <img src={p.imageUrl} alt="" className="aspect-[4/3] w-full rounded-ctrl bg-bg object-cover" />
+                      <img src={p.imageUrl || undefined} alt="" className="aspect-[4/3] w-full rounded-ctrl bg-bg object-cover" />
                     ) : (
                       <span className="flex aspect-[4/3] w-full items-center justify-center rounded-ctrl border border-dashed border-line-strong text-ink-2">
                         <Plus className="size-4" aria-hidden="true" />
@@ -461,7 +504,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
               ) : approvedLogo ? (
                 <label className="flex cursor-pointer items-center gap-3 rounded-ctrl border border-line p-2 text-13 text-ink">
                   <input type="checkbox" className="size-4 shrink-0 accent-[#EDEDEF]" checked={useLogo} onChange={e => setUseLogo(e.target.checked)} />
-                  <img src={approvedLogo.imageUrl} alt="" className="size-10 shrink-0 rounded-tag bg-bg object-contain" />
+                  <img src={approvedLogo.imageUrl || undefined} alt="" className="size-10 shrink-0 rounded-tag bg-bg object-contain" />
                   <span className="flex flex-col">
                     Usar el logo aprobado
                     <span className="text-xs text-ink-2">Se reproduce tal cual, sin rediseñarlo.</span>
@@ -584,7 +627,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                   <h2 className="m-0 text-15 font-medium text-ink">{lastRound.label}</h2>
                   <div className="flex items-center gap-3">
                     {lastRound.pieces.length > 1 && lastRound.pieces.some(p => !audits[p.id]) && (
-                      <Button size="sm" variant="ghost" icon={<ClipboardCheck />} onClick={() => lastRound.pieces.filter(p => !audits[p.id]).forEach(auditPiece)}>
+                      <Button size="sm" variant="ghost" icon={<ClipboardCheck />} onClick={() => lastRound.pieces.map(withImg).filter(p => !audits[p.id]).forEach(auditPiece)}>
                         Auditar las {lastRound.pieces.length}
                       </Button>
                     )}
@@ -597,7 +640,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                   </p>
                 )}
                 <ul className={`m-0 grid list-none gap-3 p-0 ${lastRound.pieces.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                  {lastRound.pieces.map((p, i) => {
+                  {lastRound.pieces.map(withImg).map((p, i) => {
                     const a = auditOf(p.id);
                     const isApproved = approved[p.pieceType] === p.id;
                     return (
@@ -612,7 +655,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                           }`}
                         >
                           <img
-                            src={p.imageUrl}
+                            src={p.imageUrl || undefined}
                             alt=""
                             className={`max-h-[52vh] w-full rounded-ctrl object-contain ${p.pieceType === 'logo' && transparent ? 'bg-[repeating-conic-gradient(#222_0_25%,#2c2c2c_0_50%)] bg-[length:16px_16px]' : 'bg-bg'}`}
                           />
@@ -652,7 +695,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                       Auditar
                     </Button>
                   )}
-                  <a className="btn btn-ghost btn-sm" href={selected.imageUrl} download={`${system.name.replace(/\s+/g, '_')}_${selected.pieceType}_${selected.id}.png`}>
+                  <a className="btn btn-ghost btn-sm" href={selected.imageUrl || undefined} download={`${system.name.replace(/\s+/g, '_')}_${selected.pieceType}_${selected.id}.png`}>
                     <Download aria-hidden="true" />
                     Descargar
                   </a>
@@ -747,7 +790,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                           aria-label={`Pieza ${i + 1}: ${pieceInfoOf(p.pieceType).label}${isApproved ? ', aprobada' : ''}`}
                           className={`flex w-[72px] flex-col overflow-hidden rounded-ctrl border ${p.id === selectedId ? 'border-ink' : 'border-line hover:border-line-strong'}`}
                         >
-                          <img src={p.imageUrl} alt="" className="size-[70px] bg-bg object-cover" />
+                          <img src={p.imageUrl || undefined} alt="" className="size-[70px] bg-bg object-cover" />
                           <span className="truncate bg-raised px-1 text-center text-xs text-ink-2">
                             {isApproved ? '✓ ' : ''}
                             {a ? scoreLabel(a) : pieceInfoOf(p.pieceType).label}

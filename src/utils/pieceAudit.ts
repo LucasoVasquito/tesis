@@ -1,31 +1,7 @@
-import { PaletteColor } from '../types';
+import { ExtractedColor, PaletteCheck, PaletteColor, PieceAudit } from '../types';
 import { deltaE, hexToLab } from './palette';
 
-/** Resultado de la auditoría de una pieza generada. */
-export interface PieceAudit {
-  textRead: string;
-  textOk: boolean;
-  textIssue: string;
-  rules: { code: string; title: string; verdict: 'cumple' | 'parcial' | 'no_cumple'; reason: string }[];
-  quality: string;
-  fixes: string[];
-  palette: PaletteCheck;
-  at: string;
-}
-
-export interface ExtractedColor {
-  hex: string;
-  share: number;
-}
-
-export interface PaletteCheck {
-  /** Colores principales de la pieza. */
-  colors: ExtractedColor[];
-  /** Colores del sistema: si aparecen y con qué color de la pieza. */
-  system: { hex: string; name: string; found: boolean; match?: string }[];
-  /** Colores con presencia que no son del sistema. */
-  outside: ExtractedColor[];
-}
+export type { ExtractedColor, PaletteCheck, PieceAudit };
 
 const toHex = (r: number, g: number, b: number) => `#${[r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
 
