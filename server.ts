@@ -1105,7 +1105,11 @@ function buildBrief(b: any, piece: PieceSpec): string {
   const asText = (x: any) =>
     typeof x === "string"
       ? x
-      : [x?.title, x?.detail && x.detail !== x.title ? x.detail : "", x?.use?.length ? `Use for: ${x.use.join(", ")}.` : "", x?.avoid?.length ? `Avoid for: ${x.avoid.join(", ")}.` : ""]
+      : [
+          // Si el título es el comienzo truncado del detalle ("Utilizar fuentes…"), alcanza con el detalle.
+          x?.detail && x?.title && x.detail.startsWith(String(x.title).replace(/…$/, "")) ? "" : x?.title,
+          x?.detail && x.detail !== x.title ? x.detail : "",
+          x?.use?.length ? `Use for: ${x.use.join(", ")}.` : "", x?.avoid?.length ? `Avoid for: ${x.avoid.join(", ")}.` : ""]
           .filter(Boolean)
           .join(" — ");
   const list = (title: string, items?: any[], max = 4) =>
@@ -1179,9 +1183,13 @@ interface ResponsesResult {
   rationale: string;
 }
 
+/** El modelo no existe, está retirado o la cuenta no tiene acceso: tiene sentido probar con otro. */
 const isModelProblem = (err: any) => {
   const m = String(err?.message || "").toLowerCase();
-  return err?.status === 404 || m.includes("model") || m.includes("does not exist") || m.includes("not found") || m.includes("unsupported");
+  return (
+    err?.status === 404 ||
+    /does not exist|not found|model_not_found|deprecated|do not have access to (the )?model|not supported (for|with) (this )?model|unsupported model/.test(m)
+  );
 };
 
 async function callResponses(key: string, body: any): Promise<ResponsesResult> {
@@ -1221,9 +1229,11 @@ async function callResponses(key: string, body: any): Promise<ResponsesResult> {
  * Una generación con la Responses API. Si el modelo de imagen o de texto configurado no está
  * disponible para la cuenta, reintenta con alternativas; si tool_choice no se admite, lo omite.
  */
-async function generateWithResponses(key: string, opts: { input: any; previousResponseId?: string; tool: any; textModel: string; imageModel: string }) {
+async function generateWithResponses(key: string, opts: { input: any; previousResponseId?: string; tool: any; textModel: string; imageModel: string }): Promise<any> {
   const textModels = Array.from(new Set([opts.textModel, "gpt-5", "gpt-4.1"]));
-  const imageModels = Array.from(new Set([opts.imageModel, "gpt-image-2", "gpt-image-1"]));
+  const imageModels = Array.from(new Set([opts.imageModel, "gpt-image-2", "gpt-image-1.5"]));
+  // Se informa el primer error "real" (no el de un modelo de respaldo que no existe o está retirado).
+  let firstErr: any = null;
   let lastErr: any = null;
   for (const textModel of textModels) {
     for (const imageModel of imageModels) {
@@ -1241,20 +1251,23 @@ async function generateWithResponses(key: string, opts: { input: any; previousRe
           return { ...result, textModel, imageModel };
         } catch (err: any) {
           lastErr = err;
+          const where = String(err?.param || "") + " " + String(err?.message || "");
           console.warn(`[Imagen] ${textModel} + ${imageModel}${forceTool ? "" : " (sin tool_choice)"} falló: ${err?.message}`);
-          if (forceTool && String(err?.param || err?.message || "").includes("tool_choice")) continue;
-          // Si el modelo de imagen no admite input_fidelity, se reintenta sin ese parámetro.
-          if (String(err?.param || err?.message || "").includes("input_fidelity") && opts.tool.input_fidelity) {
+          if (forceTool && where.includes("tool_choice")) continue;
+          // Alta fidelidad a la imagen adjunta (logo aprobado): si el modelo no la admite, se reintenta sin ella.
+          if (opts.tool.input_fidelity && (where.includes("fidelity") || (err?.status === 400 && String(err?.param || "").startsWith("tools")))) {
             const { input_fidelity, ...rest } = opts.tool;
+            console.warn(`[Imagen] Reintento sin input_fidelity`);
             return generateWithResponses(key, { ...opts, tool: rest });
           }
-          if (!isModelProblem(err)) throw err; // saldo, verificación, contenido: no se resuelve cambiando de modelo
+          if (!isModelProblem(err)) throw err; // saldo, verificación, contenido o parámetro: no se resuelve cambiando de modelo
+          if (!firstErr && !/deprecated|does not exist|not found/i.test(String(err?.message))) firstErr = err;
           break;
         }
       }
     }
   }
-  throw lastErr;
+  throw firstErr ?? lastErr;
 }
 
 // ==========================================

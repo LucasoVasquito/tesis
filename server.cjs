@@ -1052,7 +1052,12 @@ function buildBrief(b, piece) {
     const r = b.resources || {};
     const asText = (x) => typeof x === "string"
         ? x
-        : [x?.title, x?.detail && x.detail !== x.title ? x.detail : "", x?.use?.length ? `Use for: ${x.use.join(", ")}.` : "", x?.avoid?.length ? `Avoid for: ${x.avoid.join(", ")}.` : ""]
+        : [
+            // Si el título es el comienzo truncado del detalle ("Utilizar fuentes…"), alcanza con el detalle.
+            x?.detail && x?.title && x.detail.startsWith(String(x.title).replace(/…$/, "")) ? "" : x?.title,
+            x?.detail && x.detail !== x.title ? x.detail : "",
+            x?.use?.length ? `Use for: ${x.use.join(", ")}.` : "", x?.avoid?.length ? `Avoid for: ${x.avoid.join(", ")}.` : ""
+        ]
             .filter(Boolean)
             .join(" — ");
     const list = (title, items, max = 4) => Array.isArray(items) && items.length ? `${title}:\n${items.slice(0, max).map((x) => `- ${asText(x)}`).join("\n")}` : "";
@@ -1119,9 +1124,11 @@ async function toDataUrl(src, id) {
     const part = await resolveImagePart(src, id);
     return part ? `data:${part.mimeType};base64,${part.data}` : null;
 }
+/** El modelo no existe, está retirado o la cuenta no tiene acceso: tiene sentido probar con otro. */
 const isModelProblem = (err) => {
     const m = String(err?.message || "").toLowerCase();
-    return err?.status === 404 || m.includes("model") || m.includes("does not exist") || m.includes("not found") || m.includes("unsupported");
+    return (err?.status === 404 ||
+        /does not exist|not found|model_not_found|deprecated|do not have access to (the )?model|not supported (for|with) (this )?model|unsupported model/.test(m));
 };
 async function callResponses(key, body) {
     const response = await fetch("https://api.openai.com/v1/responses", {
@@ -1161,7 +1168,9 @@ async function callResponses(key, body) {
  */
 async function generateWithResponses(key, opts) {
     const textModels = Array.from(new Set([opts.textModel, "gpt-5", "gpt-4.1"]));
-    const imageModels = Array.from(new Set([opts.imageModel, "gpt-image-2", "gpt-image-1"]));
+    const imageModels = Array.from(new Set([opts.imageModel, "gpt-image-2", "gpt-image-1.5"]));
+    // Se informa el primer error "real" (no el de un modelo de respaldo que no existe o está retirado).
+    let firstErr = null;
     let lastErr = null;
     for (const textModel of textModels) {
         for (const imageModel of imageModels) {
@@ -1182,22 +1191,26 @@ async function generateWithResponses(key, opts) {
                 }
                 catch (err) {
                     lastErr = err;
+                    const where = String(err?.param || "") + " " + String(err?.message || "");
                     console.warn(`[Imagen] ${textModel} + ${imageModel}${forceTool ? "" : " (sin tool_choice)"} falló: ${err?.message}`);
-                    if (forceTool && String(err?.param || err?.message || "").includes("tool_choice"))
+                    if (forceTool && where.includes("tool_choice"))
                         continue;
-                    // Si el modelo de imagen no admite input_fidelity, se reintenta sin ese parámetro.
-                    if (String(err?.param || err?.message || "").includes("input_fidelity") && opts.tool.input_fidelity) {
+                    // Alta fidelidad a la imagen adjunta (logo aprobado): si el modelo no la admite, se reintenta sin ella.
+                    if (opts.tool.input_fidelity && (where.includes("fidelity") || (err?.status === 400 && String(err?.param || "").startsWith("tools")))) {
                         const { input_fidelity, ...rest } = opts.tool;
+                        console.warn(`[Imagen] Reintento sin input_fidelity`);
                         return generateWithResponses(key, { ...opts, tool: rest });
                     }
                     if (!isModelProblem(err))
-                        throw err; // saldo, verificación, contenido: no se resuelve cambiando de modelo
+                        throw err; // saldo, verificación, contenido o parámetro: no se resuelve cambiando de modelo
+                    if (!firstErr && !/deprecated|does not exist|not found/i.test(String(err?.message)))
+                        firstErr = err;
                     break;
                 }
             }
         }
     }
-    throw lastErr;
+    throw firstErr ?? lastErr;
 }
 // ==========================================
 // 4. Auditoría de una pieza generada contra el sistema (Gemini)
