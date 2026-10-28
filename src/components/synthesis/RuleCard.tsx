@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { PaletteColor, Reference, Rule } from '../../types';
 import { FAMILIES, Family } from '../../utils/families';
 import { contrast, guessStyle, Specimen } from './Specimen';
@@ -82,9 +82,15 @@ interface RuleCardProps {
   showWhy: boolean;
   /** Posición de la ficha dentro de su familia: rota las combinaciones de color del espécimen. */
   index?: number;
+  /** Tablero: foco en un patrón (la ficha se atenúa si no sale de él). */
+  dim?: boolean;
+  highlight?: boolean;
+  onFocusPattern?: (patternId: string) => void;
+  onHoverPatterns?: (ids: string[] | null) => void;
 }
 
-export function RuleCard({ rule, family, palette, references, fallback, specimenText, showWhy, index = 0 }: RuleCardProps) {
+export function RuleCard({ rule, family, palette, references, fallback, specimenText, showWhy, index = 0, dim, highlight, onFocusPattern, onHoverPatterns }: RuleCardProps) {
+  const [open, setOpen] = useState(false);
   const byId = new Map(references.map(r => [r.id, r]));
   let kind = rule.example?.kind ?? 'evidence';
   const ownIds = rule.example?.refIds?.length ? rule.example.refIds : rule.refIds;
@@ -100,7 +106,13 @@ export function RuleCard({ rule, family, palette, references, fallback, specimen
   if (kind === 'type' && !rule.example?.text && refs.length) kind = 'evidence';
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-card border border-line bg-bg">
+    <article
+      className={`flex flex-col overflow-hidden rounded-card border bg-bg transition-[opacity,border-color] duration-180 ease-emergent ${
+        highlight ? 'border-signal/70' : 'border-line'
+      } ${dim ? 'opacity-35' : ''}`}
+      onMouseEnter={() => onHoverPatterns?.(rule.patternIds)}
+      onMouseLeave={() => onHoverPatterns?.(null)}
+    >
       {kind === 'type' ? (
         <Specimen
           text={rule.example?.text || specimenText}
@@ -140,8 +152,36 @@ export function RuleCard({ rule, family, palette, references, fallback, specimen
             ) : null}
           </div>
         )}
-        {showWhy && !truncated && rule.detail && rule.detail !== rule.title && <p className="m-0 font-serif text-15 leading-normal text-ink-2">{rule.detail}</p>}
-        {trace && <span className="mt-auto font-mono text-xs text-signal-ink">← {trace}</span>}
+        {!truncated && rule.detail && rule.detail !== rule.title && (
+          <div className="flex flex-col items-start gap-1">
+            <p className={`m-0 font-serif text-15 leading-normal text-ink-2 ${showWhy || open ? '' : 'line-clamp-3'}`}>{rule.detail}</p>
+            {!showWhy && rule.detail.length > 150 && (
+              <button type="button" className="text-xs text-ink underline-offset-2 hover:underline" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+                {open ? 'Ver menos' : 'Ver más'}
+              </button>
+            )}
+          </div>
+        )}
+        {trace &&
+          (onFocusPattern && rule.patternIds.length ? (
+            <span className="mt-auto flex flex-wrap items-center gap-1 font-mono text-xs text-signal-ink">
+              ←
+              {rule.patternIds.map(pid => (
+                <button
+                  key={pid}
+                  type="button"
+                  onClick={() => onFocusPattern(pid)}
+                  className="rounded-[3px] px-1 hover:bg-signal/10"
+                  title={`Ver todo lo que sale de ${pid}`}
+                >
+                  {pid}
+                </button>
+              ))}
+              {rule.refIds.length ? <span className="text-ink-2">· {rule.refIds.join(' ')}</span> : null}
+            </span>
+          ) : (
+            <span className="mt-auto font-mono text-xs text-signal-ink">← {trace}</span>
+          ))}
       </div>
     </article>
   );

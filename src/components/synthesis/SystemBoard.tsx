@@ -33,7 +33,7 @@ interface SystemBoardProps {
   onDelete: () => void;
 }
 
-type Tab = RuleField | 'color';
+type SectionId = 'pillars' | RuleField | 'color';
 
 /* ---------- Menú "⋯" ---------- */
 function OverflowMenu({ items }: { items: { label: string; onSelect: () => void; danger?: boolean; disabled?: boolean }[] }) {
@@ -175,8 +175,11 @@ export function SystemBoard(props: SystemBoardProps) {
   const [over, setOver] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [tab, setTab] = useState<Tab>('typographyRules');
-  const [showWhy, setShowWhy] = useState(false);
+  /** Patrón en foco: resalta los pilares y reglas que salen de él. */
+  const [focusPid, setFocusPid] = useState<string | null>(null);
+  /** Patrones de la ficha bajo el puntero (se resaltan en la cabecera). */
+  const [hoverPids, setHoverPids] = useState<string[] | null>(null);
+  const [descOpen, setDescOpen] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
 
@@ -204,18 +207,32 @@ export function SystemBoard(props: SystemBoardProps) {
     return undefined;
   };
 
-  const tabs: { id: Tab; label: string; count: number; color: string }[] = [
-    { id: 'typographyRules', label: 'Tipografía', count: s.typographyRules?.length ?? 0, color: RULE_FAMILY.typographyRules.color },
-    { id: 'textureRules', label: 'Textura', count: s.textureRules?.length ?? 0, color: RULE_FAMILY.textureRules.color },
-    { id: 'compositionRules', label: 'Composición', count: s.compositionRules?.length ?? 0, color: RULE_FAMILY.compositionRules.color },
-    { id: 'color', label: 'Color', count: palette.length, color: '' },
+  const families: { id: RuleField; label: string; color: string; rules: Rule[] }[] = [
+    { id: 'typographyRules', label: 'Tipografía', color: RULE_FAMILY.typographyRules.color, rules: s.typographyRules ?? [] },
+    { id: 'textureRules', label: 'Textura', color: RULE_FAMILY.textureRules.color, rules: s.textureRules ?? [] },
+    { id: 'compositionRules', label: 'Composición', color: RULE_FAMILY.compositionRules.color, rules: s.compositionRules ?? [] },
   ];
-  const activeRules: Rule[] = tab === 'color' ? [] : (s[tab] ?? []);
+  const sections: { id: SectionId; label: string; count: number; color?: string }[] = [
+    { id: 'pillars', label: 'Pilares', count: s.aestheticPillars?.length ?? 0 },
+    ...families.map(f => ({ id: f.id as SectionId, label: f.label, count: f.rules.length, color: f.color })),
+    { id: 'color', label: 'Color', count: palette.length },
+  ];
+  const sectionId = (id: SectionId) => `${titleId}-${id}`;
+  const goTo = (id: SectionId) => document.getElementById(sectionId(id))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  /** Qué sale de cada patrón (para el foco). */
+  const pillarPids = (i: number) => [...(s.sources?.aestheticPillars?.[i] ?? []), ...(images[i]?.patternIds ?? []), images[i]?.matchedPatternId].filter(Boolean) as string[];
+  const reach = (pid: string) => ({
+    pillars: (s.aestheticPillars ?? []).filter((_, i) => pillarPids(i).includes(pid)).length,
+    rules: families.reduce((n, f) => n + f.rules.filter(r => r.patternIds.includes(pid)).length, 0),
+  });
+  const focusPattern = focusPid ? patternMap.get(focusPid) : null;
+  const toggleFocus = (pid: string) => setFocusPid(f => (f === pid ? null : pid));
 
   return (
     <article
       aria-labelledby={titleId}
-      className={`flex min-w-0 flex-col overflow-hidden rounded-[12px] border bg-surface transition-colors duration-120 ${over ? 'border-signal/60' : 'border-line'}`}
+      className={`flex min-w-0 flex-col overflow-clip rounded-[12px] border bg-surface transition-colors duration-120 ${over ? 'border-signal/60' : 'border-line'}`}
       onDragOver={e => {
         if (Array.from(e.dataTransfer.types).includes(DND_TYPE)) {
           e.preventDefault();
@@ -278,14 +295,44 @@ export function SystemBoard(props: SystemBoardProps) {
               className="-ml-1 w-full rounded-ctrl border border-transparent bg-transparent px-1 text-[28px] font-semibold leading-tight tracking-[-0.02em] text-ink outline-none hover:border-line-mid focus:border-white/40 focus:shadow-[0_0_0_3px_rgba(255,255,255,.08)]"
             />
           </h3>
-          {s.description && !editing && <p className="m-0 line-clamp-1 max-w-[720px] font-serif text-[17px] text-ink-2" title={s.description}>{s.description}</p>}
+          {s.description && !editing && (
+            <div className="flex max-w-[760px] flex-col items-start gap-1">
+              <p className={`m-0 font-serif text-[17px] leading-normal text-ink-2 ${descOpen ? '' : 'line-clamp-2'}`}>{s.description}</p>
+              {s.description.length > 160 && (
+                <button type="button" className="text-xs text-ink underline-offset-2 hover:underline" aria-expanded={descOpen} onClick={() => setDescOpen(o => !o)}>
+                  {descOpen ? 'Ver menos' : 'Leer el concepto completo'}
+                </button>
+              )}
+            </div>
+          )}
           {/* Patrones asignados (zona de soltado) */}
-          <ul className="m-0 mt-1 flex list-none flex-wrap gap-1 p-0" aria-label="Patrones del sistema">
+          <span className="mt-2 text-xs text-ink-2">Patrones · tocá uno para ver qué pilares y reglas salen de él</span>
+          <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0" aria-label="Patrones del sistema">
             {patterns.map(p => {
               const f = familyOf(p.category);
+              const active = focusPid === p.id;
+              const hovered = hoverPids?.includes(p.id);
               return (
-                <li key={p.id} className="flex h-7 items-center gap-1 rounded-tag border pl-2 font-mono text-xs" style={{ borderColor: `oklch(0.8 0.11 ${f.hue ?? 0} / .3)`, color: f.ink }}>
-                  <span title={p.name}>{p.id}</span>
+                <li
+                  key={p.id}
+                  className={`flex h-8 max-w-[260px] items-center rounded-tag border text-xs transition-[background-color,border-color,opacity] duration-120 ${
+                    active ? 'bg-signal/12' : hovered ? 'bg-white/5' : ''
+                  } ${focusPid && !active ? 'opacity-50' : ''}`}
+                  style={{ borderColor: active || hovered ? 'var(--color-signal)' : `oklch(0.8 0.11 ${f.hue ?? 0} / .35)` }}
+                >
+                  <button
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => toggleFocus(p.id)}
+                    className="flex h-full min-w-0 items-center gap-1.5 pl-2 pr-1 text-left"
+                    title={`${p.name} — ${f.label}`}
+                  >
+                    <span aria-hidden="true" className="size-2 shrink-0 rounded-[2px]" style={{ background: f.color }} />
+                    <span className="font-mono" style={{ color: f.ink }}>
+                      {p.id}
+                    </span>
+                    <span className="truncate text-ink">{p.name}</span>
+                  </button>
                   <button
                     type="button"
                     className="flex size-6 items-center justify-center rounded-tag text-ink-2 hover:bg-white/5 hover:text-ink"
@@ -297,7 +344,7 @@ export function SystemBoard(props: SystemBoardProps) {
                 </li>
               );
             })}
-            <li className={`flex h-7 items-center rounded-tag border border-dashed px-2 text-xs ${over ? 'border-signal text-signal-ink' : 'border-line-strong text-ink-2'}`}>
+            <li className={`flex h-8 items-center rounded-tag border border-dashed px-2 text-xs ${over ? 'border-signal text-signal-ink' : 'border-line-strong text-ink-2'}`}>
               {over ? 'Soltá para asignar' : 'Arrastrá patrones acá'}
             </li>
           </ul>
@@ -375,104 +422,138 @@ export function SystemBoard(props: SystemBoardProps) {
         />
       )}
 
-      {/* 3 · Pilares */}
-      <section aria-label="Pilares" className="flex flex-col gap-4 border-b border-line p-6">
-        <span className="font-mono text-xs text-ink-2">Pilares · {s.aestheticPillars?.length ?? 0}</span>
+      {/* 3 · Barra de secciones (fija) y foco */}
+      <nav aria-label={`Secciones de ${s.name}`} className="sticky top-0 z-10 flex flex-col gap-2 border-b border-line bg-surface/95 px-6 py-3 backdrop-blur">
+        <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
+          {sections.map(sec => (
+            <li key={sec.id}>
+              <button
+                type="button"
+                onClick={() => goTo(sec.id)}
+                className="flex h-8 items-center gap-2 rounded-ctrl px-3 text-13 font-medium text-ink-2 transition-colors duration-120 hover:bg-white/5 hover:text-ink"
+              >
+                {sec.id === 'color' ? (
+                  <span aria-hidden="true" className="flex h-2 w-3 overflow-hidden rounded-[2px]">
+                    {(palette.length ? palette.slice(0, 3) : [{ hex: '#6B6B73' }]).map((c, i) => (
+                      <span key={i} className="flex-1" style={{ background: c.hex }} />
+                    ))}
+                  </span>
+                ) : sec.color ? (
+                  <span aria-hidden="true" className="size-2 rounded-[2px]" style={{ background: sec.color }} />
+                ) : null}
+                {sec.label}
+                <span className="font-mono text-xs">{sec.count}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {focusPattern && (
+          <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-ctrl border border-signal/40 bg-signal/5 px-3 py-2 text-13">
+            <span className="text-ink">
+              Foco en <span className="font-mono text-signal-ink">{focusPattern.id}</span> · {focusPattern.name}
+            </span>
+            <span className="text-xs text-ink-2">
+              {(() => {
+                const r = reach(focusPattern.id);
+                return `sostiene ${r.pillars} ${r.pillars === 1 ? 'pilar' : 'pilares'} y ${r.rules} ${r.rules === 1 ? 'regla' : 'reglas'}`;
+              })()}
+            </span>
+            <button type="button" className="ml-auto text-xs text-ink underline-offset-2 hover:underline" onClick={() => setFocusPid(null)}>
+              Quitar foco
+            </button>
+          </div>
+        )}
+      </nav>
+
+      {/* 4 · Pilares */}
+      <section id={sectionId('pillars')} aria-labelledby={`${sectionId('pillars')}-h`} className="flex scroll-mt-28 flex-col gap-4 border-b border-line p-6">
+        <h4 id={`${sectionId('pillars')}-h`} className="m-0 text-15 font-medium text-ink">
+          Pilares <span className="font-mono text-xs font-normal text-ink-2">· {s.aestheticPillars?.length ?? 0}</span>
+        </h4>
         {s.aestheticPillars?.length ? (
           <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3 p-0">
-            {s.aestheticPillars.map((pillar, i) => (
-              <PillarTile
-                key={i}
-                index={i}
-                pillar={pillar}
-                image={images[i] ?? null}
-                patterns={patternMap}
-                candidates={candidates}
-                onChoose={refId => {
-                  const refs = [...(s.sources?.pillarRefs ?? [])];
-                  while (refs.length < (s.aestheticPillars?.length ?? 0)) refs.push(null);
-                  refs[i] = refId;
-                  props.onUpdate({ ...s, sources: { ...s.sources, pillarRefs: refs }, updatedAt: new Date().toISOString() });
-                }}
-              />
-            ))}
+            {s.aestheticPillars.map((pillar, i) => {
+              const linked = focusPid ? pillarPids(i).includes(focusPid) : false;
+              return (
+                <PillarTile
+                  key={i}
+                  index={i}
+                  pillar={pillar}
+                  image={images[i] ?? null}
+                  patterns={patternMap}
+                  candidates={candidates}
+                  dim={!!focusPid && !linked}
+                  highlight={linked}
+                  onChoose={refId => {
+                    const refs = [...(s.sources?.pillarRefs ?? [])];
+                    while (refs.length < (s.aestheticPillars?.length ?? 0)) refs.push(null);
+                    refs[i] = refId;
+                    props.onUpdate({ ...s, sources: { ...s.sources, pillarRefs: refs }, updatedAt: new Date().toISOString() });
+                  }}
+                />
+              );
+            })}
           </ul>
         ) : (
           <p className="m-0 text-13 text-ink-2">Todavía no hay pilares. “Redactar con IA” los propone a partir de los patrones asignados.</p>
         )}
       </section>
 
-      {/* 4 · Reglas */}
-      <section aria-label="Reglas" className="flex flex-col gap-5 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div role="tablist" aria-label="Familias de reglas" className="flex flex-wrap gap-1 rounded-[8px] border border-line bg-bg p-1">
-            {tabs.map(t => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                id={`${titleId}-tab-${t.id}`}
-                aria-selected={tab === t.id}
-                aria-controls={`${titleId}-panel`}
-                onClick={() => setTab(t.id)}
-                className={`flex h-8 items-center gap-2 rounded-ctrl px-3 text-13 font-medium transition-colors duration-120 ${
-                  tab === t.id ? 'bg-raised text-ink' : 'text-ink-2 hover:text-ink'
-                }`}
-              >
-                {t.id === 'color' ? (
-                  <span aria-hidden="true" className="flex h-2 w-3 overflow-hidden rounded-[2px]">
-                    {(palette.length ? palette.slice(0, 3) : [{ hex: '#6B6B73' }]).map((c, i) => (
-                      <span key={i} className="flex-1" style={{ background: c.hex }} />
-                    ))}
-                  </span>
-                ) : (
-                  <span aria-hidden="true" className="size-2 rounded-[2px]" style={{ background: t.color }} />
-                )}
-                {t.label}
-                <span className="font-mono text-xs text-ink-2">{t.count}</span>
-              </button>
-            ))}
-          </div>
-          {tab !== 'color' && activeRules.some(r => r.detail && r.detail !== r.title) && (
-            <Button size="sm" variant="ghost" aria-pressed={showWhy} onClick={() => setShowWhy(v => !v)}>
-              {showWhy ? 'Ocultar fundamentos' : 'Ver fundamentos'}
-            </Button>
-          )}
-        </div>
-
-        <div id={`${titleId}-panel`} role="tabpanel" aria-labelledby={`${titleId}-tab-${tab}`}>
-          {tab === 'color' ? (
-            palette.length ? (
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
-                {palette.map((c, i) => (
-                  <ColorCard key={`${c.hex}-${i}`} c={c} />
-                ))}
-              </div>
-            ) : (
-              <p className="m-0 text-13 text-ink-2">Sin paleta inferida.</p>
-            )
-          ) : activeRules.length ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
-              {activeRules.map((r, i) => (
-                <RuleCard
-                  key={r.code}
-                  index={i}
-                  rule={r}
-                  family={RULE_FAMILY[tab as RuleField] ?? FAMILIES.image}
-                  palette={palette}
-                  references={project.references}
-                  fallback={ruleEvidence(r, tab as RuleField, s, project, i)}
-                  specimenText={brand}
-                  showWhy={showWhy}
-                />
-              ))}
+      {/* 5 · Reglas por familia (todas visibles) */}
+      {families.map(f => (
+        <section key={f.id} id={sectionId(f.id)} aria-labelledby={`${sectionId(f.id)}-h`} className="flex scroll-mt-28 flex-col gap-4 border-b border-line p-6">
+          <h4 id={`${sectionId(f.id)}-h`} className="m-0 flex items-center gap-2 text-15 font-medium text-ink">
+            <span aria-hidden="true" className="size-2.5 rounded-[2px]" style={{ background: f.color }} />
+            {f.label}
+            <span className="font-mono text-xs font-normal text-ink-2">
+              · {f.rules.length} {f.rules.length === 1 ? 'regla' : 'reglas'}
+            </span>
+          </h4>
+          {f.rules.length ? (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
+              {f.rules.map((r, i) => {
+                const linked = focusPid ? r.patternIds.includes(focusPid) : false;
+                return (
+                  <RuleCard
+                    key={r.code}
+                    index={i}
+                    rule={r}
+                    family={RULE_FAMILY[f.id] ?? FAMILIES.image}
+                    palette={palette}
+                    references={project.references}
+                    fallback={ruleEvidence(r, f.id, s, project, i)}
+                    specimenText={brand}
+                    showWhy={false}
+                    dim={!!focusPid && !linked}
+                    highlight={linked}
+                    onFocusPattern={toggleFocus}
+                    onHoverPatterns={setHoverPids}
+                  />
+                );
+              })}
             </div>
           ) : (
             <p className="m-0 text-13 text-ink-2">
               {drafted ? 'Este sistema no tiene reglas de esta familia.' : 'Todavía no hay reglas. “Redactar con IA” las propone como fichas con ejemplo y trazabilidad.'}
             </p>
           )}
-        </div>
+        </section>
+      ))}
+
+      {/* 6 · Color */}
+      <section id={sectionId('color')} aria-labelledby={`${sectionId('color')}-h`} className="flex scroll-mt-28 flex-col gap-4 p-6">
+        <h4 id={`${sectionId('color')}-h`} className="m-0 text-15 font-medium text-ink">
+          Color <span className="font-mono text-xs font-normal text-ink-2">· {palette.length}</span>
+        </h4>
+        {palette.length ? (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3">
+            {palette.map((c, i) => (
+              <ColorCard key={`${c.hex}-${i}`} c={c} />
+            ))}
+          </div>
+        ) : (
+          <p className="m-0 text-13 text-ink-2">Sin paleta inferida.</p>
+        )}
       </section>
     </article>
   );
