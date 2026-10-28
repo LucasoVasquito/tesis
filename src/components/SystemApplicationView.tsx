@@ -4,6 +4,8 @@ import { Project, Reference, SystemResourceKey, VisualSystem } from '../types';
 import { Button, EmptyState, ErrorState, LoadingState, TextArea, TextInput } from './ui';
 import { FullView } from './shell/FullView';
 import { compressImageString } from '../utils/imageCompressor';
+import { checkPalette, extractColors, PieceAudit } from '../utils/pieceAudit';
+import { AuditState, PieceAuditPanel, scoreLabel } from './application/PieceAuditPanel';
 
 interface SystemApplicationViewProps {
   project: Project;
@@ -14,16 +16,21 @@ interface SystemApplicationViewProps {
 
 type PieceType = 'logo' | 'poster' | 'packaging' | 'post' | 'story' | 'facade' | 'web' | 'other';
 
-const PIECES: { id: PieceType; label: string; format: string }[] = [
-  { id: 'logo', label: 'Logotipo', format: '1:1' },
-  { id: 'poster', label: 'Afiche', format: '2:3' },
-  { id: 'packaging', label: 'Packaging', format: '1:1' },
-  { id: 'post', label: 'Post', format: '1:1' },
-  { id: 'story', label: 'Story', format: '2:3' },
-  { id: 'facade', label: 'Fachada', format: '3:2' },
-  { id: 'web', label: 'Web', format: '3:2' },
-  { id: 'other', label: 'Otra', format: 'auto' },
+type RuleFamily = 'typography' | 'texture' | 'composition';
+/** Igual que en el servidor: qué familias de reglas importan en cada soporte. */
+const PIECES: { id: PieceType; label: string; format: string; photo?: boolean; rules: RuleFamily[] }[] = [
+  { id: 'logo', label: 'Logotipo', format: '1:1', rules: ['typography'] },
+  { id: 'poster', label: 'Afiche', format: '2:3', rules: ['typography', 'texture', 'composition'] },
+  { id: 'packaging', label: 'Packaging', format: '1:1', photo: true, rules: ['typography', 'texture'] },
+  { id: 'post', label: 'Post', format: '1:1', rules: ['typography', 'composition'] },
+  { id: 'story', label: 'Story', format: '2:3', rules: ['typography', 'composition'] },
+  { id: 'facade', label: 'Fachada', format: '3:2', photo: true, rules: ['typography', 'texture'] },
+  { id: 'web', label: 'Web', format: '3:2', rules: ['typography', 'composition'] },
+  { id: 'other', label: 'Otra', format: 'auto', rules: ['typography', 'texture', 'composition'] },
 ];
+
+/** system: el director de arte recibe lo esencial del sistema. direct: solo el pedido, como en ChatGPT (para comparar). */
+type GenMode = 'system' | 'direct';
 
 /** Una imagen generada: una variante de una ronda, o una iteración sobre una variante. */
 interface Piece {
@@ -36,6 +43,7 @@ interface Piece {
   revisedPrompt: string;
   model: string;
   pieceType: PieceType;
+  mode: GenMode;
   parentId?: string;
 }
 
@@ -64,6 +72,7 @@ const RESOURCES: { key: SystemResourceKey; label: string; category?: string }[] 
 export function SystemApplicationView({ project, system, onBack, onOpenLightbox }: SystemApplicationViewProps) {
   const patterns = project.patterns.filter(p => system.patternIds.includes(p.id) && p.status === 'confirmed');
   const [pieceType, setPieceType] = useState<PieceType>('logo');
+  const [mode, setMode] = useState<GenMode>('system');
   const [brandText, setBrandText] = useState(() => project.name.split(/\s[—–-]\s/)[0].trim());
   const [details, setDetails] = useState('');
   const [variantCount, setVariantCount] = useState(2);
@@ -76,11 +85,16 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
   const [busy, setBusy] = useState<null | { kind: 'new' | 'revision'; count: number }>(null);
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [audits, setAudits] = useState<Record<string, AuditState>>({});
 
   const allPieces = rounds.flatMap(r => r.pieces);
   const selected = allPieces.find(p => p.id === selectedId) ?? null;
   const anchor = allPieces.find(p => p.id === anchorId) ?? null;
   const lastRound = rounds[rounds.length - 1] ?? null;
+  const pieceInfo = PIECES.find(p => p.id === pieceType)!;
+  const isPhoto = !!pieceInfo.photo;
+  const sendsRefs = mode === 'system' && !isPhoto;
+  const anchorIsLogo = anchor?.pieceType === 'logo' && pieceType !== 'logo';
 
   /** Referencias de evidencia (hasta 4) que el modelo recibe como contexto visual. */
   const evidenceRefs = useMemo(() => {
@@ -112,6 +126,7 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
     brandText: brandText.trim(),
     details: details.trim(),
     transparent: pieceType === 'logo' && transparent,
+    mode,
   });
 
   const toPieces = (data: any, roundId: string, parentId?: string): Piece[] =>
@@ -125,6 +140,7 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
       revisedPrompt: v.revisedPrompt || '',
       model: [v.textModel, v.imageModel].filter(Boolean).join(' + '),
       pieceType: data.pieceType,
+      mode: data.renderMode === 'direct' ? 'direct' : 'system',
       parentId,
     }));
 
@@ -132,12 +148,14 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
     setBusy({ kind: 'new', count: variantCount });
     setError(null);
     try {
-      const refs = await Promise.all(
-        evidenceRefs.map(async r => ({ id: r.id, image: await compressImageString(r.image, { maxWidth: 768, maxHeight: 768, quality: 0.85 }) })),
-      );
-      const data = await post({ ...common(), references: refs, variants: variantCount, anchorImageUrl: anchor?.imageUrl });
+      const refs = sendsRefs
+        ? await Promise.all(
+            evidenceRefs.map(async r => ({ id: r.id, image: await compressImageString(r.image, { maxWidth: 1024, maxHeight: 1024, quality: 0.9 }) })),
+          )
+        : [];
+      const data = await post({ ...common(), references: refs, variants: variantCount, anchorImageUrl: anchor?.imageUrl, anchorPieceType: anchor?.pieceType });
       const roundId = `r${Date.now()}`;
-      const label = PIECES.find(p => p.id === pieceType)?.label ?? 'Pieza';
+      const label = `${pieceInfo.label}${mode === 'direct' ? ' · directo' : ''}`;
       const pieces = toPieces(data, roundId);
       setRounds(rs => [...rs, { id: roundId, label, brief: data.brief, referencesUsed: data.referencesUsed ?? [], pieces, failed: data.failed ?? 0, failureMessage: data.failureMessage }]);
       setSelectedId(pieces[0]?.id ?? null);
@@ -148,27 +166,78 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
     }
   };
 
-  const iterate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selected || !revision.trim()) return;
+  /** Itera una pieza con un pedido de cambio. Devuelve la pieza nueva. */
+  const runRevision = async (base: Piece, text: string, label = `Iteración: ${text}`): Promise<Piece | null> => {
     setBusy({ kind: 'revision', count: 1 });
     setError(null);
     try {
       const data = await post({
         ...common(),
-        pieceType: selected.pieceType,
-        revision: { text: revision.trim(), responseId: selected.responseId, imageUrl: selected.imageUrl },
+        pieceType: base.pieceType,
+        mode: base.mode,
+        revision: { text, responseId: base.responseId, imageUrl: base.imageUrl },
       });
       const roundId = `r${Date.now()}`;
-      const pieces = toPieces(data, roundId, selected.id);
-      setRounds(rs => [...rs, { id: roundId, label: `Iteración: ${revision.trim()}`, brief: data.brief, referencesUsed: [], pieces, failed: 0 }]);
+      const pieces = toPieces(data, roundId, base.id).map(p => ({ ...p, mode: base.mode }));
+      setRounds(rs => [...rs, { id: roundId, label, brief: data.brief, referencesUsed: [], pieces, failed: 0 }]);
       setSelectedId(pieces[0]?.id ?? null);
-      setRevision('');
+      return pieces[0] ?? null;
     } catch (err: any) {
       setError({ message: err?.message || String(err), detail: err?.detail });
+      return null;
     } finally {
       setBusy(null);
     }
+  };
+
+  const iterate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected || !revision.trim()) return;
+    const piece = await runRevision(selected, revision.trim());
+    if (piece) setRevision('');
+  };
+
+  /** Audita una pieza: paleta medida en el navegador + texto y reglas con Gemini. */
+  const auditPiece = async (piece: Piece) => {
+    setAudits(a => ({ ...a, [piece.id]: { status: 'loading' } }));
+    try {
+      const [colors, image] = await Promise.all([
+        extractColors(piece.imageUrl),
+        compressImageString(piece.imageUrl, { maxWidth: 1280, maxHeight: 1280, quality: 0.9, mimeType: 'image/jpeg' }),
+      ]);
+      const res = await fetch('/api/audit-piece', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: image,
+          pieceType: piece.pieceType,
+          brandText: brandText.trim(),
+          system: { name: system.name, typographyRules: system.typographyRules, textureRules: system.textureRules, compositionRules: system.compositionRules },
+        }),
+      });
+      const text = await res.text();
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw new Error(
+          text.trim().startsWith('<')
+            ? 'El servidor está corriendo una versión anterior sin esta función. Cortá "npm run server" (Ctrl+C) y volvé a ejecutarlo.'
+            : `El servidor no devolvió una respuesta válida (HTTP ${res.status}).`,
+        );
+      }
+      if (!res.ok || !result.success) throw new Error(result.details || result.error || 'No se pudo auditar la pieza');
+      const audit: PieceAudit = { ...result.data, palette: checkPalette(colors, system.colorPalette ?? []) };
+      setAudits(a => ({ ...a, [piece.id]: { status: 'done', audit } }));
+    } catch (err: any) {
+      setAudits(a => ({ ...a, [piece.id]: { status: 'error', message: err?.message || String(err) } }));
+    }
+  };
+
+  /** Corrige lo que falló en la auditoría y audita la versión nueva. */
+  const fixPiece = async (piece: Piece, text: string) => {
+    const next = await runRevision(piece, text, 'Corrección según la auditoría');
+    if (next) auditPiece(next);
   };
 
   const copyBrief = async () => {
@@ -212,7 +281,37 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
                 </button>
               ))}
             </div>
-            <span className="font-mono text-xs text-ink-2">formato {PIECES.find(p => p.id === pieceType)?.format}</span>
+            <span className="font-mono text-xs text-ink-2">
+              formato {pieceInfo.format} · {isPhoto ? 'fotografía realista' : 'arte gráfico'}
+            </span>
+          </fieldset>
+
+          <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+            <legend className="mb-2 text-13 text-ink-2">Cómo pedirla</legend>
+            <div role="radiogroup" aria-label="Cómo pedirla" className="grid grid-cols-2 overflow-hidden rounded-ctrl border border-line-mid">
+              {(
+                [
+                  ['system', 'Con el sistema'],
+                  ['direct', 'Directo'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === id}
+                  onClick={() => setMode(id)}
+                  className={`h-9 text-13 font-medium transition-colors duration-120 ${mode === id ? 'bg-ink text-bg' : 'text-ink-2 hover:bg-white/5 hover:text-ink'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-ink-2">
+              {mode === 'system'
+                ? 'El director de arte recibe lo esencial del sistema para esta pieza y prioriza 3 a 5 decisiones.'
+                : 'Solo tu pedido, el texto y la paleta, como en ChatGPT. Sirve para comparar si el sistema mejora la pieza.'}
+            </span>
           </fieldset>
 
           <TextInput
@@ -224,10 +323,19 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
           />
 
           <TextArea
-            label="Detalles del pedido"
-            optional
-            rows={3}
-            placeholder={pieceType === 'logo' ? 'Ej: que funcione en sellos y en el envoltorio; evitar ilustraciones literales de comida' : 'Ej: lanzamiento de temporada, titular “Abrimos de noche”'}
+            label="Qué querés ver"
+            optional={mode === 'system'}
+            hint={mode === 'direct' ? 'En el modo directo es lo principal: describí la pieza como se la pedirías a ChatGPT.' : 'Es el centro del pedido: el sistema define cómo se ve, esto define qué se muestra.'}
+            rows={4}
+            placeholder={
+              pieceType === 'logo'
+                ? 'Ej: que funcione en sellos y en el envoltorio; evitar ilustraciones literales de comida'
+                : pieceType === 'facade'
+                  ? 'Ej: local en esquina de Palermo, de noche, cartel de chapa pintada con luz, persiana a medio subir'
+                  : pieceType === 'packaging'
+                    ? 'Ej: caja de hamburguesa de cartón kraft abierta sobre una barra de acero, con papel impreso'
+                    : 'Ej: lanzamiento de temporada, titular “Abrimos de noche”'
+            }
             value={details}
             onChange={e => setDetails(e.target.value)}
           />
@@ -261,14 +369,17 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
           <details className="group rounded-card border border-line">
             <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-13 text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
               Qué recibe el modelo
-              <span className="font-mono text-xs">{evidenceRefs.length} refs · {patterns.length} patrones</span>
+              <span className="font-mono text-xs">{mode === 'direct' ? 'solo el pedido' : `${sendsRefs ? evidenceRefs.length : 0} refs${anchor ? ' · ancla' : ''}`}</span>
             </summary>
             <div className="flex flex-col gap-3 border-t border-line p-3">
               <p className="m-0 text-xs text-ink-2">
-                Los lineamientos completos (pilares, paleta, reglas, desglose de identidad y patrones confirmados) y estas referencias de evidencia como contexto
-                visual. El modelo hereda su lenguaje sin copiar su contenido.
+                {mode === 'direct'
+                  ? 'Tu pedido, el texto y la paleta. Nada más del sistema.'
+                  : isPhoto
+                    ? 'Lo esencial del sistema para esta pieza (pilares, paleta para los elementos de marca, reglas de tipografía y materiales) escrito como un pedido fotográfico. No se adjuntan las referencias: son piezas gráficas y empujan el resultado hacia la ilustración.'
+                    : 'Lo esencial del sistema para esta pieza (pilares, paleta y las reglas que aplican a este soporte) y estas referencias de evidencia como guía de estilo. El modelo hereda su lenguaje sin copiar su contenido.'}
               </p>
-              {evidenceRefs.length > 0 && (
+              {sendsRefs && evidenceRefs.length > 0 && (
                 <ul className="m-0 grid list-none grid-cols-4 gap-2 p-0">
                   {evidenceRefs.map(r => (
                     <li key={r.id}>
@@ -281,7 +392,7 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
                 </ul>
               )}
               <div className="flex flex-col gap-1">
-                {RESOURCES.map(r => (
+                {RESOURCES.filter(r => r.key === 'palette' || (mode === 'system' && pieceInfo.rules.includes(r.key as RuleFamily))).map(r => (
                   <label key={r.key} className="flex cursor-pointer items-center gap-2 text-13 text-ink">
                     <input type="checkbox" className="size-4 accent-[#EDEDEF]" checked={resources[r.key]} onChange={() => setResources(x => ({ ...x, [r.key]: !x[r.key] }))} />
                     Incluir reglas de {r.label.toLowerCase()}
@@ -294,7 +405,9 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
           {anchor && (
             <div className="flex items-center gap-3 rounded-ctrl border border-line p-3">
               <img src={anchor.imageUrl} alt="" className="size-10 rounded-tag object-cover" />
-              <span className="flex-1 text-xs text-ink-2">Ancla de estilo: las piezas nuevas mantienen su lenguaje visual.</span>
+              <span className="flex-1 text-xs text-ink-2">
+                {anchorIsLogo ? 'Logo aprobado: las piezas nuevas lo reproducen tal cual, sin rediseñarlo.' : 'Ancla de estilo: las piezas nuevas mantienen su lenguaje visual.'}
+              </span>
               <Button size="sm" variant="ghost" onClick={() => setAnchorId(null)}>
                 Quitar
               </Button>
@@ -336,6 +449,11 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="m-0 text-15 font-medium text-ink">{lastRound.label}</h2>
+                {lastRound.pieces.length > 1 && lastRound.pieces.some(p => !audits[p.id]) && (
+                  <Button size="sm" variant="ghost" onClick={() => lastRound.pieces.filter(p => !audits[p.id]).forEach(auditPiece)}>
+                    Auditar las {lastRound.pieces.length}
+                  </Button>
+                )}
                 <span className="font-mono text-xs text-ink-2">
                   {lastRound.pieces.length} {lastRound.pieces.length === 1 ? 'pieza' : 'piezas'}
                   {lastRound.referencesUsed.length ? ` · evidencia ${lastRound.referencesUsed.join(', ')}` : ''}
@@ -359,7 +477,13 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
                       }`}
                     >
                       <img src={p.imageUrl} alt="" className={`max-h-[56vh] w-full rounded-ctrl object-contain ${transparent ? 'bg-[repeating-conic-gradient(#222_0_25%,#2c2c2c_0_50%)] bg-[length:16px_16px]' : 'bg-bg'}`} />
-                      {p.direction && <span className="px-1 text-xs text-ink-2">{p.direction.replace(/^Direction [A-D] — /, '')}</span>}
+                      <span className="flex items-center gap-2 px-1 text-xs text-ink-2">
+                        <span className="font-mono">{p.mode === 'direct' ? 'directo' : 'sistema'}</span>
+                        {audits[p.id]?.status === 'done' && (
+                          <span className="font-mono text-ink">· reglas {scoreLabel((audits[p.id] as { audit: PieceAudit }).audit)}</span>
+                        )}
+                        {p.direction && <span className="truncate">· {p.direction.replace(/^Direction [A-D] — /, '')}</span>}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -375,7 +499,13 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
                   Descargar
                 </a>
                 <Button size="sm" variant="ghost" icon={<Anchor />} aria-pressed={anchorId === selected.id} onClick={() => setAnchorId(a => (a === selected.id ? null : selected.id))}>
-                  {anchorId === selected.id ? 'Es el ancla de estilo' : 'Usar como ancla de estilo'}
+                  {anchorId === selected.id
+                    ? selected.pieceType === 'logo'
+                      ? 'Es el logo aprobado'
+                      : 'Es el ancla de estilo'
+                    : selected.pieceType === 'logo'
+                      ? 'Aprobar este logo'
+                      : 'Usar como ancla de estilo'}
                 </Button>
                 <span className="ml-auto font-mono text-xs text-ink-2">{selected.model}</span>
               </div>
@@ -386,6 +516,15 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
                   <p className="m-0 font-serif text-15 text-ink">{selected.rationale}</p>
                 </div>
               )}
+
+              <PieceAuditPanel
+                state={audits[selected.id]}
+                brandText={brandText.trim()}
+                photo={!!PIECES.find(p => p.id === selected.pieceType)?.photo}
+                onAudit={() => auditPiece(selected)}
+                onFix={text => fixPiece(selected, text)}
+                busy={!!busy}
+              />
 
               <form className="flex flex-col gap-2 sm:flex-row sm:items-end" onSubmit={iterate}>
                 <TextInput
@@ -439,6 +578,9 @@ export function SystemApplicationView({ project, system, onBack, onOpenLightbox 
                       className={`block overflow-hidden rounded-ctrl border ${p.id === selectedId ? 'border-ink' : 'border-line hover:border-line-strong'}`}
                     >
                       <img src={p.imageUrl} alt="" className="size-16 bg-bg object-cover" />
+                      {audits[p.id]?.status === 'done' && (
+                        <span className="block bg-raised px-1 text-center font-mono text-xs text-ink">{scoreLabel((audits[p.id] as { audit: PieceAudit }).audit)}</span>
+                      )}
                     </button>
                   </li>
                 ))}

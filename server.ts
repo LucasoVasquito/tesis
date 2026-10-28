@@ -967,6 +967,10 @@ type ImageSize = "1024x1024" | "1024x1536" | "1536x1024" | "auto";
 interface PieceSpec {
   label: string;
   size: ImageSize;
+  /** graphic: arte plano (las referencias guían el estilo). photo: fotografía realista de la marca aplicada. */
+  mode: "graphic" | "photo";
+  /** Familias de reglas que importan para este soporte (el resto no se envía). */
+  rules: ("typography" | "texture" | "composition")[];
   /** Cómo se ve una entrega profesional de este soporte. */
   spec: string;
   /** Qué parte del desglose del sistema es más relevante. */
@@ -978,6 +982,8 @@ interface PieceSpec {
 const PIECES: Record<PieceType, PieceSpec> = {
   logo: {
     label: "Logotipo",
+    mode: "graphic",
+    rules: ["typography"],
     size: "1024x1024",
     spec:
       "A final, production-ready logo as a senior brand identity designer would present it in a brand book: flat vector-style artwork presented alone and centered on a plain solid background, with generous clear space. Precise geometry, deliberate custom letterforms, optically balanced spacing, clean edges, legible at small sizes, built from at most two or three colors of the palette. Flat solid fills only. The brand text is spelled exactly as given.",
@@ -991,6 +997,8 @@ const PIECES: Record<PieceType, PieceSpec> = {
   },
   poster: {
     label: "Afiche",
+    mode: "graphic",
+    rules: ["typography", "texture", "composition"],
     size: "1024x1536",
     spec:
       "A finished printed poster designed by a professional graphic designer, seen straight on and filling the frame: clear typographic hierarchy, a strong focal point, deliberate grid, real print finish. Any text is short, legible and spelled exactly as given.",
@@ -1004,9 +1012,11 @@ const PIECES: Record<PieceType, PieceSpec> = {
   },
   packaging: {
     label: "Packaging",
+    mode: "photo",
+    rules: ["typography", "texture"],
     size: "1024x1024",
     spec:
-      "A real, finished packaging design photographed as a product shot on a plain studio surface with soft natural light: believable printed materials and finishes, the brand applied with care, label hierarchy that reads instantly.",
+      "A photorealistic product photograph of the real packaging, indistinguishable from a professional studio or lifestyle shot: 50–85 mm lens, soft directional light, true printed materials (kraft, coated paper, foil, greaseproof paper) with folds, texture and slight imperfections. The brand graphics are printed on the package; the food, hands and surroundings keep their natural colors. No render, no 3D or CGI look.",
     detailKeys: ["packagingSystem", "brandEssence"],
     directions: [
       "Direction A — faithful to the reference materials and finishes.",
@@ -1017,6 +1027,8 @@ const PIECES: Record<PieceType, PieceSpec> = {
   },
   post: {
     label: "Post",
+    mode: "graphic",
+    rules: ["typography", "composition"],
     size: "1024x1024",
     spec: "A finished square social media post for the brand: flat 2D layout, clear hierarchy, platform-ready, any text short and spelled exactly.",
     detailKeys: ["digitalAndSocialMedia", "brandEssence"],
@@ -1024,6 +1036,8 @@ const PIECES: Record<PieceType, PieceSpec> = {
   },
   story: {
     label: "Story",
+    mode: "graphic",
+    rules: ["typography", "composition"],
     size: "1024x1536",
     spec: "A finished vertical social media story for the brand: flat 2D layout, clear hierarchy, safe margins, any text short and spelled exactly.",
     detailKeys: ["digitalAndSocialMedia", "brandEssence"],
@@ -1031,14 +1045,18 @@ const PIECES: Record<PieceType, PieceSpec> = {
   },
   facade: {
     label: "Fachada",
+    mode: "photo",
+    rules: ["typography", "texture"],
     size: "1536x1024",
     spec:
-      "An eye-level, natural-light architectural photograph of the storefront or space with the identity applied: realistic materials, signage built as it would really be fabricated, believable scale.",
+      "A photorealistic architectural photograph of the real storefront with the identity applied, indistinguishable from a photo taken on location: eye-level or slight three-quarter view, full-frame camera with a 24–35 mm lens, natural daylight or blue-hour light with the shop lights on. The signage is built as it would really be fabricated (painted sheet metal, cut letters, lightbox, neon, vinyl on glass) at a believable scale, with real materials, wear, reflections in the glass, the street, sidewalk and neighbouring facades in their own natural colors. No render, no 3D or CGI look.",
     detailKeys: ["graphicApplications", "logoAndIdentity", "brandEssence"],
     directions: ["Direction A — signage-led.", "Direction B — material and color-led.", "Direction C — graphic resources applied to the architecture.", "Direction D — the most daring."],
   },
   web: {
     label: "Web",
+    mode: "graphic",
+    rules: ["typography", "composition"],
     size: "1536x1024",
     spec: "A desktop website hero section shown as a flat screen capture: real layout, navigation, clear hierarchy, any text short and spelled exactly.",
     detailKeys: ["digitalAndSocialMedia", "typographySystem", "brandEssence"],
@@ -1046,6 +1064,8 @@ const PIECES: Record<PieceType, PieceSpec> = {
   },
   other: {
     label: "Pieza",
+    mode: "graphic",
+    rules: ["typography", "texture", "composition"],
     size: "auto",
     spec: "A finished, professional brand application presented clearly, exactly as requested.",
     detailKeys: ["graphicApplications", "brandEssence"],
@@ -1064,55 +1084,72 @@ const DETAIL_LABEL: Record<string, string> = {
   digitalAndSocialMedia: "Digital and social",
 };
 
-const ART_DIRECTOR_INSTRUCTIONS = `You are a senior art director and brand identity designer.
-You receive a visual system that a designer built from their own reference corpus (the attached images are evidence of the confirmed patterns), and a request for one piece.
-Your job: translate the system into ONE finished, professional piece and generate it with the image_generation tool, exactly once.
-- Read every rule. The palette HEX values, typography, texture and composition rules are constraints, not suggestions.
-- The attached reference images are style evidence: inherit their palette, materials, textures and graphic language. Never copy their subject, layout or content.
-- Before calling the tool, write a detailed image prompt in English: subject, medium and format, exact palette, typography treatment, texture, composition, lighting when relevant, and the exact text to render.
-- Aim for the quality of a real agency deliverable, never a sketch or a generic stock image.
-After the image, reply with two or three short sentences in Spanish explaining which rules of the system you applied and how.`;
+const ART_DIRECTOR_INSTRUCTIONS = `You are a senior art director and brand identity designer working inside a design research tool.
+You receive a request for one piece and, usually, the essentials of a visual system that a designer built from their own reference corpus.
+Your job: turn it into ONE finished, professional piece and generate it with the image_generation tool, exactly once.
+
+How to write the image prompt (in English, before calling the tool):
+- Start from the designer's request. It is the brief; the system tells you HOW it should look, not WHAT to show.
+- Choose the 3 to 5 decisions of the system that matter most for this piece and make them unmistakable. A few strong decisions beat a list of every rule.
+- Describe like a professional: subject, format and framing, composition, typography (style, weight, case, how the letters are drawn), color with HEX values, materials and texture, lighting, and the exact text to render in quotes.
+- For photographs: write it as a real photo brief (camera, lens, light, time of day, location, real materials, small imperfections). The palette belongs to the brand elements only; everything else keeps its natural real-world color.
+- For graphic pieces: production-ready flat artwork seen straight on, not a mock-up, unless the request asks for one.
+- Attached images: if one is marked as the approved logo or anchor, reproduce it faithfully; reference images are style evidence only, never copy their subject, layout or content.
+- Spell every word exactly as given. Keep text short.
+After the image, reply with two or three short sentences in Spanish explaining which decisions of the system you prioritized and why.`;
 
 function buildBrief(b: any, piece: PieceSpec): string {
   const s = b.system || {};
   const project = b.project || {};
+  const r = b.resources || {};
   const asText = (x: any) =>
     typeof x === "string"
       ? x
       : [x?.title, x?.detail && x.detail !== x.title ? x.detail : "", x?.use?.length ? `Use for: ${x.use.join(", ")}.` : "", x?.avoid?.length ? `Avoid for: ${x.avoid.join(", ")}.` : ""]
           .filter(Boolean)
           .join(" — ");
-  const list = (title: string, items?: any[]) => (Array.isArray(items) && items.length ? `${title}:\n${items.map((x: any) => `- ${asText(x)}`).join("\n")}` : "");
+  const list = (title: string, items?: any[], max = 4) =>
+    Array.isArray(items) && items.length ? `${title}:\n${items.slice(0, max).map((x: any) => `- ${asText(x)}`).join("\n")}` : "";
   const palette = (s.colorPalette || []).map((c: any) => `- ${String(c.hex).toUpperCase()}${c.name ? ` · ${c.name}` : ""}${c.role ? ` (${c.role})` : ""}`).join("\n");
-  const r = b.resources || {};
+  const photo = piece.mode === "photo";
+  const request = [
+    `# Request`,
+    `Piece: ${piece.label}.`,
+    b.details ? `What the designer asks for: ${b.details}` : "",
+    b.brandText ? `Text to render exactly: "${b.brandText}".` : "",
+    `Deliverable standard: ${piece.spec}`,
+    b.transparent ? "Background: transparent, with the artwork alone." : "",
+  ];
+
+  // Modo directo: el pedido del diseñador casi tal cual, como en ChatGPT (para comparar con el modo sistema).
+  if (b.mode === "direct") {
+    return [...request, r.palette !== false && palette ? `\nBrand colors:\n${palette}` : ""].filter(x => x !== "").join("\n");
+  }
+
   const details = piece.detailKeys
     .map(k => (s.systemDetails?.[k] ? `${DETAIL_LABEL[k]}: ${s.systemDetails[k]}` : ""))
     .filter(Boolean)
     .join("\n");
-  const patterns = (b.patterns || []).map((p: any) => `- [${p.id}] ${p.name} (${p.category}): ${p.description}`).join("\n");
-
+  const wants = (fam: "typography" | "texture" | "composition") => piece.rules.includes(fam) && r[fam] !== false;
   return [
-    `# Request`,
-    `Piece: ${piece.label}.`,
-    b.brandText ? `Brand text to render exactly: "${b.brandText}".` : "",
-    b.details ? `Designer's notes: ${b.details}` : "",
-    `Deliverable standard: ${piece.spec}`,
-    b.transparent ? "Background: transparent, with the artwork alone." : "",
-    ``,
-    `# Brand`,
-    `Project: ${project.name || ""}`,
-    project.objective ? `Objective: ${project.objective}` : "",
+    ...request,
+    `
+# Brand`,
+    `${project.name || ""}${project.objective ? ` — ${project.objective}` : ""}`,
     project.description ? `Context: ${project.description}` : "",
-    ``,
-    `# Visual system: ${s.name}`,
+    `
+# Visual system "${s.name}" (how it should look)`,
     s.description || "",
-    list("Aesthetic pillars", s.aestheticPillars),
-    r.palette !== false && palette ? `Color palette (inferred from the corpus; use only these):\n${palette}` : "",
-    r.typography !== false ? list("Typography rules", s.typographyRules) : "",
-    r.texture !== false ? list("Texture and material rules", s.textureRules) : "",
-    r.composition !== false ? list("Composition rules", s.compositionRules) : "",
+    list("Aesthetic pillars", s.aestheticPillars, 4),
+    r.palette !== false && palette
+      ? photo
+        ? `Brand palette (for signage, packaging graphics, typography and brand elements only; the environment keeps natural colors):\n${palette}`
+        : `Palette (use only these colors):\n${palette}`
+      : "",
+    wants("typography") ? list("Typography rules", s.typographyRules) : "",
+    wants("texture") ? list(photo ? "Material and finish rules" : "Texture rules", s.textureRules) : "",
+    wants("composition") ? list("Composition rules", s.compositionRules) : "",
     details,
-    patterns ? `Confirmed patterns (evidence attached as images):\n${patterns}` : "",
   ]
     .filter(x => x !== "")
     .join("\n");
@@ -1206,6 +1243,11 @@ async function generateWithResponses(key: string, opts: { input: any; previousRe
           lastErr = err;
           console.warn(`[Imagen] ${textModel} + ${imageModel}${forceTool ? "" : " (sin tool_choice)"} falló: ${err?.message}`);
           if (forceTool && String(err?.param || err?.message || "").includes("tool_choice")) continue;
+          // Si el modelo de imagen no admite input_fidelity, se reintenta sin ese parámetro.
+          if (String(err?.param || err?.message || "").includes("input_fidelity") && opts.tool.input_fidelity) {
+            const { input_fidelity, ...rest } = opts.tool;
+            return generateWithResponses(key, { ...opts, tool: rest });
+          }
           if (!isModelProblem(err)) throw err; // saldo, verificación, contenido: no se resuelve cambiando de modelo
           break;
         }
@@ -1214,6 +1256,93 @@ async function generateWithResponses(key: string, opts: { input: any; previousRe
   }
   throw lastErr;
 }
+
+// ==========================================
+// 4. Auditoría de una pieza generada contra el sistema (Gemini)
+// ==========================================
+app.post("/api/audit-piece", async (req, res) => {
+  dotenv.config({ override: true });
+  try {
+    const { imageUrl, pieceType = "other", brandText = "", system = {} } = req.body || {};
+    if (!imageUrl) return res.status(400).json({ error: "Se requiere la imagen de la pieza." });
+    const img = await resolveImagePart(imageUrl, "pieza");
+    if (!img) return res.status(400).json({ error: "No se pudo leer la imagen de la pieza." });
+    const piece = PIECES[pieceType as PieceType] || PIECES.other;
+    const fields: Record<string, string> = { typography: "typographyRules", texture: "textureRules", composition: "compositionRules" };
+    const rules: { code: string; title: string; detail: string }[] = piece.rules.flatMap(fam =>
+      (Array.isArray(system[fields[fam]]) ? system[fields[fam]] : [])
+        .filter((r: any) => r && typeof r === "object" && r.code)
+        .map((r: any) => ({ code: String(r.code), title: String(r.title || ""), detail: String(r.detail || "") })),
+    );
+    const prompt = `You are auditing a generated ${piece.label.toLowerCase()} (${piece.mode === "photo" ? "a photograph of the brand applied" : "a graphic piece"}) against the visual system "${system.name || ""}" it was supposed to follow. Be strict and concrete, like a design director reviewing an agency deliverable. Judge only what is visible.
+
+${brandText ? `Expected text: "${brandText}". Read every word rendered in the image exactly as written (keep the model's spelling mistakes) and say whether the expected text appears spelled exactly.` : "There is no required text; transcribe any visible words."}
+
+Rules to check:
+${rules.length ? rules.map(r => `- [${r.code}] ${r.title}${r.detail && r.detail !== r.title ? ` — ${r.detail}` : ""}`).join("\n") : "- (no rules for this piece type)"}
+
+Return, in Spanish unless stated:
+- textRead: the words you read, exactly.
+- textOk: true only if the expected text is spelled exactly (true if there is no expected text and no garbled words).
+- textIssue: short description of any spelling or rendering problem, or empty.
+- rules: for every rule above, { code, verdict: "cumple" | "parcial" | "no_cumple", reason: one short sentence pointing to what you see }.
+- quality: one short sentence on the craft (realism or finish, legibility, artifacts).
+- fixes: 1 to 4 short revision instructions IN ENGLISH, imperative, addressed to the image model, only for what fails (empty array if everything passes).`;
+
+    const ai = getGeminiClient();
+    const response = await generateContentWithRetry(ai, {
+      model: "gemini-3.5-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: img.mimeType, data: img.data } }] }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            textRead: { type: Type.STRING },
+            textOk: { type: Type.BOOLEAN },
+            textIssue: { type: Type.STRING },
+            rules: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: { code: { type: Type.STRING }, verdict: { type: Type.STRING }, reason: { type: Type.STRING } },
+                required: ["code", "verdict", "reason"],
+              },
+            },
+            quality: { type: Type.STRING },
+            fixes: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ["textRead", "textOk", "rules", "quality", "fixes"],
+        },
+      },
+    });
+    const parsed = parseModelJsonResponse(response.text || "{}");
+    const byCode = new Map(rules.map(r => [r.code, r]));
+    const verdicts = ["cumple", "parcial", "no_cumple"];
+    return res.json({
+      success: true,
+      data: {
+        textRead: String(parsed.textRead || ""),
+        textOk: !!parsed.textOk,
+        textIssue: parsed.textIssue ? String(parsed.textIssue) : "",
+        rules: (Array.isArray(parsed.rules) ? parsed.rules : [])
+          .filter((r: any) => byCode.has(String(r?.code)))
+          .map((r: any) => ({
+            code: String(r.code),
+            title: byCode.get(String(r.code))!.title,
+            verdict: verdicts.includes(r.verdict) ? r.verdict : "parcial",
+            reason: String(r.reason || ""),
+          })),
+        quality: String(parsed.quality || ""),
+        fixes: (Array.isArray(parsed.fixes) ? parsed.fixes : []).map(String).slice(0, 4),
+        at: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error("Error en /api/audit-piece:", error);
+    return res.status(500).json({ error: "No se pudo auditar la pieza.", details: error?.message });
+  }
+});
 
 app.post("/api/generate-application", async (req, res) => {
   dotenv.config({ override: true });
@@ -1267,16 +1396,27 @@ app.post("/api/generate-application", async (req, res) => {
 
     // ---------- Variantes nuevas ----------
     const brief = buildBrief(b, piece);
+    const direct = b.mode === "direct";
+    // En fotos y en el modo directo no se adjuntan las referencias gráficas: empujan el resultado hacia la ilustración.
     const refImages: { id: string; url: string }[] = [];
-    for (const r of (b.references || []).slice(0, 4)) {
-      const url = r?.image ? await toDataUrl(r.image, r.id) : null;
-      if (url) refImages.push({ id: r.id, url });
+    if (!direct && piece.mode === "graphic") {
+      for (const r of (b.references || []).slice(0, 4)) {
+        const url = r?.image ? await toDataUrl(r.image, r.id) : null;
+        if (url) refImages.push({ id: r.id, url });
+      }
     }
     const anchor = b.anchorImageUrl ? await toDataUrl(b.anchorImageUrl, "ancla") : null;
+    const anchorIsLogo = anchor && b.anchorPieceType === "logo" && pieceType !== "logo";
+    const anchorNote = !anchor
+      ? ""
+      : anchorIsLogo
+        ? "\nThe first attached image is the APPROVED LOGO of the brand. Wherever the brand appears, reproduce this exact logo faithfully (same letterforms, proportions and colors). Do not redesign it."
+        : "\nThe first attached image is an approved earlier piece: keep its visual language.";
+    const genTool = anchor ? { ...tool, input_fidelity: "high" } : tool;
     const count = Math.max(1, Math.min(4, Number(b.variants) || 1));
     const directions = piece.directions.slice(0, count);
 
-    console.log(`[Imagen] ${piece.label} · ${count} variantes · ${refImages.length} referencias · ${textModel} + ${imageModel}`);
+    console.log(`[Imagen] ${piece.label} · ${direct ? "directo" : piece.mode} · ${count} variantes · ${refImages.length} referencias${anchor ? " · ancla" : ""} · ${textModel} + ${imageModel}`);
     const settled = await Promise.allSettled(
       directions.map(direction =>
         generateWithResponses(key, {
@@ -1284,13 +1424,13 @@ app.post("/api/generate-application", async (req, res) => {
             {
               role: "user",
               content: [
-                { type: "input_text", text: `${brief}\n\n# This variant\n${count > 1 ? direction : "Choose the strongest direction."}${anchor ? "\nKeep the visual language of the first attached image (approved earlier piece)." : ""}` },
+                { type: "input_text", text: `${brief}\n\n# This variant\n${count > 1 ? direction : "Choose the strongest direction."}${anchorNote}` },
                 ...(anchor ? [{ type: "input_image", image_url: anchor }] : []),
                 ...refImages.map(r => ({ type: "input_image", image_url: r.url })),
               ],
             },
           ],
-          tool,
+          tool: genTool,
           textModel,
           imageModel,
         }).then(r => ({ ...r, direction: count > 1 ? direction : "" })),
@@ -1312,6 +1452,7 @@ app.post("/api/generate-application", async (req, res) => {
         referencesUsed: refImages.map(r => r.id),
         size: piece.size,
         pieceType,
+        renderMode: direct ? "direct" : piece.mode,
       },
     });
   } catch (error: any) {
