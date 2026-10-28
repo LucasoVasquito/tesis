@@ -11,13 +11,10 @@ interface PillarTileProps {
   patterns: Map<string, Pattern>;
   candidates: Reference[];
   onChoose: (refId: string | null) => void;
-  /** Tablero: foco en un patrón. */
-  dim?: boolean;
-  highlight?: boolean;
 }
 
 /** Tarjeta 4:5 de un pilar: imagen del corpus, familia, nombre y trazabilidad. Permite elegir la imagen a mano. */
-export function PillarTile({ index, pillar, image, patterns, candidates, onChoose, dim, highlight }: PillarTileProps) {
+export function PillarTile({ index, pillar, image, patterns, candidates, onChoose }: PillarTileProps) {
   const [open, setOpen] = useState(false);
   const pickerId = useId();
   const wrapRef = useRef<HTMLLIElement>(null);
@@ -60,12 +57,7 @@ export function PillarTile({ index, pillar, image, patterns, candidates, onChoos
     ) : null;
 
   return (
-    <li
-      ref={wrapRef}
-      className={`group relative flex aspect-[4/5] flex-col justify-end overflow-hidden rounded-card bg-raised transition-[opacity,box-shadow] duration-180 ease-emergent ${
-        dim ? 'opacity-35' : ''
-      } ${highlight ? 'shadow-[0_0_0_2px_var(--color-signal)]' : ''}`}
-    >
+    <li ref={wrapRef} className="group relative flex aspect-[4/5] flex-col justify-end overflow-hidden rounded-card bg-raised">
       {image && (
         <img
           src={image.ref.image}

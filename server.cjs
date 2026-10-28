@@ -705,6 +705,90 @@ Answer in Spanish:
     }
 });
 // ==========================================
+// 2e. Recortes de ejemplo para las reglas (qué zona de qué referencia muestra cada regla)
+// ==========================================
+app.post("/api/rule-examples", async (req, res) => {
+    dotenv_1.default.config({ override: true });
+    try {
+        const { rules = [], references = [] } = req.body || {};
+        if (!rules.length || !references.length)
+            return res.status(400).json({ error: "Se requieren reglas y referencias." });
+        const parts = [];
+        const ids = new Set();
+        for (const ref of references.slice(0, 12)) {
+            const img = await resolveImagePart(ref.image, ref.id);
+            if (!img)
+                continue;
+            ids.add(String(ref.id));
+            parts.push({ text: `[${ref.id}] ${ref.name || ""}` });
+            parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+        }
+        const codes = new Set(rules.map((r) => String(r.code)));
+        parts.push({
+            text: `These are the reference images of a visual system. Below are the rules of that system.
+For EACH rule, pick the ONE reference and the ONE region of it that best SHOWS the rule visually, so a designer understands the rule at a glance:
+- typography rules: crop tightly on the lettering that embodies the rule (one word or headline block), not the whole poster;
+- texture rules: crop on a patch where the texture, grain, pattern or material is clearly visible;
+- composition rules: the region that shows the layout decision (it can be large, even the whole piece if the rule is about the whole layout).
+Use a DIFFERENT reference or at least a clearly different region for each rule: never repeat the same crop. Spread the choices across the references.
+Boxes are [ymin, xmin, ymax, xmax] normalized 0-1000 on the chosen image. If no reference shows a rule, return refId "".
+note: 3 to 8 words in Spanish saying what the crop shows (e.g. "Lettering inflado de Kiddo", "Grano sobre el fondo rojo").
+
+Rules:
+${rules.map((r) => `- [${r.code}] (${r.family}) ${r.text}`).join("\n")}`,
+        });
+        const ai = getGeminiClient();
+        const response = await generateContentWithRetry(ai, {
+            model: "gemini-3.5-flash",
+            contents: [{ role: "user", parts }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: genai_1.Type.OBJECT,
+                    properties: {
+                        examples: {
+                            type: genai_1.Type.ARRAY,
+                            items: {
+                                type: genai_1.Type.OBJECT,
+                                properties: {
+                                    code: { type: genai_1.Type.STRING },
+                                    refId: { type: genai_1.Type.STRING },
+                                    box_2d: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.NUMBER } },
+                                    note: { type: genai_1.Type.STRING },
+                                },
+                                required: ["code", "refId", "box_2d"],
+                            },
+                        },
+                    },
+                    required: ["examples"],
+                },
+            },
+        });
+        const parsed = parseModelJsonResponse(response.text || "{}");
+        const examples = (Array.isArray(parsed?.examples) ? parsed.examples : [])
+            .map((e) => {
+            const code = String(e?.code || "");
+            const refId = String(e?.refId || "");
+            if (!codes.has(code) || !ids.has(refId))
+                return null;
+            const b = Array.isArray(e.box_2d) ? e.box_2d.map(Number) : [];
+            if (b.length !== 4 || b.some((n) => !Number.isFinite(n)))
+                return null;
+            const [y0, x0, y1, x1] = b.map((n) => Math.min(1000, Math.max(0, n)) / 1000);
+            const crop = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+            if (crop.w < 0.05 || crop.h < 0.05)
+                return null;
+            return { code, refId, crop, note: e.note ? String(e.note).slice(0, 80) : undefined };
+        })
+            .filter(Boolean);
+        return res.json({ success: true, data: { examples } });
+    }
+    catch (error) {
+        console.error("Error en /api/rule-examples:", error);
+        return res.status(500).json({ error: "No se pudieron elegir los recortes.", details: error?.message });
+    }
+});
+// ==========================================
 // Synthesize / Update Visual System Details with Gemini
 // ==========================================
 const SPECIMEN_STYLES = ["stretched", "hierarchy", "glitch", "italic", "rounded", "serif", "wide", "outline"];

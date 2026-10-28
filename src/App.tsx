@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GroupHypothesis, LogItem, LogKind, Pattern, Project, RefGroup, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
+import { GroupHypothesis, LogItem, LogKind, Pattern, Project, RefGroup, Rule, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
 import { evidenceReferences, inferPalette } from './utils/palette';
 import { normalizeRules } from './utils/rules';
 import { createEmptyProject } from './data/emptyProject';
@@ -859,9 +859,77 @@ export default function App() {
       );
       addLog('synthesize', systemId, `Redactado con IA · ${sys.name}`, `${sysPatterns.length} patrones, ${sysRefs.length} referencias`, { projectId });
       showToast({ message: `Sistema redactado · ${sys.name}`, tone: 'confirmed' });
+      // Recortes de ejemplo para las fichas nuevas (en segundo plano).
+      setTimeout(() => handleRuleExamples(systemId, true), 50);
     } catch (err: any) {
       updateProject(x => ({ ...x, systems: x.systems.map(s => (s.id === systemId ? { ...s, isSynthesizing: false } : s)) }), projectId);
       setSynthesisErrors(e => ({ ...e, [systemId]: err?.message || String(err) }));
+    }
+  };
+
+  /** Gemini elige, para cada regla, el recorte de una referencia que mejor la muestra. */
+  const [examplesBusy, setExamplesBusy] = useState<string[]>([]);
+  const handleRuleExamples = async (systemId: string, silent = false) => {
+    const p = projectRef.current;
+    const sys = p.systems.find(x => x.id === systemId);
+    if (!sys) return;
+    const fields = [
+      { field: 'typographyRules' as const, family: 'typography' },
+      { field: 'textureRules' as const, family: 'texture' },
+      { field: 'compositionRules' as const, family: 'composition' },
+    ];
+    // Solo las fichas que muestran imágenes (no los especímenes con texto ni las retículas).
+    const rules = fields.flatMap(({ field, family }) =>
+      (sys[field] ?? [])
+        .filter(r => r.example?.kind === 'evidence' || (r.example?.kind === 'type' && !r.example?.text) || !r.example)
+        .map(r => ({ code: r.code, family, text: r.detail || r.title })),
+    );
+    const evidence = new Set(p.patterns.filter(x => sys.patternIds.includes(x.id)).flatMap(x => x.evidence));
+    const whole = p.references.filter(r => !r.parentId && (!evidence.size || evidence.has(r.id)));
+    const parts = p.references.filter(r => r.parentId && (evidence.has(r.parentId) || evidence.has(r.id)));
+    const refs = [...parts, ...whole].slice(0, 12);
+    if (!rules.length || !refs.length) {
+      if (!silent) showToast({ message: 'No hay fichas con imagen o referencias para recortar', tone: 'neutral' });
+      return;
+    }
+    setExamplesBusy(b => [...b, systemId]);
+    try {
+      const compressed = await compressReferences(refs, { maxWidth: 1024, maxHeight: 1024, quality: 0.85 });
+      const res = await fetch('/api/rule-examples', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rules, references: compressed.map(r => ({ id: r.id, name: r.name, image: r.image })) }),
+      });
+      const text = await res.text();
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw new Error(text.trim().startsWith('<') ? 'El servidor está corriendo una versión anterior. Reiniciá "npm run server".' : `HTTP ${res.status}`);
+      }
+      if (!res.ok || !result.success) throw new Error(result.details || result.error || 'Error al elegir los recortes');
+      const byCode = new Map<string, { refId: string; crop: any; note?: string }>((result.data?.examples ?? []).map((e: any) => [e.code, e]));
+      updateProject(
+        x => ({
+          ...x,
+          systems: x.systems.map(s => {
+            if (s.id !== systemId) return s;
+            const apply = (rs?: Rule[]) =>
+              rs?.map(r => {
+                const e = byCode.get(r.code);
+                if (!e) return r;
+                return { ...r, example: { ...(r.example ?? { kind: 'evidence' }), kind: 'evidence' as const, refIds: [e.refId], crop: e.crop, cropNote: e.note } };
+              });
+            return { ...s, typographyRules: apply(s.typographyRules), textureRules: apply(s.textureRules), compositionRules: apply(s.compositionRules) };
+          }),
+        }),
+        p.id,
+      );
+      if (!silent) showToast({ message: `${byCode.size} ${byCode.size === 1 ? 'ficha con recorte' : 'fichas con recorte'} · ${sys.name}`, tone: 'confirmed' });
+    } catch (err: any) {
+      if (!silent) showToast({ message: `No se pudieron elegir los recortes: ${err?.message || err}`, tone: 'discarded' }, 6000);
+    } finally {
+      setExamplesBusy(b => b.filter(x => x !== systemId));
     }
   };
 
@@ -1302,6 +1370,8 @@ export default function App() {
             onDeleteSystem={handleDeleteSystem}
             onInferPalette={handleInferPalette}
             onTracePillars={handleTracePillars}
+            onRuleExamples={id => handleRuleExamples(id)}
+            examplesBusy={examplesBusy}
             onAdoptSuggestion={handleAdoptSuggestion}
             onDismissSuggestion={handleDismissSuggestion}
             onImportFile={handleImportSystemFile}

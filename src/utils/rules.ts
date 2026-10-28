@@ -16,6 +16,11 @@ export function deriveTitle(text: string): string {
   return (title.charAt(0).toUpperCase() + title.slice(1)).replace(/[,.]+$/, '') + (words.length > 6 ? '…' : '');
 }
 
+const validCrop = (c: any) =>
+  c && [c.x, c.y, c.w, c.h].every((n: any) => Number.isFinite(n)) && c.w > 0.02 && c.h > 0.02
+    ? { x: Number(c.x), y: Number(c.y), w: Number(c.w), h: Number(c.h) }
+    : undefined;
+
 const strings = (v: any) => (Array.isArray(v) ? v.map(String).map(s => s.trim()).filter(Boolean) : []);
 
 /**
@@ -50,6 +55,8 @@ export function normalizeRules(raw: any, prefix: string, kind: RuleExample['kind
           refIds: strings(ex.refIds),
           cols: Number(ex.cols) || undefined,
           rows: Number(ex.rows) || undefined,
+          crop: validCrop(ex.crop),
+          cropNote: ex.cropNote ? String(ex.cropNote) : undefined,
         },
         patternIds: strings(r.patternIds),
         refIds: strings(r.refIds),

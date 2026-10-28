@@ -157,6 +157,10 @@ export interface RuleExample {
   refIds?: string[];
   cols?: number;
   rows?: number;
+  /** Recorte de la primera referencia que muestra la regla (normalizado 0..1). */
+  crop?: CropBox;
+  /** Qué muestra el recorte (lo escribe Gemini). */
+  cropNote?: string;
 }
 
 /** Regla del sistema como ficha: título imperativo corto, fundamento, usos y trazabilidad. */

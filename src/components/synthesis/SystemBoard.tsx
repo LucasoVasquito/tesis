@@ -1,9 +1,9 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { MoreHorizontal, Pipette, Plus, Sparkles, X } from 'lucide-react';
+import { MoreHorizontal, Pipette, Plus, Scissors, Sparkles, X } from 'lucide-react';
 import { Pattern, Project, Reference, Rule, RuleField, VisualSystem } from '../../types';
 import { Button, IconButton, TextArea } from '../ui';
 import { FAMILIES, familyOf } from '../../utils/families';
-import { ruleEvidence } from '../../utils/ruleEvidence';
+import { allocateRuleEvidence, evidenceFor } from '../../utils/ruleEvidence';
 import { PaletteBand } from './PaletteBand';
 import { ColorCard, RULE_FAMILY, RuleCard } from './RuleCard';
 import { PillarTile } from './PillarTile';
@@ -29,6 +29,8 @@ interface SystemBoardProps {
   onTryPiece: () => void;
   onInferPalette: () => void;
   onTracePillars: () => void;
+  onRuleExamples: () => void;
+  examplesBusy: boolean;
   onExportJson: () => void;
   onDelete: () => void;
 }
@@ -175,10 +177,6 @@ export function SystemBoard(props: SystemBoardProps) {
   const [over, setOver] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  /** Patrón en foco: resalta los pilares y reglas que salen de él. */
-  const [focusPid, setFocusPid] = useState<string | null>(null);
-  /** Patrones de la ficha bajo el puntero (se resaltan en la cabecera). */
-  const [hoverPids, setHoverPids] = useState<string[] | null>(null);
   const [descOpen, setDescOpen] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
@@ -217,17 +215,12 @@ export function SystemBoard(props: SystemBoardProps) {
     ...families.map(f => ({ id: f.id as SectionId, label: f.label, count: f.rules.length, color: f.color })),
     { id: 'color', label: 'Color', count: palette.length },
   ];
+  /** Fichas con imagen que todavía no tienen un recorte elegido por Gemini. */
+  const needsCrops = families.some(f => f.rules.some(r => r.example?.kind !== 'grid' && !(r.example?.kind === 'type' && r.example?.text) && !r.example?.crop));
+  /** Una imagen por ficha, sin repetir dentro del sistema. */
+  const ruleImages = allocateRuleEvidence(s, project);
   const sectionId = (id: SectionId) => `${titleId}-${id}`;
   const goTo = (id: SectionId) => document.getElementById(sectionId(id))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  /** Qué sale de cada patrón (para el foco). */
-  const pillarPids = (i: number) => [...(s.sources?.aestheticPillars?.[i] ?? []), ...(images[i]?.patternIds ?? []), images[i]?.matchedPatternId].filter(Boolean) as string[];
-  const reach = (pid: string) => ({
-    pillars: (s.aestheticPillars ?? []).filter((_, i) => pillarPids(i).includes(pid)).length,
-    rules: families.reduce((n, f) => n + f.rules.filter(r => r.patternIds.includes(pid)).length, 0),
-  });
-  const focusPattern = focusPid ? patternMap.get(focusPid) : null;
-  const toggleFocus = (pid: string) => setFocusPid(f => (f === pid ? null : pid));
 
   return (
     <article
@@ -306,33 +299,12 @@ export function SystemBoard(props: SystemBoardProps) {
             </div>
           )}
           {/* Patrones asignados (zona de soltado) */}
-          <span className="mt-2 text-xs text-ink-2">Patrones · tocá uno para ver qué pilares y reglas salen de él</span>
-          <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0" aria-label="Patrones del sistema">
+          <ul className="m-0 mt-1 flex list-none flex-wrap gap-1 p-0" aria-label="Patrones del sistema">
             {patterns.map(p => {
               const f = familyOf(p.category);
-              const active = focusPid === p.id;
-              const hovered = hoverPids?.includes(p.id);
               return (
-                <li
-                  key={p.id}
-                  className={`flex h-8 max-w-[260px] items-center rounded-tag border text-xs transition-[background-color,border-color,opacity] duration-120 ${
-                    active ? 'bg-signal/12' : hovered ? 'bg-white/5' : ''
-                  } ${focusPid && !active ? 'opacity-50' : ''}`}
-                  style={{ borderColor: active || hovered ? 'var(--color-signal)' : `oklch(0.8 0.11 ${f.hue ?? 0} / .35)` }}
-                >
-                  <button
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => toggleFocus(p.id)}
-                    className="flex h-full min-w-0 items-center gap-1.5 pl-2 pr-1 text-left"
-                    title={`${p.name} — ${f.label}`}
-                  >
-                    <span aria-hidden="true" className="size-2 shrink-0 rounded-[2px]" style={{ background: f.color }} />
-                    <span className="font-mono" style={{ color: f.ink }}>
-                      {p.id}
-                    </span>
-                    <span className="truncate text-ink">{p.name}</span>
-                  </button>
+                <li key={p.id} className="flex h-7 items-center gap-1 rounded-tag border pl-2 font-mono text-xs" style={{ borderColor: `oklch(0.8 0.11 ${f.hue ?? 0} / .3)`, color: f.ink }}>
+                  <span title={p.name}>{p.id}</span>
                   <button
                     type="button"
                     className="flex size-6 items-center justify-center rounded-tag text-ink-2 hover:bg-white/5 hover:text-ink"
@@ -344,7 +316,7 @@ export function SystemBoard(props: SystemBoardProps) {
                 </li>
               );
             })}
-            <li className={`flex h-8 items-center rounded-tag border border-dashed px-2 text-xs ${over ? 'border-signal text-signal-ink' : 'border-line-strong text-ink-2'}`}>
+            <li className={`flex h-7 items-center rounded-tag border border-dashed px-2 text-xs ${over ? 'border-signal text-signal-ink' : 'border-line-strong text-ink-2'}`}>
               {over ? 'Soltá para asignar' : 'Arrastrá patrones acá'}
             </li>
           </ul>
@@ -387,6 +359,7 @@ export function SystemBoard(props: SystemBoardProps) {
               { label: 'Editar descripción y pilares', onSelect: () => setEditing(true) },
               { label: palette.length ? 'Recalcular paleta' : 'Inferir paleta', onSelect: props.onInferPalette, disabled: !patterns.length },
               { label: 'Rastrear pilares con IA', onSelect: props.onTracePillars, disabled: !s.aestheticPillars?.length },
+              { label: 'Recortar ejemplos de las reglas con IA', onSelect: props.onRuleExamples, disabled: !drafted || props.examplesBusy },
               { label: 'Probar en una pieza', onSelect: props.onTryPiece },
               { label: 'Exportar sistema .json', onSelect: props.onExportJson },
               { label: 'Eliminar sistema', onSelect: () => setConfirmDelete(true), danger: true },
@@ -423,7 +396,7 @@ export function SystemBoard(props: SystemBoardProps) {
       )}
 
       {/* 3 · Barra de secciones (fija) y foco */}
-      <nav aria-label={`Secciones de ${s.name}`} className="sticky top-0 z-10 flex flex-col gap-2 border-b border-line bg-surface/95 px-6 py-3 backdrop-blur">
+      <nav aria-label={`Secciones de ${s.name}`} className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface/95 px-6 py-3 backdrop-blur">
         <ul className="m-0 flex list-none flex-wrap gap-1 p-0">
           {sections.map(sec => (
             <li key={sec.id}>
@@ -447,21 +420,18 @@ export function SystemBoard(props: SystemBoardProps) {
             </li>
           ))}
         </ul>
-        {focusPattern && (
-          <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-ctrl border border-signal/40 bg-signal/5 px-3 py-2 text-13">
-            <span className="text-ink">
-              Foco en <span className="font-mono text-signal-ink">{focusPattern.id}</span> · {focusPattern.name}
-            </span>
-            <span className="text-xs text-ink-2">
-              {(() => {
-                const r = reach(focusPattern.id);
-                return `sostiene ${r.pillars} ${r.pillars === 1 ? 'pilar' : 'pilares'} y ${r.rules} ${r.rules === 1 ? 'regla' : 'reglas'}`;
-              })()}
-            </span>
-            <button type="button" className="ml-auto text-xs text-ink underline-offset-2 hover:underline" onClick={() => setFocusPid(null)}>
-              Quitar foco
-            </button>
-          </div>
+        {drafted && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<Scissors />}
+            loading={props.examplesBusy}
+            loadingText="Buscando recortes…"
+            onClick={props.onRuleExamples}
+            title="Gemini elige, para cada regla, la zona de una referencia que mejor la muestra"
+          >
+            {needsCrops ? 'Recortar ejemplos con IA' : 'Volver a recortar'}
+          </Button>
         )}
       </nav>
 
@@ -473,7 +443,6 @@ export function SystemBoard(props: SystemBoardProps) {
         {s.aestheticPillars?.length ? (
           <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3 p-0">
             {s.aestheticPillars.map((pillar, i) => {
-              const linked = focusPid ? pillarPids(i).includes(focusPid) : false;
               return (
                 <PillarTile
                   key={i}
@@ -482,8 +451,6 @@ export function SystemBoard(props: SystemBoardProps) {
                   image={images[i] ?? null}
                   patterns={patternMap}
                   candidates={candidates}
-                  dim={!!focusPid && !linked}
-                  highlight={linked}
                   onChoose={refId => {
                     const refs = [...(s.sources?.pillarRefs ?? [])];
                     while (refs.length < (s.aestheticPillars?.length ?? 0)) refs.push(null);
@@ -512,7 +479,6 @@ export function SystemBoard(props: SystemBoardProps) {
           {f.rules.length ? (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
               {f.rules.map((r, i) => {
-                const linked = focusPid ? r.patternIds.includes(focusPid) : false;
                 return (
                   <RuleCard
                     key={r.code}
@@ -521,13 +487,9 @@ export function SystemBoard(props: SystemBoardProps) {
                     family={RULE_FAMILY[f.id] ?? FAMILIES.image}
                     palette={palette}
                     references={project.references}
-                    fallback={ruleEvidence(r, f.id, s, project, i)}
+                    fallback={evidenceFor(ruleImages, r)}
                     specimenText={brand}
                     showWhy={false}
-                    dim={!!focusPid && !linked}
-                    highlight={linked}
-                    onFocusPattern={toggleFocus}
-                    onHoverPatterns={setHoverPids}
                   />
                 );
               })}

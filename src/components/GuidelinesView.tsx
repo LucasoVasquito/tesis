@@ -7,7 +7,7 @@ import { RULE_FIELDS } from '../utils/rules';
 import { Button, CategoryTag, Swatch } from './ui';
 import { FullView } from './shell/FullView';
 import { ApprovedPieces } from './application/ApprovedPieces';
-import { ruleEvidence } from '../utils/ruleEvidence';
+import { allocateRuleEvidence, evidenceFor } from '../utils/ruleEvidence';
 import { buildSystemMarkdown, downloadSystemMarkdown, exportVisualSystemAsJSON } from '../utils/exportHelpers';
 
 interface GuidelinesViewProps {
@@ -49,6 +49,7 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
   const refIds = Array.from(new Set(patterns.flatMap(p => p.evidence)));
   const refs = project.references.filter(r => refIds.includes(r.id));
   const refById = new Map(project.references.map(r => [r.id, r]));
+  const ruleImages = allocateRuleEvidence(s, project);
 
   const copy = async () => {
     try {
@@ -142,7 +143,7 @@ export function GuidelinesView({ project, system: s, onBack, onTryPiece }: Guide
                           family={RULE_FAMILY[field]}
                           palette={s.colorPalette ?? []}
                           references={project.references}
-                          fallback={ruleEvidence(r, field, s, project, i)}
+                          fallback={evidenceFor(ruleImages, r)}
                           specimenText={project.name.split(/\s[—–-]\s/)[0].trim() || s.name}
                           showWhy
                         />

@@ -21,6 +21,8 @@ interface SynthesisStageProps {
   onDeleteSystem: (id: string) => void;
   onInferPalette: (id: string) => void;
   onTracePillars: (id: string) => void;
+  onRuleExamples: (id: string) => void;
+  examplesBusy: string[];
   onAdoptSuggestion: (id: string) => void;
   onDismissSuggestion: (id: string) => void;
   onImportFile: (file: File) => void;
@@ -315,6 +317,8 @@ export function SynthesisStage(props: SynthesisStageProps) {
                   onTryPiece={() => props.onTryPiece(current.id)}
                   onInferPalette={() => props.onInferPalette(current.id)}
                   onTracePillars={() => props.onTracePillars(current.id)}
+                  onRuleExamples={() => props.onRuleExamples(current.id)}
+                  examplesBusy={props.examplesBusy.includes(current.id)}
                   onExportJson={() => props.onExportSystem(current.id)}
                   onDelete={() => props.onDeleteSystem(current.id)}
                 />

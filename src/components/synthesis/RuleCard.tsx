@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { PaletteColor, Reference, Rule } from '../../types';
+import React, { useEffect, useState } from 'react';
+import { CropBox, PaletteColor, Reference, Rule } from '../../types';
+import { cropImage } from '../../utils/parts';
 import { FAMILIES, Family } from '../../utils/families';
 import { contrast, guessStyle, Specimen } from './Specimen';
 import { TextureSwatch } from './TextureSwatch';
@@ -12,27 +13,62 @@ const FALLBACK = ['#111111', '#EDEDEF'];
 const lightest = (palette: PaletteColor[]) => [...(palette.length ? palette.map(c => c.hex) : FALLBACK)].sort((a, b) => lum(b) - lum(a))[0];
 
 /* ---------- Ejemplos visuales ---------- */
-function EvidenceCrop({ refs, approx }: { refs: Reference[]; approx?: boolean }) {
+const cropCache = new Map<string, string>();
+
+/** Recorte de una referencia (se dibuja una vez en el navegador y queda en memoria). */
+function useCrop(ref: Reference, crop?: CropBox) {
+  const key = crop ? `${ref.id}|${crop.x.toFixed(3)},${crop.y.toFixed(3)},${crop.w.toFixed(3)},${crop.h.toFixed(3)}` : '';
+  const [url, setUrl] = useState<string | null>(key ? cropCache.get(key) ?? null : null);
+  useEffect(() => {
+    if (!crop || cropCache.has(key)) {
+      setUrl(key ? cropCache.get(key) ?? null : null);
+      return;
+    }
+    let alive = true;
+    cropImage(ref.image, [crop], 900)
+      .then(([c]) => {
+        cropCache.set(key, c.image);
+        if (alive) setUrl(c.image);
+      })
+      .catch(() => alive && setUrl(null));
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return url;
+}
+
+/** Una imagen por ficha: el recorte que eligió Gemini, una parte del corpus o la referencia entera. */
+function EvidenceCrop({ reference: r, crop, note, approx }: { reference: Reference; crop?: CropBox; note?: string; approx?: boolean }) {
+  const cropped = useCrop(r, crop);
+  const src = crop ? cropped : r.image;
+  const label = crop ? `recorte · ${r.id}` : approx ? `≈ aproximada · ${r.id}` : r.parentId ? `parte · ${r.id}` : r.id;
   return (
-    <div className={`relative grid h-[200px] gap-0.5 bg-bg ${refs.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-      {refs.slice(0, 2).map(r => (
+    <div className="relative h-[200px] bg-bg">
+      {src ? (
         <img
-          key={r.id}
-          src={r.image}
-          alt={`${approx ? 'Referencia aproximada' : 'Evidencia'} ${r.id}: ${r.name}`}
-          className={`h-full w-full object-cover ${approx ? 'opacity-85' : ''}`}
+          src={src}
+          alt={`${note || r.name} (${r.id})`}
+          className={`h-full w-full ${r.parentId && !crop ? 'object-contain' : 'object-cover'} ${approx && !crop ? 'opacity-85' : ''}`}
           referrerPolicy="no-referrer"
           loading="lazy"
         />
-      ))}
-      {approx && (
-        <span
-          className="absolute bottom-2 left-2 rounded-[3px] border border-line-mid bg-raised px-1.5 py-0.5 font-mono text-xs text-ink-2"
-          title="La app eligió estas referencias comparando el texto de la regla con tu corpus; no es trazabilidad de la IA."
-        >
-          ≈ aproximada · {refs.slice(0, 2).map(r => r.id).join(' ')}
-        </span>
+      ) : (
+        <div className="h-full w-full animate-pulse bg-raised" aria-hidden="true" />
       )}
+      <span
+        className="absolute bottom-2 left-2 max-w-[calc(100%-16px)] truncate rounded-[3px] border border-line-mid bg-raised px-1.5 py-0.5 font-mono text-xs text-ink-2"
+        title={
+          crop
+            ? `Recorte elegido por Gemini${note ? `: ${note}` : ''}`
+            : approx
+              ? 'La app eligió esta referencia comparando el texto de la regla con tu corpus; no es trazabilidad de la IA.'
+              : undefined
+        }
+      >
+        {label}
+      </span>
     </div>
   );
 }
@@ -82,14 +118,9 @@ interface RuleCardProps {
   showWhy: boolean;
   /** Posición de la ficha dentro de su familia: rota las combinaciones de color del espécimen. */
   index?: number;
-  /** Tablero: foco en un patrón (la ficha se atenúa si no sale de él). */
-  dim?: boolean;
-  highlight?: boolean;
-  onFocusPattern?: (patternId: string) => void;
-  onHoverPatterns?: (ids: string[] | null) => void;
 }
 
-export function RuleCard({ rule, family, palette, references, fallback, specimenText, showWhy, index = 0, dim, highlight, onFocusPattern, onHoverPatterns }: RuleCardProps) {
+export function RuleCard({ rule, family, palette, references, fallback, specimenText, showWhy, index = 0 }: RuleCardProps) {
   const [open, setOpen] = useState(false);
   const byId = new Map(references.map(r => [r.id, r]));
   let kind = rule.example?.kind ?? 'evidence';
@@ -106,13 +137,7 @@ export function RuleCard({ rule, family, palette, references, fallback, specimen
   if (kind === 'type' && !rule.example?.text && refs.length) kind = 'evidence';
 
   return (
-    <article
-      className={`flex flex-col overflow-hidden rounded-card border bg-bg transition-[opacity,border-color] duration-180 ease-emergent ${
-        highlight ? 'border-signal/70' : 'border-line'
-      } ${dim ? 'opacity-35' : ''}`}
-      onMouseEnter={() => onHoverPatterns?.(rule.patternIds)}
-      onMouseLeave={() => onHoverPatterns?.(null)}
-    >
+    <article className="flex flex-col overflow-hidden rounded-card border border-line bg-bg">
       {kind === 'type' ? (
         <Specimen
           text={rule.example?.text || specimenText}
@@ -124,7 +149,7 @@ export function RuleCard({ rule, family, palette, references, fallback, specimen
       ) : kind === 'grid' ? (
         <GridDiagram cols={rule.example?.cols} rows={rule.example?.rows} palette={palette} />
       ) : refs.length ? (
-        <EvidenceCrop refs={refs} approx={approx} />
+        <EvidenceCrop reference={refs[0]} crop={ownIds.length ? rule.example?.crop : undefined} note={rule.example?.cropNote} approx={approx} />
       ) : family.id === 'typography' ? (
         <Specimen text={specimenText} style={guessStyle(`${rule.title} ${rule.detail}`, index)} palette={palette} index={index} />
       ) : family.id === 'composition' ? (
@@ -162,26 +187,7 @@ export function RuleCard({ rule, family, palette, references, fallback, specimen
             )}
           </div>
         )}
-        {trace &&
-          (onFocusPattern && rule.patternIds.length ? (
-            <span className="mt-auto flex flex-wrap items-center gap-1 font-mono text-xs text-signal-ink">
-              ←
-              {rule.patternIds.map(pid => (
-                <button
-                  key={pid}
-                  type="button"
-                  onClick={() => onFocusPattern(pid)}
-                  className="rounded-[3px] px-1 hover:bg-signal/10"
-                  title={`Ver todo lo que sale de ${pid}`}
-                >
-                  {pid}
-                </button>
-              ))}
-              {rule.refIds.length ? <span className="text-ink-2">· {rule.refIds.join(' ')}</span> : null}
-            </span>
-          ) : (
-            <span className="mt-auto font-mono text-xs text-signal-ink">← {trace}</span>
-          ))}
+        {trace && <span className="mt-auto font-mono text-xs text-signal-ink">← {trace}</span>}
       </div>
     </article>
   );
