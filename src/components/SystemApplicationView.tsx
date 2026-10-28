@@ -7,6 +7,7 @@ import { FullView } from './shell/FullView';
 import { compressImageString } from '../utils/imageCompressor';
 import { checkPalette, extractColors, PieceAudit } from '../utils/pieceAudit';
 import { AuditState, PieceAuditPanel, scoreLabel } from './application/PieceAuditPanel';
+import { ExperimentPanel } from './application/ExperimentPanel';
 
 interface SystemApplicationViewProps {
   project: Project;
@@ -148,6 +149,8 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rounds, approved, audits, requests, brandText]);
   const formRef = useRef<HTMLFormElement>(null);
+  /** Piezas (generar y aprobar) o Experimento (directo vs sistema). */
+  const [view, setView] = useState<'pieces' | 'experiment'>('pieces');
   const requestRef = useRef<HTMLTextAreaElement>(null);
 
   const withImg = (p: GeneratedPiece): Piece => ({ ...p, imageUrl: images[p.id] ?? '' });
@@ -430,6 +433,40 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
           </ul>
         </nav>
 
+        <div role="tablist" aria-label="Vista de Aplicación" className="flex w-fit gap-1 rounded-[8px] border border-line bg-bg p-1">
+          {(
+            [
+              ['pieces', 'Piezas'],
+              ['experiment', 'Experimento · directo vs sistema'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={view === id}
+              onClick={() => setView(id)}
+              className={`h-8 rounded-ctrl px-3 text-13 font-medium transition-colors duration-120 ${view === id ? 'bg-raised text-ink' : 'text-ink-2 hover:text-ink'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === 'experiment' ? (
+          <ExperimentPanel
+            pieces={allPieces}
+            systemName={system.name}
+            audits={Object.fromEntries(
+              Object.entries(audits).map(([id, a]) => [id, a.status === 'done' ? a.audit : a.status === 'loading' ? 'loading' : undefined]),
+            )}
+            onVerify={ps => ps.forEach(auditPiece)}
+            onSelect={id => {
+              setSelectedId(id);
+              setView('pieces');
+            }}
+          />
+        ) : (
         <div className="grid gap-8 lg:grid-cols-[360px_minmax(0,1fr)]">
           {/* ---------- Pedido ---------- */}
           <form
@@ -804,6 +841,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
             )}
           </section>
         </div>
+        )}
       </div>
     </FullView>
   );
