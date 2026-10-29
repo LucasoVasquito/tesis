@@ -844,8 +844,18 @@ app.post("/api/synthesize-system", async (req, res) => {
     } = req.body;
 
     const sysName = system?.name || projectName || "Sistema Visual";
-    const patternSummary = (patterns || [])
-      .map((p: any) => `- [${p.id}] ${p.name} [Categoría: ${p.category}]: ${p.description}`)
+    const patternSummary = [...(patterns || [])]
+      .sort((x: any, y: any) => Number(y.origin === "designer") - Number(x.origin === "designer"))
+      .map((p: any) => {
+        const bits = [
+          `- [${p.id}] ${p.name} [Categoría: ${p.category}]${p.origin === "designer" ? " [ESCRITO POR EL DISEÑADOR · PRIORIDAD ALTA]" : ""}: ${p.description || "sin descripción"}`,
+        ];
+        if (p.relatedObservations?.length) bits.push(`    Rasgos observables: ${p.relatedObservations.join("; ")}`);
+        if (p.systemHypothesis) bits.push(`    Hipótesis de sistema: ${p.systemHypothesis}`);
+        if (p.designerNotes) bits.push(`    Nota del diseñador: ${p.designerNotes}`);
+        if (p.evidence?.length) bits.push(`    Evidencia: ${p.evidence.length} referencias (${p.evidence.slice(0, 8).join(", ")})`);
+        return bits.join("\n");
+      })
       .join("\n");
     const refSummary = (references || [])
       .map((r: any) => `- Ref ID: ${r.id}, Nombre: ${r.name || r.id}, Notas: ${r.notes || "Sin notas"}`)
@@ -868,12 +878,22 @@ YOUR TASK:
 Synthesize a deep, cohesive, highly professional visual identity system based on these patterns and references.
 All output text MUST be in natural, evocative Spanish.
 
+COVERAGE RULES (mandatory, they matter more than elegance):
+- EVERY validated pattern above must be reflected somewhere in the output. Do not drop patterns to keep the text short; merge related ones instead. A pattern counts as reflected when its id appears in a rule's "patternIds", in "pillarSources" or in "patternUsage".
+- Patterns marked [ESCRITO POR EL DISEÑADOR] are explicit decisions of the designer: they must appear prominently (as a pillar or a rule), never diluted, and their "Nota del diseñador" is binding.
+- Build the text FROM the patterns' "Rasgos observables": use concrete traits (stroke, saturation, grain, grid, materials), not generic brand copy.
+- Route each pattern by category:
+  logo_identity → "logoAndIdentity" (+ "brandEssence"); photography_treatment → "photographyStyle"; packaging → "packagingSystem";
+  mascot_illustration → "mascotAndIllustration"; social_media → "digitalAndSocialMedia"; flyer_poster and space_environment → "graphicApplications";
+  typography → typographyRules + "typographySystem"; texture → textureRules; composition, geometry, graphic_elements → compositionRules; color → "colorPalette" and the description; mood → "brandEssence" and the pillars.
+- Identity and image are part of the system, not an afterthought: "brandEssence", "logoAndIdentity" and "photographyStyle" MUST be substantial (3-5 sentences each, with concrete criteria: what the mark or image looks like, how it is used, what to avoid). If there is no pattern for a section, say so in one sentence and infer prudently from the closest patterns, without inventing traits.
+
 Generate JSON containing:
 1. "name": A refined, memorable name for this visual system.
 2. "description": A comprehensive conceptual narrative (2-3 paragraphs) explaining how colors, typography, textures, and grid composition interact.
 3. "aestheticPillars": Array of 3 to 5 synthetic, impactful conceptual pillars (e.g. "Tensión Tipográfica Hipercondensada", "Sustratos Kraft & Tactilidad", "Reticulado Perimetral").
 4. "colorPalette": Array of 4 to 6 color swatches extracted from evidence: {"hex": "#HEX", "name": "Nombre evocador", "role": "Rol en el sistema"}.
-5. "typographyRules", 6. "textureRules", 7. "compositionRules": each an array of 1 to 3 RULE CARDS. Every rule card has:
+5. "typographyRules", 6. "textureRules", 7. "compositionRules": each an array of 2 to 5 RULE CARDS (more cards when more patterns of that family exist). Every rule card has:
    - "title": an imperative rule in Spanish of at most 6 words (e.g. "Display estirada en el eje vertical").
    - "detail": the rationale in 1-2 Spanish sentences.
    - "use": 0-3 short contexts where it applies (e.g. "títulos", "afiches").
@@ -896,12 +916,14 @@ Generate JSON containing:
    - "graphicApplications"
    - "mascotAndIllustration"
    - "digitalAndSocialMedia"
+   All eight keys are REQUIRED, each 3-5 sentences, grounded in the patterns of its category.
+10. "patternUsage": one entry {"patternId", "section"} for EVERY validated pattern, saying where it was reflected (e.g. "pilar 2", "regla T1", "logoAndIdentity"). It must list all ${patterns.length} patterns.
 `;
 
     const userPrompt = `Synthesize visual system "${sysName}" using ${patterns.length} patterns and ${references.length} references.`;
     const ai = getGeminiClient();
-    const response = await generateContentWithRetry(ai, {
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+    const runModel = (extra: string) => generateContentWithRetry(ai, {
+      contents: [{ role: "user", parts: [{ text: userPrompt + extra }] }],
       config: {
         systemInstruction,
         responseMimeType: "application/json",
@@ -930,6 +952,10 @@ Generate JSON containing:
             textureRules: { type: Type.ARRAY, items: RULE_SCHEMA },
             compositionRules: { type: Type.ARRAY, items: RULE_SCHEMA },
             pillarSources: { type: Type.ARRAY, items: { type: Type.ARRAY, items: { type: Type.STRING } } },
+            patternUsage: {
+              type: Type.ARRAY,
+              items: { type: Type.OBJECT, properties: { patternId: { type: Type.STRING }, section: { type: Type.STRING } }, required: ["patternId", "section"] },
+            },
             systemDetails: {
               type: Type.OBJECT,
               properties: {
@@ -942,9 +968,11 @@ Generate JSON containing:
                 mascotAndIllustration: { type: Type.STRING },
                 digitalAndSocialMedia: { type: Type.STRING },
               },
+              required: ["brandEssence", "logoAndIdentity", "packagingSystem", "photographyStyle", "typographySystem", "graphicApplications", "mascotAndIllustration", "digitalAndSocialMedia"],
             },
           },
           required: [
+            "patternUsage",
             "name",
             "description",
             "aestheticPillars",
@@ -958,8 +986,34 @@ Generate JSON containing:
       },
     });
 
-    const rawText = response.text || "{}";
-    const parsed = parseModelJsonResponse(rawText);
+    // Patrones que el texto generado no refleja en ninguna regla, pilar ni sección.
+    const uncoveredOf = (out: any): any[] => {
+      const seen = new Set<string>();
+      const add = (v: any) => (Array.isArray(v) ? v : []).forEach((id: any) => seen.add(String(id)));
+      [out?.typographyRules, out?.textureRules, out?.compositionRules].forEach(rs => (Array.isArray(rs) ? rs : []).forEach((r: any) => add(r?.patternIds)));
+      (Array.isArray(out?.pillarSources) ? out.pillarSources : []).forEach(add);
+      add((Array.isArray(out?.patternUsage) ? out.patternUsage : []).map((u: any) => u?.patternId));
+      return (patterns || []).filter((p: any) => !seen.has(String(p.id)));
+    };
+
+    let parsed = parseModelJsonResponse((await runModel("")).text || "{}");
+    // Un reintento: si faltan patrones, se pide la misma síntesis integrándolos.
+    const missing = parsed?.description ? uncoveredOf(parsed) : [];
+    if (missing.length) {
+      console.warn(`[synthesize-system] ${missing.length} patrones sin reflejar: ${missing.map((p: any) => p.id).join(", ")}. Reintentando.`);
+      try {
+        const retry = parseModelJsonResponse(
+          (
+            await runModel(
+              `\n\nAtención: en un primer intento NO reflejaste estos patrones: ${missing.map((p: any) => `[${p.id}] ${p.name}`).join("; ")}. Devolvé la síntesis completa de nuevo integrándolos en reglas, pilares o secciones de systemDetails, y listá todos en patternUsage.`,
+            )
+          ).text || "{}",
+        );
+        if (retry?.description && uncoveredOf(retry).length <= missing.length) parsed = retry;
+      } catch (e) {
+        console.warn("[synthesize-system] el reintento falló, se conserva el primer resultado");
+      }
+    }
     if (parsed && parsed.description) {
       // Trazabilidad: solo IDs que realmente se enviaron.
       const validPatterns = new Set<string>((patterns || []).map((p: any) => String(p.id)));
@@ -996,6 +1050,7 @@ Generate JSON containing:
       parsed.textureRules = toRules(parsed.textureRules, "X", "evidence");
       parsed.compositionRules = toRules(parsed.compositionRules, "C", "grid");
       delete parsed.pillarSources;
+      delete parsed.patternUsage;
       return res.json({
         success: true,
         data: parsed,
