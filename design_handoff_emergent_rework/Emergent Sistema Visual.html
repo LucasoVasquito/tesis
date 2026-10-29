@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#0B0B0D;color:#EDEDEF;-webkit-font-smoothing:antialiased}
+a{color:#EDEDEF;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(255,255,255,.3)}
+a:hover{text-decoration-color:#EDEDEF}
+*{box-sizing:border-box}
+::selection{background:rgba(237,237,239,.18)}
+</style>
+</helmet>
+<div style="font-family:Geist,system-ui,sans-serif;font-size:14px;line-height:1.5;max-width:1240px;margin:0 auto;padding:56px 40px 120px;display:flex;flex-direction:column;gap:72px">
+
+<header style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px;align-items:end;border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:40px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73;display:flex;flex-direction:column;gap:4px">
+    <span>EMERGENT</span><span>Sistema visual · v0.1</span><span>Etapa 1 de 3</span>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <h1 style="margin:0;font-weight:500;font-size:36px;letter-spacing:-0.02em;line-height:1.1">Sistema visual y componentes base</h1>
+    <p style="margin:0;font-family:Newsreader,serif;font-size:18px;color:#A1A1AA;max-width:640px;text-wrap:pretty">La interfaz es neutra para que las referencias sean protagonistas. El color se usa solo para comunicar el estado de una decisión del diseñador.</p>
+  </div>
+</header>
+
+<!-- 01 COLOR -->
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">01 — Color</div>
+  <div style="display:flex;flex-direction:column;gap:32px">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:13px;color:#A1A1AA">Superficies y bordes</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">
+        <div style="display:flex;flex-direction:column;gap:8px"><div style="height:72px;border-radius:10px;background:#0B0B0D;border:1px solid rgba(255,255,255,.12)"></div><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#EDEDEF">#0B0B0D</div><div style="font-size:12px;color:#6B6B73">bg · lienzo</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><div style="height:72px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07)"></div><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#EDEDEF">#111114</div><div style="font-size:12px;color:#6B6B73">surface · paneles</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><div style="height:72px;border-radius:10px;background:#17171B;border:1px solid rgba(255,255,255,.07)"></div><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#EDEDEF">#17171B</div><div style="font-size:12px;color:#6B6B73">raised · flotantes</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><div style="height:72px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">7%</div><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#EDEDEF">white / .07</div><div style="font-size:12px;color:#6B6B73">border · base</div></div>
+        <div style="display:flex;flex-direction:column;gap:8px"><div style="height:72px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">14%</div><div style="font-family:'Geist Mono',monospace;font-size:12px;color:#EDEDEF">white / .14</div><div style="font-size:12px;color:#6B6B73">border · hover</div></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:13px;color:#A1A1AA">Tinta</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+        <div style="padding:16px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:6px"><span style="font-size:18px;color:#EDEDEF">Texto primario</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">#EDEDEF · 16.8:1</span></div>
+        <div style="padding:16px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:6px"><span style="font-size:18px;color:#A1A1AA">Texto secundario</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">#A1A1AA · 7.4:1</span></div>
+        <div style="padding:16px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:6px"><span style="font-size:18px;color:#6B6B73">Metadato / deshabilitado</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">#6B6B73 · 3.6:1 · solo ≥ 12px mono o inactivo</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:13px;color:#A1A1AA">Estados de decisión · oklch(0.74 0.09 h), misma luz y croma</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+        <div style="padding:16px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.74 0.09 80);box-shadow:0 0 8px oklch(0.74 0.09 80 / .7)"></span><span style="font-weight:500">Pendiente</span></div>
+          <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">h 80 · detectado, sin juicio</span>
+        </div>
+        <div style="padding:16px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.74 0.09 155);box-shadow:0 0 8px oklch(0.74 0.09 155 / .7)"></span><span style="font-weight:500">Confirmado</span></div>
+          <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">h 155 · validado por el diseñador</span>
+        </div>
+        <div style="padding:16px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.74 0.09 25);box-shadow:0 0 8px oklch(0.74 0.09 25 / .7)"></span><span style="font-weight:500">Descartado</span></div>
+          <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">h 25 · rechazado con motivo</span>
+        </div>
+        <div style="padding:16px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.74 0.09 250);box-shadow:0 0 8px oklch(0.74 0.09 250 / .7)"></span><span style="font-weight:500">Evidencia activa</span></div>
+          <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">h 250 · trazabilidad en el lienzo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 TIPOGRAFÍA -->
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">02 — Tipografía</div>
+  <div style="display:flex;flex-direction:column;gap:32px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+      <div style="padding:20px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:12px">
+        <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">OPERATIVA</span>
+        <span style="font-size:32px;font-weight:500;letter-spacing:-0.02em">Geist</span>
+        <span style="font-size:13px;color:#A1A1AA">Controles, títulos de interfaz, etiquetas. 400 · 500 · 600.</span>
+      </div>
+      <div style="padding:20px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:12px">
+        <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">ANALÍTICA</span>
+        <span style="font-family:'Geist Mono',monospace;font-size:28px">#E65100 · 0.96</span>
+        <span style="font-size:13px;color:#A1A1AA">IDs, HEX, porcentajes, confianza, fechas. Números tabulares.</span>
+      </div>
+      <div style="padding:20px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:12px">
+        <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">REFLEXIVA</span>
+        <span style="font-family:Newsreader,serif;font-size:32px;font-style:italic">Newsreader</span>
+        <span style="font-size:13px;color:#A1A1AA">Descripciones de patrones, hipótesis, notas del diseñador, manual.</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:baseline;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">36 / 500 / -2%</span><span style="font-size:36px;font-weight:500;letter-spacing:-0.02em;line-height:1.1">Burger Club</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:baseline;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">24 / 500 / -1%</span><span style="font-size:24px;font-weight:500;letter-spacing:-0.01em">Auditoría de patrones</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:baseline;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">18 serif</span><span style="font-family:Newsreader,serif;font-size:18px;color:#EDEDEF;max-width:620px;text-wrap:pretty">Titulares en caja alta hipercondensada con tracking cerrado, alineaciones justificadas en bloque y micro-interlínea.</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:baseline;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">15 / 500</span><span style="font-size:15px;font-weight:500">Tipografía Sans-Serif Condensada en Bloque Compacto</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:baseline;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">13 / 400</span><span style="font-size:13px;color:#A1A1AA">Texto de interfaz, descripciones de controles y ayudas.</span></div>
+      <div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;align-items:baseline;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.07)"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">12 mono</span><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">ref_bc_02 · typography · 0.94 · 22.10.2026 00:14</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 ESPACIO -->
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">03 — Espacio y forma</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:32px">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;color:#A1A1AA">Escala base 4</div>
+      <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:4px;height:4px;background:#EDEDEF"></div><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">4</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:8px;height:8px;background:#EDEDEF"></div><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">8</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:12px;height:12px;background:#EDEDEF"></div><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">12</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:16px;height:16px;background:#EDEDEF"></div><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">16</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:24px;height:24px;background:#EDEDEF"></div><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">24</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:32px;height:32px;background:#EDEDEF"></div><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">32</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:center"><div style="width:48px;height:48px;background:#EDEDEF"></div><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">48</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;color:#A1A1AA">Radios y elevación</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div style="width:96px;height:64px;border-radius:6px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;align-items:flex-end;padding:8px;font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">r6 ctrl</div>
+        <div style="width:96px;height:64px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;align-items:flex-end;padding:8px;font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">r10 ficha</div>
+        <div style="width:96px;height:64px;border-radius:10px;background:#17171B;border:1px solid rgba(255,255,255,.1);box-shadow:0 12px 32px -8px rgba(0,0,0,.6);display:flex;align-items:flex-end;padding:8px;font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">flotante</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;color:#A1A1AA">Movimiento</div>
+      <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA;display:flex;flex-direction:column;gap:4px">
+        <span>120ms · hover, foco</span><span>180ms · paneles, pastillas</span><span>240ms · cambio de etapa</span><span>cubic-bezier(.2,.7,.2,1)</span><span>prefers-reduced-motion → 0ms</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 CONTROLES -->
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">04 — Controles</div>
+  <div style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px 12px;align-items:end">
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">primario</span><button style="height:36px;padding:0 14px;border-radius:6px;border:none;background:#EDEDEF;color:#0B0B0D;font:500 13px Geist,sans-serif;cursor:pointer;transition:background 120ms" style-hover="background:#FFFFFF">Inducir patrones</button></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">hover</span><button style="height:36px;padding:0 14px;border-radius:6px;border:none;background:#FFFFFF;color:#0B0B0D;font:500 13px Geist,sans-serif">Inducir patrones</button></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">foco teclado</span><button style="height:36px;padding:0 14px;border-radius:6px;border:none;background:#EDEDEF;color:#0B0B0D;font:500 13px Geist,sans-serif;outline:2px solid #EDEDEF;outline-offset:3px">Inducir patrones</button></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">cargando</span><button style="height:36px;padding:0 14px;border-radius:6px;border:none;background:#EDEDEF;color:#0B0B0D;font:500 13px Geist,sans-serif;display:flex;align-items:center;gap:8px;opacity:.85"><span style="width:12px;height:12px;border-radius:50%;border:1.5px solid rgba(11,11,13,.25);border-top-color:#0B0B0D"></span>Analizando 3/8</button></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">deshabilitado</span><button disabled="" style="height:36px;padding:0 14px;border-radius:6px;border:1px solid rgba(255,255,255,.07);background:transparent;color:#6B6B73;font:500 13px Geist,sans-serif;cursor:not-allowed">Inducir patrones</button></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px 12px;align-items:end">
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">secundario</span><button style="height:36px;padding:0 14px;border-radius:6px;border:1px solid rgba(255,255,255,.14);background:#111114;color:#EDEDEF;font:500 13px Geist,sans-serif;cursor:pointer" style-hover="background:#17171B;border-color:rgba(255,255,255,.22)">Agregar referencias</button></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">fantasma</span><button style="height:36px;padding:0 12px;border-radius:6px;border:none;background:transparent;color:#A1A1AA;font:500 13px Geist,sans-serif;cursor:pointer" style-hover="background:rgba(255,255,255,.05);color:#EDEDEF">Ver bitácora</button></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">confirmar</span><button style="height:36px;padding:0 12px;border-radius:6px;border:1px solid oklch(0.74 0.09 155 / .35);background:oklch(0.74 0.09 155 / .08);color:oklch(0.84 0.08 155);font:500 13px Geist,sans-serif;display:flex;align-items:center;gap:8px;cursor:pointer" style-hover="background:oklch(0.74 0.09 155 / .14)">Confirmar <kbd style="font:500 12px 'Geist Mono',monospace;padding:0 5px;border-radius:4px;border:1px solid oklch(0.74 0.09 155 / .35)">C</kbd></button></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">descartar</span><button style="height:36px;padding:0 12px;border-radius:6px;border:1px solid oklch(0.74 0.09 25 / .35);background:oklch(0.74 0.09 25 / .08);color:oklch(0.84 0.08 25);font:500 13px Geist,sans-serif;display:flex;align-items:center;gap:8px;cursor:pointer" style-hover="background:oklch(0.74 0.09 25 / .14)">Descartar <kbd style="font:500 12px 'Geist Mono',monospace;padding:0 5px;border-radius:4px;border:1px solid oklch(0.74 0.09 25 / .35)">D</kbd></button></div>
+      <div style="display:flex;flex-direction:column;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">ícono + etiqueta</span><button aria-label="Cerrar inspector" style="width:36px;height:36px;border-radius:6px;border:1px solid rgba(255,255,255,.07);background:transparent;color:#A1A1AA;font:400 16px Geist,sans-serif;cursor:pointer" style-hover="color:#EDEDEF;border-color:rgba(255,255,255,.14)">×</button></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;color:#A1A1AA">Nombre del proyecto</span><input value="Burger Club" style="height:40px;padding:0 12px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:#0B0B0D;color:#EDEDEF;font:400 14px Geist,sans-serif;outline:none" style-focus="border-color:rgba(255,255,255,.4);box-shadow:0 0 0 3px rgba(255,255,255,.08)"><span style="font-size:12px;color:#6B6B73">Reposo · hacé foco para ver el estado</span></label>
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;color:#A1A1AA">Objetivo</span><input value="Identidad para hamburguesería urbana" style="height:40px;padding:0 12px;border-radius:6px;border:1px solid rgba(255,255,255,.4);background:#0B0B0D;color:#EDEDEF;font:400 14px Geist,sans-serif;outline:none;box-shadow:0 0 0 3px rgba(255,255,255,.08)"><span style="font-size:12px;color:#6B6B73">Foco</span></label>
+      <label style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;color:#A1A1AA">Motivo del descarte</span><input value="" placeholder="Requerido" style="height:40px;padding:0 12px;border-radius:6px;border:1px solid oklch(0.74 0.09 25 / .6);background:#0B0B0D;color:#EDEDEF;font:400 14px Geist,sans-serif;outline:none"><span style="font-size:12px;color:oklch(0.82 0.08 25)">Escribí por qué descartás este patrón.</span></label>
+    </div>
+  </div>
+</section>
+
+<!-- 05 PASTILLAS + RIEL -->
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">05 — Estado y progreso</div>
+  <div style="display:flex;flex-direction:column;gap:28px">
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <span style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;border:1px solid rgba(255,255,255,.1);font-size:12px;color:#EDEDEF"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.09 80);box-shadow:0 0 6px oklch(0.74 0.09 80)"></span>Pendiente</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;border:1px solid rgba(255,255,255,.1);font-size:12px;color:#EDEDEF"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.09 155);box-shadow:0 0 6px oklch(0.74 0.09 155)"></span>Confirmado</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;border:1px solid rgba(255,255,255,.1);font-size:12px;color:#EDEDEF"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.09 25);box-shadow:0 0 6px oklch(0.74 0.09 25)"></span>Descartado</span>
+      <span style="width:1px;height:16px;background:rgba(255,255,255,.1);margin:0 4px"></span>
+      <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:4px;background:rgba(255,255,255,.05);font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">↑ reforzado</span>
+      <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:4px;background:rgba(255,255,255,.05);font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">+ nuevo</span>
+      <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:4px;background:rgba(255,255,255,.05);font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">↓ debilitado</span>
+      <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:4px;background:rgba(255,255,255,.05);font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">= estable</span>
+      <span style="width:1px;height:16px;background:rgba(255,255,255,.1);margin:0 4px"></span>
+      <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:4px;border:1px solid rgba(255,255,255,.1);font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">typography</span>
+      <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:4px;border:1px solid rgba(255,255,255,.1);font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">texture</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;color:#A1A1AA">Riel de etapas · etapa actual: Auditoría</div>
+      <nav aria-label="Etapas del método" style="display:flex;align-items:stretch;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:#111114;overflow-x:auto">
+        <sc-for list="{{ stages }}" as="s" hint-placeholder-count="5">
+          <button aria-current="{{ s.aria }}" style="flex:1 0 140px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:12px 16px;border:none;border-right:1px solid rgba(255,255,255,.07);background:{{ s.bg }};color:{{ s.color }};text-align:left;cursor:{{ s.cursor }};font-family:Geist,sans-serif" style-hover="background:rgba(255,255,255,.03)">
+            <span style="display:flex;align-items:center;gap:8px;font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73"><span style="width:6px;height:6px;border-radius:50%;background:{{ s.dot }}"></span>{{ s.num }} · {{ s.state }}</span>
+            <span style="font-size:14px;font-weight:500">{{ s.label }}</span>
+          </button>
+        </sc-for>
+      </nav>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:520px">
+      <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#A1A1AA">Confianza</span><span style="font-family:'Geist Mono',monospace;color:#EDEDEF">0.94</span></div>
+      <div style="height:4px;border-radius:2px;background:rgba(255,255,255,.07)"><div style="width:94%;height:100%;border-radius:2px;background:#EDEDEF"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 FICHA DE REFERENCIA (zoom semántico) -->
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73;display:flex;flex-direction:column;gap:12px">
+    <span>06 — Ficha de referencia</span>
+    <span style="font-family:Geist,sans-serif;font-size:13px;color:#A1A1AA;line-height:1.5">Zoom semántico. Lejos: bloque cromático e ID. Cerca: la ficha completa.</span>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:13px;color:#A1A1AA">Zoom</span>
+      <div role="group" aria-label="Nivel de zoom" style="display:flex;border:1px solid rgba(255,255,255,.1);border-radius:6px;overflow:hidden">
+        <sc-for list="{{ zoomOpts }}" as="z" hint-placeholder-count="3">
+          <button onClick="{{ z.onClick }}" aria-pressed="{{ z.pressed }}" style="height:32px;padding:0 12px;border:none;background:{{ z.bg }};color:{{ z.color }};font:500 12px 'Geist Mono',monospace;cursor:pointer">{{ z.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;padding:32px;border-radius:10px;background:#0B0B0D;border:1px solid rgba(255,255,255,.07);background-image:radial-gradient(rgba(255,255,255,.06) 1px,transparent 1px);background-size:24px 24px">
+      <sc-for list="{{ refs }}" as="r" hint-placeholder-count="3">
+        <article style="width:{{ cardW }};display:flex;flex-direction:column;border-radius:10px;background:#111114;border:1px solid {{ r.border }};box-shadow:0 8px 24px -12px rgba(0,0,0,.7);overflow:hidden;transition:width 180ms cubic-bezier(.2,.7,.2,1)">
+          <sc-if value="{{ isFar }}" hint-placeholder-val="{{ false }}">
+            <div style="height:120px;background:{{ r.dominant }};display:flex;align-items:flex-end;padding:8px"><span style="font:500 12px 'Geist Mono',monospace;color:#0B0B0D;background:rgba(237,237,239,.85);padding:1px 5px;border-radius:3px">{{ r.short }}</span></div>
+          </sc-if>
+          <sc-if value="{{ notFar }}" hint-placeholder-val="{{ true }}">
+            <img src="{{ r.image }}" alt="{{ r.name }}" style="width:100%;aspect-ratio:4/5;object-fit:cover;display:block;background:#17171B">
+            <div style="display:flex;flex-direction:column;gap:8px;padding:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="font:500 12px 'Geist Mono',monospace;color:#A1A1AA">{{ r.id }}</span><span style="width:6px;height:6px;border-radius:50%;background:{{ r.dot }};box-shadow:0 0 6px {{ r.dot }}"></span></div>
+              <span style="font-size:13px;font-weight:500;line-height:1.35">{{ r.name }}</span>
+              <sc-if value="{{ isNear }}" hint-placeholder-val="{{ false }}">
+                <p style="margin:0;font-family:Newsreader,serif;font-size:14px;color:#A1A1AA;line-height:1.45">{{ r.notes }}</p>
+                <div style="display:flex;gap:4px">
+                  <sc-for list="{{ r.palette }}" as="c" hint-placeholder-count="3"><span title="{{ c }}" style="flex:1;height:14px;border-radius:2px;background:{{ c }}"></span></sc-for>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px">
+                  <sc-for list="{{ r.tags }}" as="t" hint-placeholder-count="2"><span style="font-size:12px;color:#A1A1AA;padding:1px 7px;border-radius:999px;border:1px solid rgba(255,255,255,.1)">{{ t }}</span></sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-if>
+        </article>
+      </sc-for>
+    </div>
+    <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">Borde azul = la referencia es evidencia del patrón activo. Punto = estado de análisis.</div>
+  </div>
+</section>
+
+<!-- 07 FICHA DE PATRÓN -->
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73;display:flex;flex-direction:column;gap:12px">
+    <span>07 — Ficha de patrón</span>
+    <span style="font-family:Geist,sans-serif;font-size:13px;color:#A1A1AA;line-height:1.5">Unidad de la auditoría. La evidencia se muestra siempre, con su ID.</span>
+  </div>
+  <article style="max-width:560px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column">
+    <header style="display:flex;flex-direction:column;gap:10px;padding:20px 20px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font:500 12px 'Geist Mono',monospace;color:#6B6B73">pat_bc_02 · 2 de 6</span>
+        <div style="display:flex;gap:6px">
+          <span style="display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:4px;border:1px solid rgba(255,255,255,.1);font-family:'Geist Mono',monospace;font-size:12px;color:#A1A1AA">typography</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;border:1px solid rgba(255,255,255,.1);font-size:12px"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.09 80);box-shadow:0 0 6px oklch(0.74 0.09 80)"></span>Pendiente</span>
+        </div>
+      </div>
+      <h3 style="margin:0;font-size:18px;font-weight:500;letter-spacing:-0.01em;line-height:1.3">Tipografía Sans-Serif Condensada en Bloque Compacto</h3>
+      <p style="margin:0;font-family:Newsreader,serif;font-size:16px;line-height:1.5;color:#A1A1AA;text-wrap:pretty">Titulares en caja alta hipercondensada (Grotesk bold) con tracking cerrado, alineaciones justificadas en bloque y micro-interlínea.</p>
+    </header>
+    <div style="display:flex;flex-direction:column;gap:10px;padding:16px 20px;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="display:flex;justify-content:space-between;font-size:13px"><span style="color:#A1A1AA">Evidencia · 3 referencias</span><span style="font-family:'Geist Mono',monospace">confianza 0.94</span></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+        <sc-for list="{{ evidence }}" as="e" hint-placeholder-count="3">
+          <button style="display:flex;flex-direction:column;gap:6px;padding:0;border:none;background:none;text-align:left;cursor:pointer;color:#A1A1AA" style-hover="color:#EDEDEF">
+            <img src="{{ e.image }}" alt="{{ e.name }}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1px solid oklch(0.74 0.09 250 / .6);display:block">
+            <span style="font:500 12px 'Geist Mono',monospace">{{ e.id }}</span>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;padding:16px 20px;border-top:1px solid rgba(255,255,255,.07)">
+      <span style="font-size:13px;color:#A1A1AA">Rasgos observables</span>
+      <ul style="margin:0;padding-left:18px;font-size:13px;color:#EDEDEF;display:flex;flex-direction:column;gap:2px"><li>Jerarquía dominante de gran escala</li><li>Excelente legibilidad en envoltorios y letreros</li></ul>
+    </div>
+    <footer style="display:flex;gap:8px;padding:16px 20px;border-top:1px solid rgba(255,255,255,.07);flex-wrap:wrap">
+      <button style="height:36px;padding:0 12px;border-radius:6px;border:1px solid oklch(0.74 0.09 155 / .35);background:oklch(0.74 0.09 155 / .08);color:oklch(0.84 0.08 155);font:500 13px Geist,sans-serif;display:flex;align-items:center;gap:8px;cursor:pointer" style-hover="background:oklch(0.74 0.09 155 / .14)">Confirmar <kbd style="font:500 12px 'Geist Mono',monospace;padding:0 5px;border-radius:4px;border:1px solid oklch(0.74 0.09 155 / .35)">C</kbd></button>
+      <button style="height:36px;padding:0 12px;border-radius:6px;border:1px solid oklch(0.74 0.09 25 / .35);background:oklch(0.74 0.09 25 / .08);color:oklch(0.84 0.08 25);font:500 13px Geist,sans-serif;display:flex;align-items:center;gap:8px;cursor:pointer" style-hover="background:oklch(0.74 0.09 25 / .14)">Descartar <kbd style="font:500 12px 'Geist Mono',monospace;padding:0 5px;border-radius:4px;border:1px solid oklch(0.74 0.09 25 / .35)">D</kbd></button>
+      <button style="height:36px;padding:0 12px;border-radius:6px;border:none;background:transparent;color:#A1A1AA;font:500 13px Geist,sans-serif;display:flex;align-items:center;gap:8px;cursor:pointer;margin-left:auto" style-hover="background:rgba(255,255,255,.05);color:#EDEDEF">Anotar <kbd style="font:500 12px 'Geist Mono',monospace;padding:0 5px;border-radius:4px;border:1px solid rgba(255,255,255,.14)">N</kbd></button>
+    </footer>
+  </article>
+</section>
+
+<!-- 08 MUESTRA + BITÁCORA -->
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">08 — Muestra y bitácora</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:32px;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;color:#A1A1AA">Muestra de color · inferida del corpus, con trazabilidad</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px">
+        <sc-for list="{{ swatches }}" as="w" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.07);background:#111114">
+            <div style="height:64px;background:{{ w.hex }}"></div>
+            <div style="display:flex;flex-direction:column;gap:2px;padding:8px 10px">
+              <span style="font:500 12px 'Geist Mono',monospace">{{ w.hex }}</span>
+              <span style="font-size:12px;color:#A1A1AA">{{ w.name }}</span>
+              <span style="font:400 12px 'Geist Mono',monospace;color:#6B6B73">← {{ w.src }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:13px;color:#A1A1AA">Entrada de bitácora</div>
+      <ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.1)">
+        <sc-for list="{{ log }}" as="l" hint-placeholder-count="3">
+          <li style="display:flex;flex-direction:column;gap:4px;padding:0 0 18px 18px;position:relative">
+            <span style="position:absolute;left:-4px;top:6px;width:7px;height:7px;border-radius:50%;background:{{ l.dot }};box-shadow:0 0 6px {{ l.dot }}"></span>
+            <span style="font:400 12px 'Geist Mono',monospace;color:#6B6B73">{{ l.time }} · {{ l.target }}</span>
+            <span style="font-size:13px;font-weight:500">{{ l.action }}</span>
+            <span style="font-family:Newsreader,serif;font-size:15px;color:#A1A1AA;font-style:italic">{{ l.reason }}</span>
+          </li>
+        </sc-for>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- 09 ESTADOS DE SISTEMA -->
+<section style="display:grid;grid-template-columns:minmax(0,200px) minmax(0,1fr);gap:32px">
+  <div style="font-family:'Geist Mono',monospace;font-size:12px;color:#6B6B73">09 — Vacío, carga, error</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
+    <div style="min-height:220px;border-radius:10px;border:1px dashed rgba(255,255,255,.14);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center">
+      <span style="font:500 12px 'Geist Mono',monospace;color:#6B6B73">0 referencias</span>
+      <span style="font-size:15px;font-weight:500">Soltá imágenes acá</span>
+      <span style="font-size:13px;color:#A1A1AA;max-width:240px">Se necesitan al menos 3 referencias para inducir patrones.</span>
+      <button style="height:32px;padding:0 12px;border-radius:6px;border:1px solid rgba(255,255,255,.14);background:#111114;color:#EDEDEF;font:500 13px Geist,sans-serif;cursor:pointer">Elegir archivos</button>
+    </div>
+    <div style="min-height:220px;border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#111114;display:flex;flex-direction:column;gap:14px;padding:20px">
+      <span style="font:500 12px 'Geist Mono',monospace;color:#6B6B73">INDUCCIÓN · 3 / 8</span>
+      <span style="font-size:15px;font-weight:500">Leyendo ref_bc_03</span>
+      <div style="height:4px;border-radius:2px;background:rgba(255,255,255,.07)"><div style="width:38%;height:100%;border-radius:2px;background:#EDEDEF"></div></div>
+      <div style="display:flex;flex-direction:column;gap:6px;font:400 12px 'Geist Mono',monospace">
+        <span style="color:#A1A1AA">✓ color</span><span style="color:#A1A1AA">✓ composición</span><span style="color:#EDEDEF">→ tipografía</span><span style="color:#6B6B73">· textura</span>
+      </div>
+    </div>
+    <div role="alert" style="min-height:220px;border-radius:10px;border:1px solid oklch(0.74 0.09 25 / .35);background:oklch(0.74 0.09 25 / .05);display:flex;flex-direction:column;gap:10px;padding:20px">
+      <span style="display:flex;align-items:center;gap:8px;font:500 12px 'Geist Mono',monospace;color:oklch(0.84 0.08 25)"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.09 25)"></span>ERROR 503</span>
+      <span style="font-size:15px;font-weight:500">Gemini no respondió</span>
+      <span style="font-size:13px;color:#A1A1AA">Tus decisiones están guardadas. Se probaron 3 modelos alternativos.</span>
+      <div style="display:flex;gap:8px;margin-top:auto">
+        <button style="height:32px;padding:0 12px;border-radius:6px;border:none;background:#EDEDEF;color:#0B0B0D;font:500 13px Geist,sans-serif;cursor:pointer">Reintentar</button>
+        <button style="height:32px;padding:0 12px;border-radius:6px;border:none;background:transparent;color:#A1A1AA;font:500 13px Geist,sans-serif;cursor:pointer">Ver detalle</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { zoom: 'medio' };
+  renderVals() {
+    const u = id => `https://images.unsplash.com/${id}?q=80&w=600&auto=format&fit=crop`;
+    const R = {
+      r1: { id: 'ref_bc_01', short: '01', name: 'Envoltorio Kraft con Sello y Tipografía', image: u('photo-1568901346375-23c9450c58cd'), notes: 'Papel kraft cálido con estampación monocroma en tinta negra y detalle de monograma circular.', tags: ['Packaging', 'Kraft'], palette: ['#C89D7C', '#141414', '#F4F4F0'], dominant: '#C89D7C' },
+      r2: { id: 'ref_bc_02', short: '02', name: 'Póster Tipográfico Sans Condensada Bold', image: u('photo-1541701494587-cb58502866ab'), notes: 'Titulares en caja alta hipercondensada, tracking ajustado y acentos en naranja tostado.', tags: ['Tipografía', 'Alto contraste'], palette: ['#141414', '#E65100', '#F4F4F0'], dominant: '#E65100' },
+      r4: { id: 'ref_bc_04', short: '04', name: 'Sistema de Grilla y Recursos Gráficos', image: u('photo-1586717791821-3f44a563fa4c'), notes: 'Composición perimetral con sellos, líneas de corte punteadas y numeración de pedido.', tags: ['Grilla', 'Sellos'], palette: ['#F4F4F0', '#333333', '#141414'], dominant: '#333333' },
+      r7: { id: 'ref_bc_07', short: '07', name: 'Interior Industrial con Cartelería Tipográfica', image: u('photo-1517248135467-4c7edcad34c4'), notes: 'Menú de pared modular con rieles negros y tipografía magnética contrastada.', tags: ['Espacio', 'Señalética'], palette: ['#333333', '#141414', '#C89D7C'], dominant: '#2A2A2A' },
+    };
+    const z = this.state.zoom;
+    const green = 'oklch(0.74 0.09 155)', amber = 'oklch(0.74 0.09 80)', red = 'oklch(0.74 0.09 25)';
+    const refs = [R.r1, R.r2, R.r4].map((r, i) => ({ ...r, border: i === 1 ? 'oklch(0.74 0.09 250 / .7)' : 'rgba(255,255,255,.07)', dot: i === 2 ? amber : green }));
+    const stageDefs = [['01', 'Brief', 'hecho'], ['02', 'Corpus', 'hecho'], ['03', 'Inducción', 'hecho'], ['04', 'Auditoría', 'actual'], ['05', 'Síntesis', 'bloqueado']];
+    return {
+      stages: stageDefs.map(([num, label, st]) => ({
+        num, label, state: st,
+        aria: st === 'actual' ? 'step' : undefined,
+        bg: st === 'actual' ? '#17171B' : 'transparent',
+        color: st === 'bloqueado' ? '#6B6B73' : '#EDEDEF',
+        cursor: st === 'bloqueado' ? 'not-allowed' : 'pointer',
+        dot: st === 'hecho' ? green : st === 'actual' ? '#EDEDEF' : 'rgba(255,255,255,.15)',
+      })),
+      zoomOpts: ['lejos', 'medio', 'cerca'].map(k => ({
+        label: k, pressed: z === k ? 'true' : 'false',
+        bg: z === k ? '#EDEDEF' : 'transparent', color: z === k ? '#0B0B0D' : '#A1A1AA',
+        onClick: () => this.setState({ zoom: k }),
+      })),
+      isFar: z === 'lejos', notFar: z !== 'lejos', isNear: z === 'cerca',
+      cardW: z === 'lejos' ? '96px' : z === 'medio' ? '180px' : '260px',
+      refs,
+      evidence: [R.r2, R.r4, R.r7],
+      swatches: [
+        { hex: '#141414', name: 'Negro Carbón Mate', src: 'pat_bc_01' },
+        { hex: '#E65100', name: 'Naranja Fuego', src: 'pat_bc_01' },
+        { hex: '#C89D7C', name: 'Kraft Cálido', src: 'ref_bc_06' },
+        { hex: '#F4F4F0', name: 'Blanco Tiza', src: 'ref_bc_02' },
+      ],
+      log: [
+        { time: '00:14', target: 'pat_bc_03', action: 'Confirmado → Sistema Urbano', reason: 'Fundamental para envoltorio, conos de papas y packaging.', dot: green },
+        { time: '00:12', target: 'pat_bc_07', action: 'Descartado', reason: 'El neón responde a la fachada existente, no al universo deseado.', dot: red },
+        { time: '00:09', target: 'corpus', action: 'Inducción · 8 referencias, 7 patrones', reason: 'Primera lectura del corpus.', dot: amber },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

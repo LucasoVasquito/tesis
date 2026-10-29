@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Anton&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0B0D;color:#EDEDEF;font-family:Geist,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#EDEDEF}a:hover{color:oklch(0.86 0.12 350)}
+*{box-sizing:border-box}
+</style>
+</helmet>
+
+<div style="max-width:1440px;margin:0 auto;padding:56px 32px 96px;display:flex;flex-direction:column;gap:72px">
+
+<header style="display:flex;flex-direction:column;gap:8px;max-width:760px">
+  <span style="font:500 12px 'Geist Mono',monospace;color:#6B6B73">Corrección · Síntesis v2</span>
+  <h1 style="margin:0;font-size:32px;font-weight:600;letter-spacing:-.02em">Paleta de interfaz y sistema como tablero</h1>
+  <p style="margin:0;font:400 18px/1.5 Newsreader,serif;color:#A1A1AA;text-wrap:pretty">La interfaz sigue siendo blanco y negro. El color entra por tres vías con funciones distintas: una señal para la IA y la trazabilidad, una familia de color por categoría de patrón, y la paleta real del corpus, que es la que más superficie ocupa en Síntesis.</p>
+</header>
+
+<!-- A · Paleta -->
+<section data-screen-label="A Paleta" style="display:flex;flex-direction:column;gap:24px">
+  <div style="display:flex;align-items:baseline;gap:12px"><span style="font:500 12px 'Geist Mono',monospace;color:#6B6B73">A</span><h2 style="margin:0;font-size:20px;font-weight:600">Paleta de interfaz</h2></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+
+    <div style="padding:20px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;justify-content:space-between"><span style="font-size:14px;font-weight:500">1 · Neutros</span><span style="font:12px 'Geist Mono',monospace;color:#6B6B73">90% de la UI</span></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);height:56px;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,.07)">
+        <div style="background:#0B0B0D"></div><div style="background:#111114"></div><div style="background:#17171B"></div><div style="background:#EDEDEF"></div>
+      </div>
+      <span style="font-size:13px;color:#A1A1AA;line-height:1.5">Sin cambios. Estructura, texto y CTA primario.</span>
+    </div>
+
+    <div style="padding:20px;border-radius:10px;background:#111114;border:1px solid oklch(0.74 0.19 350 / .35);display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;justify-content:space-between"><span style="font-size:14px;font-weight:500">2 · Señal</span><span style="font:12px 'Geist Mono',monospace;color:#6B6B73">oklch(.74 .19 350)</span></div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;height:56px;border-radius:6px;overflow:hidden">
+        <div style="background:oklch(0.74 0.19 350)"></div><div style="background:oklch(0.74 0.19 350 / .18)"></div><div style="background:oklch(0.86 0.12 350)"></div>
+      </div>
+      <span style="font-size:13px;color:#A1A1AA;line-height:1.5">Todo lo que viene de la IA y todo lo que se puede rastrear: evidencia en el lienzo, chips <span style="font-family:'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← pat_01</span>, etapa actual, "Redactar con IA". Reemplaza al azul de evidencia.</span>
+    </div>
+
+    <div style="padding:20px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;justify-content:space-between"><span style="font-size:14px;font-weight:500">3 · Estados</span><span style="font:12px 'Geist Mono',monospace;color:#6B6B73">sin cambios</span></div>
+      <div style="display:flex;gap:16px;height:56px;align-items:center">
+        <span style="display:flex;align-items:center;gap:8px;font-size:13px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.74 0.09 80);box-shadow:0 0 6px oklch(0.74 0.09 80)"></span>Detectado</span>
+        <span style="display:flex;align-items:center;gap:8px;font-size:13px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.74 0.09 155);box-shadow:0 0 6px oklch(0.74 0.09 155)"></span>Confirmado</span>
+        <span style="display:flex;align-items:center;gap:8px;font-size:13px"><span style="width:8px;height:8px;border-radius:50%;background:oklch(0.74 0.09 25);box-shadow:0 0 6px oklch(0.74 0.09 25)"></span>Descartado</span>
+      </div>
+      <span style="font-size:13px;color:#A1A1AA;line-height:1.5">Solo puntos y botones de juicio. Croma bajo, para no competir con la señal.</span>
+    </div>
+
+    <div style="padding:20px;border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:16px;grid-column:1/-1">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><span style="font-size:14px;font-weight:500">4 · Familias de categoría</span><span style="font:12px 'Geist Mono',monospace;color:#6B6B73">oklch(.80 .11 h) · las 13 categorías en 5 familias + color</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:6px;background:oklch(0.80 0.11 285 / .08);border:1px solid oklch(0.80 0.11 285 / .25)"><span style="font-size:13px;font-weight:500;color:oklch(0.86 0.08 285)">Tipografía · h285</span><span style="font:12px 'Geist Mono',monospace;color:#A1A1AA">typography, flyer_poster</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:6px;background:oklch(0.80 0.11 230 / .08);border:1px solid oklch(0.80 0.11 230 / .25)"><span style="font-size:13px;font-weight:500;color:oklch(0.86 0.08 230)">Composición · h230</span><span style="font:12px 'Geist Mono',monospace;color:#A1A1AA">composition, geometry, graphic_elements</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:6px;background:oklch(0.80 0.11 60 / .08);border:1px solid oklch(0.80 0.11 60 / .25)"><span style="font-size:13px;font-weight:500;color:oklch(0.86 0.08 60)">Materia · h60</span><span style="font:12px 'Geist Mono',monospace;color:#A1A1AA">texture, packaging</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:6px;background:oklch(0.82 0.11 110 / .08);border:1px solid oklch(0.82 0.11 110 / .25)"><span style="font-size:13px;font-weight:500;color:oklch(0.88 0.08 110)">Identidad · h110</span><span style="font:12px 'Geist Mono',monospace;color:#A1A1AA">logo_identity, mascot_illustration</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:6px;background:oklch(0.80 0.11 195 / .08);border:1px solid oklch(0.80 0.11 195 / .25)"><span style="font-size:13px;font-weight:500;color:oklch(0.86 0.08 195)">Imagen · h195</span><span style="font:12px 'Geist Mono',monospace;color:#A1A1AA">photography_treatment, social_media, mood</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1)"><span style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500"><span style="display:flex;height:10px;width:30px;border-radius:2px;overflow:hidden"><span style="flex:1;background:#F2E600"></span><span style="flex:1;background:#E4007C"></span><span style="flex:1;background:#3A2A9B"></span></span>Color</span><span style="font:12px 'Geist Mono',monospace;color:#A1A1AA">color · usa la paleta del corpus</span></div>
+      </div>
+      <span style="font-size:13px;color:#A1A1AA;line-height:1.5">Aparecen en el tag de categoría, en el filete superior de cada ficha de patrón y en las pestañas de reglas. Así se lee de un vistazo de qué está hecho un sistema.</span>
+    </div>
+  </div>
+</section>
+
+<!-- B · Pantalla Síntesis -->
+<section data-screen-label="B Síntesis" style="display:flex;flex-direction:column;gap:24px">
+  <div style="display:flex;align-items:baseline;gap:12px"><span style="font:500 12px 'Geist Mono',monospace;color:#6B6B73">B</span><h2 style="margin:0;font-size:20px;font-weight:600">05 · Síntesis, sistema adoptado</h2></div>
+
+  <div style="overflow-x:auto;border-radius:12px">
+  <div style="min-width:1200px;border-radius:12px;border:1px solid rgba(255,255,255,.1);overflow:hidden;background:#0B0B0D;display:flex;flex-direction:column">
+    <!-- TopBar -->
+    <div style="height:56px;display:flex;align-items:center;gap:24px;padding:0 16px;border-bottom:1px solid rgba(255,255,255,.07)">
+      <span style="font-size:14px;font-weight:600">Emergent</span>
+      <span style="font-size:14px;color:#A1A1AA">Badder · Hamburguesería</span>
+      <nav aria-label="Etapas del método" style="flex:1;display:flex;justify-content:center">
+        <div style="display:flex;border:1px solid rgba(255,255,255,.07);border-radius:8px;overflow:hidden">
+          <sc-for list="{{ stages }}" as="s" hint-placeholder-count="5">
+            <div style="padding:6px 20px;display:flex;flex-direction:column;align-items:center;gap:2px;border-right:1px solid rgba(255,255,255,.07)">
+              <span style="font:12px 'Geist Mono',monospace;color:#6B6B73;display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.09 155)"></span>{{ s.n }} · hecho</span>
+              <span style="font-size:13px;font-weight:500">{{ s.label }}</span>
+            </div>
+          </sc-for>
+          <div style="padding:6px 20px;display:flex;flex-direction:column;align-items:center;gap:2px;background:oklch(0.74 0.19 350 / .12);box-shadow:inset 0 -2px 0 oklch(0.74 0.19 350)">
+            <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350);display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.19 350);box-shadow:0 0 6px oklch(0.74 0.19 350)"></span>05 · actual</span>
+            <span style="font-size:13px;font-weight:500">Síntesis</span>
+          </div>
+        </div>
+      </nav>
+      <span style="font-size:13px;color:#A1A1AA">Bitácora</span>
+    </div>
+
+    <div style="display:grid;grid-template-columns:300px minmax(0,1fr);min-height:900px">
+      <!-- Patrones -->
+      <aside style="border-right:1px solid rgba(255,255,255,.07);padding:20px 16px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <span style="font:12px 'Geist Mono',monospace;color:#6B6B73">Patrones confirmados · 5</span>
+          <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;gap:2px;margin-top:8px">
+            <span style="flex:1;background:oklch(0.80 0.11 285)"></span><span style="flex:2;background:oklch(0.82 0.11 110)"></span><span style="flex:1;background:oklch(0.80 0.11 60)"></span><span style="flex:1;background:oklch(0.80 0.11 195)"></span>
+          </div>
+          <span style="font-size:12px;color:#A1A1AA;margin-top:4px">1 tipografía · 2 identidad · 1 materia · 1 imagen</span>
+        </div>
+        <sc-for list="{{ patterns }}" as="p" hint-placeholder-count="5">
+          <div style="border-radius:10px;background:#111114;border:1px solid rgba(255,255,255,.07);overflow:hidden;display:flex;cursor:grab" style-hover="border-color:rgba(255,255,255,.14)">
+            <span style="width:3px;flex:none;background:{{ p.color }}"></span>
+            <div style="padding:12px;display:flex;gap:12px;min-width:0;flex:1">
+              <img src="{{ p.img }}" alt="" style="width:44px;height:44px;border-radius:6px;object-fit:cover;flex:none">
+              <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                <span style="font:12px 'Geist Mono',monospace;color:{{ p.color }}">{{ p.id }} · {{ p.family }}</span>
+                <span style="font-size:13px;font-weight:500;line-height:1.35">{{ p.name }}</span>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </aside>
+
+      <!-- Sistema -->
+      <main style="padding:24px;display:flex;flex-direction:column;gap:20px;min-width:0">
+        <div style="border-radius:12px;background:#111114;border:1px solid rgba(255,255,255,.07);overflow:hidden;display:flex;flex-direction:column">
+
+          <!-- Cabecera con paleta -->
+          <div style="display:flex;height:120px">
+            <sc-for list="{{ palette }}" as="c" hint-placeholder-count="6">
+              <div style="flex:{{ c.w }};background:{{ c.hex }};padding:12px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;min-width:76px">
+                <span style="font:500 12px 'Geist Mono',monospace;color:{{ c.ink }}">{{ c.hex }}</span>
+                <span style="font:12px 'Geist Mono',monospace;color:{{ c.ink }};opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.pct }} · {{ c.src }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="padding:24px;display:flex;flex-wrap:wrap;gap:24px;align-items:flex-end;border-bottom:1px solid rgba(255,255,255,.07)">
+            <div style="display:flex;flex-direction:column;gap:8px;min-width:0;flex:1 1 360px">
+              <span style="font:12px 'Geist Mono',monospace;color:#6B6B73">Sistema A · 5 patrones · 9 referencias</span>
+              <h3 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-.02em">Rave-Underground Badder</h3>
+              <p style="margin:0;font:400 17px/1.5 Newsreader,serif;color:#A1A1AA;max-width:720px;text-wrap:pretty">Códigos del diseño gráfico underground y la estética rave, aplicados a la comida rápida con actitud irreverente.</p>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button style="height:36px;padding:0 14px;border-radius:6px;border:1px solid oklch(0.74 0.19 350 / .4);background:oklch(0.74 0.19 350 / .1);color:oklch(0.86 0.12 350);font:500 13px Geist,sans-serif;cursor:pointer" style-hover="background:oklch(0.74 0.19 350 / .18)">Redactar con IA</button>
+              <button style="height:36px;padding:0 14px;border-radius:6px;border:1px solid rgba(255,255,255,.14);background:#111114;color:#EDEDEF;font:500 13px Geist,sans-serif;cursor:pointer">Ver lineamientos</button>
+            </div>
+          </div>
+
+          <!-- Pilares -->
+          <div style="padding:24px;display:flex;flex-direction:column;gap:16px;border-bottom:1px solid rgba(255,255,255,.07)">
+            <span style="font:12px 'Geist Mono',monospace;color:#6B6B73">Pilares · 4</span>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+              <sc-for list="{{ pillars }}" as="pl" hint-placeholder-count="4">
+                <div style="position:relative;aspect-ratio:4/5;border-radius:10px;overflow:hidden;background:#17171B;display:flex;flex-direction:column;justify-content:flex-end">
+                  <img src="{{ pl.img }}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:{{ pl.filter }}">
+                  <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(11,11,13,.95) 20%,rgba(11,11,13,0) 65%)"></div>
+                  <div style="position:relative;padding:16px;display:flex;flex-direction:column;gap:8px">
+                    <span style="font:12px 'Geist Mono',monospace;color:{{ pl.color }}">{{ pl.num }} · {{ pl.family }}</span>
+                    <span style="font:500 22px/1.15 Newsreader,serif">{{ pl.name }}</span>
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← {{ pl.pats }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <!-- Reglas -->
+          <div style="padding:24px;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+              <div role="tablist" style="display:flex;gap:4px;padding:4px;border-radius:8px;background:#0B0B0D;border:1px solid rgba(255,255,255,.07)">
+                <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+                  <button role="tab" onClick="{{ t.onClick }}" style="height:32px;padding:0 12px;border-radius:6px;border:none;background:{{ t.bg }};color:{{ t.ink }};font:500 13px Geist,sans-serif;display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <span style="width:8px;height:8px;border-radius:2px;background:{{ t.color }}"></span>{{ t.label }}<span style="font:12px 'Geist Mono',monospace;color:#6B6B73">{{ t.count }}</span>
+                  </button>
+                </sc-for>
+              </div>
+              <button onClick="{{ toggleAll }}" style="height:32px;padding:0 12px;border-radius:6px;border:none;background:transparent;color:#A1A1AA;font:500 13px Geist,sans-serif;cursor:pointer" style-hover="color:#EDEDEF">{{ toggleLabel }}</button>
+            </div>
+
+            <sc-if value="{{ isTypo }}" hint-placeholder-val="{{ true }}">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+                <article style="border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#0B0B0D;overflow:hidden;display:flex;flex-direction:column">
+                  <div style="height:200px;background:#E4007C;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                    <span style="font:400 92px/1 Anton,sans-serif;color:#F2E600;transform:scaleY(1.7) skewX(-8deg);letter-spacing:-.01em">BADDER</span>
+                  </div>
+                  <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.08 285)">T1 · Titulares</span>
+                    <span style="font-size:16px;font-weight:600;line-height:1.3">Display estirada en el eje vertical</span>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <span style="height:24px;padding:0 8px;border-radius:4px;background:oklch(0.74 0.09 155 / .1);color:oklch(0.84 0.08 155);font-size:12px;display:inline-flex;align-items:center">Sí · títulos, afiches</span>
+                      <span style="height:24px;padding:0 8px;border-radius:4px;background:oklch(0.74 0.09 25 / .1);color:oklch(0.84 0.08 25);font-size:12px;display:inline-flex;align-items:center">No · textos de lectura</span>
+                    </div>
+                    <sc-if value="{{ showWhy }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font:400 15px/1.5 Newsreader,serif;color:#A1A1AA">Utilizar tipografías display con deformaciones en su eje vertical u horizontal para títulos y elementos de alto impacto.</p></sc-if>
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← pat_01 · ref_02 ref_05 ref_07</span>
+                  </div>
+                </article>
+                <article style="border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#0B0B0D;overflow:hidden;display:flex;flex-direction:column">
+                  <div style="height:200px;background:#F4EFE6;padding:20px;display:flex;flex-direction:column;justify-content:space-between">
+                    <span style="font:400 56px/.9 Anton,sans-serif;color:#111;text-transform:uppercase">Smash<br>Night</span>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-end;font:500 13px Geist,sans-serif;color:#111"><span>Viernes 23 · 00 h</span><span style="font-family:'Geist Mono',monospace;font-size:12px">01 / 03</span></div>
+                  </div>
+                  <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.08 285)">T2 · Jerarquía</span>
+                    <span style="font-size:16px;font-weight:600;line-height:1.3">Condensada arriba, sans geométrica abajo</span>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <span style="height:24px;padding:0 8px;border-radius:4px;background:rgba(255,255,255,.05);color:#A1A1AA;font:12px 'Geist Mono',monospace;display:inline-flex;align-items:center">2 niveles máx.</span>
+                    </div>
+                    <sc-if value="{{ showWhy }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font:400 15px/1.5 Newsreader,serif;color:#A1A1AA">Mantener una jerarquía clara utilizando tipografías condensadas de gran pegada visual para titulares y tipografía sans-serif geométrica para información secundaria.</p></sc-if>
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← pat_01 · ref_02 ref_04</span>
+                  </div>
+                </article>
+                <article style="border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#0B0B0D;overflow:hidden;display:flex;flex-direction:column">
+                  <div style="height:200px;background:#111;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                    <span style="font:400 76px/1 Anton,sans-serif;color:#F4EFE6;text-shadow:-5px 0 0 #E4007C,5px 2px 0 #F2E600;transform:skewX(-12deg)">RAVE</span>
+                  </div>
+                  <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.08 285)">T3 · Distorsión</span>
+                    <span style="font-size:16px;font-weight:600;line-height:1.3">Glitch controlado, solo en cartelería</span>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <span style="height:24px;padding:0 8px;border-radius:4px;background:oklch(0.74 0.09 155 / .1);color:oklch(0.84 0.08 155);font-size:12px;display:inline-flex;align-items:center">Sí · afiches, promo</span>
+                      <span style="height:24px;padding:0 8px;border-radius:4px;background:oklch(0.74 0.09 25 / .1);color:oklch(0.84 0.08 25);font-size:12px;display:inline-flex;align-items:center">No · menú, packaging</span>
+                    </div>
+                    <sc-if value="{{ showWhy }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font:400 15px/1.5 Newsreader,serif;color:#A1A1AA">Aplicar distorsiones digitales controladas (efecto glitch o estiramientos) en piezas de cartelería y soportes promocionales.</p></sc-if>
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← pat_01 · ref_05</span>
+                  </div>
+                </article>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isTex }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+                <article style="border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#0B0B0D;overflow:hidden;display:flex;flex-direction:column">
+                  <div style="height:200px;display:grid;grid-template-columns:1fr 1fr">
+                    <img src="{{ img.a }}" alt="Evidencia ref_03" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.5)">
+                    <img src="{{ img.b }}" alt="Evidencia ref_06" style="width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.3) brightness(.9)">
+                  </div>
+                  <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.08 60)">X1 · Fondos</span>
+                    <span style="font-size:16px;font-weight:600;line-height:1.3">Grano fino y ruido digital</span>
+                    <div style="display:flex;gap:6px"><span style="height:24px;padding:0 8px;border-radius:4px;background:rgba(255,255,255,.05);color:#A1A1AA;font:12px 'Geist Mono',monospace;display:inline-flex;align-items:center">intensidad · moderada</span></div>
+                    <sc-if value="{{ showWhy }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font:400 15px/1.5 Newsreader,serif;color:#A1A1AA">Incorporar grano fino y texturas de ruido digital en fondos y piezas gráficas para evocar la estética de impresión casera y afiches de música electrónica.</p></sc-if>
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← pat_04 · ref_03 ref_06</span>
+                  </div>
+                </article>
+                <article style="border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#0B0B0D;overflow:hidden;display:flex;flex-direction:column">
+                  <div style="height:200px;background:repeating-radial-gradient(circle at 50% 50%,#F2E600 0 6px,#111 6px 14px)"></div>
+                  <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.08 60)">X2 · Apoyo</span>
+                    <span style="font-size:16px;font-weight:600;line-height:1.3">Tramas y espirales de baja resolución</span>
+                    <div style="display:flex;gap:6px"><span style="height:24px;padding:0 8px;border-radius:4px;background:oklch(0.74 0.09 25 / .1);color:oklch(0.84 0.08 25);font-size:12px;display:inline-flex;align-items:center">No · como fondo de texto</span></div>
+                    <sc-if value="{{ showWhy }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font:400 15px/1.5 Newsreader,serif;color:#A1A1AA">Utilizar tramas de baja resolución y patrones de espirales psicodélicas granuladas como elementos de apoyo visual.</p></sc-if>
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← pat_04 · ref_05</span>
+                  </div>
+                </article>
+                <article style="border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#0B0B0D;overflow:hidden;display:flex;flex-direction:column">
+                  <div style="height:200px;display:grid;grid-template-columns:1fr 1fr;gap:2px;background:#111">
+                    <img src="{{ img.c }}" alt="Evidencia ref_04" style="width:100%;height:100%;object-fit:cover;filter:grayscale(.6) contrast(1.3)">
+                    <img src="{{ img.d }}" alt="Evidencia ref_08" style="width:100%;height:100%;object-fit:cover;filter:saturate(1.3)">
+                  </div>
+                  <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.08 60)">X3 · Contraste</span>
+                    <span style="font-size:16px;font-weight:600;line-height:1.3">Rústico contra el brillo del producto</span>
+                    <div style="display:flex;gap:6px"><span style="height:24px;padding:0 8px;border-radius:4px;background:rgba(255,255,255,.05);color:#A1A1AA;font:12px 'Geist Mono',monospace;display:inline-flex;align-items:center">textura ↔ producto</span></div>
+                    <sc-if value="{{ showWhy }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font:400 15px/1.5 Newsreader,serif;color:#A1A1AA">Contrastar las texturas rústicas y digitales con la nitidez y brillo natural de los alimentos grasos y los sustratos metálicos.</p></sc-if>
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← pat_04 pat_05 · ref_04 ref_08</span>
+                  </div>
+                </article>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isComp }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px">
+                <article style="border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#0B0B0D;overflow:hidden;display:flex;flex-direction:column">
+                  <div style="height:200px;background:#F4EFE6;padding:14px;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:4px">
+                    <div style="grid-column:1/5;background:#111"></div>
+                    <div style="grid-row:2/4;background:#E4007C"></div>
+                    <div style="grid-column:2/4;grid-row:2/4;border:1.5px dashed #111"></div>
+                    <div style="grid-row:2/4;background:#F2E600"></div>
+                    <div style="grid-column:1/3;background:#111"></div>
+                    <div style="grid-column:3/5;background:#3A2A9B"></div>
+                  </div>
+                  <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.08 230)">C1 · Estructura</span>
+                    <span style="font-size:16px;font-weight:600;line-height:1.3">Módulos en el perímetro, centro libre</span>
+                    <div style="display:flex;gap:6px"><span style="height:24px;padding:0 8px;border-radius:4px;background:rgba(255,255,255,.05);color:#A1A1AA;font:12px 'Geist Mono',monospace;display:inline-flex;align-items:center">retícula 4 × 4</span></div>
+                    <sc-if value="{{ showWhy }}" hint-placeholder-val="{{ false }}"><p style="margin:0;font:400 15px/1.5 Newsreader,serif;color:#A1A1AA">Estructurar la información mediante sistemas modulares y composiciones perimetrales que rememoran la cartelería underground.</p></sc-if>
+                    <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← pat_04 · ref_04 ref_07</span>
+                  </div>
+                </article>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isColor }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+                <sc-for list="{{ palette }}" as="c" hint-placeholder-count="6">
+                  <div style="border-radius:10px;border:1px solid rgba(255,255,255,.07);background:#0B0B0D;overflow:hidden;display:flex;flex-direction:column">
+                    <div style="height:96px;background:{{ c.hex }}"></div>
+                    <div style="padding:12px;display:flex;flex-direction:column;gap:4px">
+                      <span style="font:500 12px 'Geist Mono',monospace">{{ c.hex }}</span>
+                      <span style="font-size:13px;font-weight:500">{{ c.name }}</span>
+                      <span style="font-size:12px;color:#A1A1AA">{{ c.role }} · {{ c.pct }}</span>
+                      <span style="font:12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)">← {{ c.src }}</span>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div style="height:64px;border-top:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-between;padding:0 20px">
+      <span style="font:12px 'Geist Mono',monospace;color:#A1A1AA">1 sistema · 5 de 5 patrones asignados</span>
+      <div style="display:flex;gap:8px">
+        <button style="height:36px;padding:0 14px;border-radius:6px;border:none;background:transparent;color:#A1A1AA;font:500 13px Geist,sans-serif">Dossier .md</button>
+        <button style="height:36px;padding:0 14px;border-radius:6px;border:none;background:#EDEDEF;color:#0B0B0D;font:500 13px Geist,sans-serif">Nuevo sistema</button>
+      </div>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- C · Sugerencia -->
+<section data-screen-label="C Sugerencia" style="display:flex;flex-direction:column;gap:24px">
+  <div style="display:flex;align-items:baseline;gap:12px"><span style="font:500 12px 'Geist Mono',monospace;color:#6B6B73">C</span><h2 style="margin:0;font-size:20px;font-weight:600">Sugerencia de la IA, antes de adoptar</h2></div>
+  <div style="max-width:880px;border-radius:12px;border:1px dashed oklch(0.74 0.19 350 / .45);background:oklch(0.74 0.19 350 / .03);display:grid;grid-template-columns:minmax(0,1fr) 260px;overflow:hidden">
+    <div style="padding:24px;display:flex;flex-direction:column;gap:16px">
+      <span style="display:inline-flex;align-self:flex-start;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:oklch(0.74 0.19 350 / .12);font:500 12px 'Geist Mono',monospace;color:oklch(0.86 0.12 350)"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.19 350)"></span>Sugerencia de la IA</span>
+      <h3 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em">Rave-Underground Badder</h3>
+      <p style="margin:0;font:400 16px/1.5 Newsreader,serif;color:#A1A1AA;text-wrap:pretty">Códigos del diseño gráfico underground y la estética rave, aplicados a la comida rápida con actitud irreverente.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span style="height:28px;padding:0 10px;border-radius:6px;border:1px solid oklch(0.80 0.11 285 / .3);color:oklch(0.86 0.08 285);font-size:13px;display:inline-flex;align-items:center">Tipografías distorsionadas</span>
+        <span style="height:28px;padding:0 10px;border-radius:6px;border:1px solid oklch(0.80 0.11 60 / .3);color:oklch(0.86 0.08 60);font-size:13px;display:inline-flex;align-items:center">Grano analógico y digital</span>
+        <span style="height:28px;padding:0 10px;border-radius:6px;border:1px solid oklch(0.82 0.11 110 / .3);color:oklch(0.88 0.08 110);font-size:13px;display:inline-flex;align-items:center">Personajes irreverentes</span>
+        <span style="height:28px;padding:0 10px;border-radius:6px;border:1px solid oklch(0.80 0.11 195 / .3);color:oklch(0.86 0.08 195);font-size:13px;display:inline-flex;align-items:center">Cultura underground</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px">
+        <button style="height:36px;padding:0 14px;border-radius:6px;border:1px solid rgba(255,255,255,.14);background:#111114;color:#EDEDEF;font:500 13px Geist,sans-serif">Adoptar</button>
+        <button style="height:36px;padding:0 12px;border-radius:6px;border:none;background:transparent;color:#A1A1AA;font:500 13px Geist,sans-serif">Descartar</button>
+        <span style="font-size:12px;color:#A1A1AA;display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.09 155)"></span>5 de 5 patrones confirmados</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-rows:1fr 40px;border-left:1px solid rgba(255,255,255,.07)">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px">
+        <img src="{{ img.a }}" alt="" style="width:100%;height:100%;object-fit:cover;min-height:100px">
+        <img src="{{ img.b }}" alt="" style="width:100%;height:100%;object-fit:cover;min-height:100px">
+        <img src="{{ img.c }}" alt="" style="width:100%;height:100%;object-fit:cover;min-height:100px">
+        <img src="{{ img.d }}" alt="" style="width:100%;height:100%;object-fit:cover;min-height:100px">
+      </div>
+      <div style="display:flex">
+        <sc-for list="{{ palette }}" as="c" hint-placeholder-count="6"><span style="flex:{{ c.w }};background:{{ c.hex }}"></span></sc-for>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;mostrarRazones&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { tab: 'typo', why: null };
+  renderVals() {
+    const u = id => `https://images.unsplash.com/${id}?q=80&w=600&auto=format&fit=crop`;
+    const img = { a: u('photo-1541701494587-cb58502866ab'), b: u('photo-1568901346375-23c9450c58cd'), c: u('photo-1517248135467-4c7edcad34c4'), d: u('photo-1550547660-d9450f859349') };
+    const F = {
+      typo: ['Tipografía', 'oklch(0.80 0.11 285)'], comp: ['Composición', 'oklch(0.80 0.11 230)'],
+      mat: ['Materia', 'oklch(0.80 0.11 60)'], id: ['Identidad', 'oklch(0.82 0.11 110)'], im: ['Imagen', 'oklch(0.80 0.11 195)']
+    };
+    const pat = (id, f, name, im) => ({ id, family: F[f][0], color: F[f][1], name, img: im });
+    const showWhy = this.state.why ?? (this.props.mostrarRazones ?? false);
+    const tabs = [['typo', 'Tipografía', F.typo[1], 3], ['tex', 'Textura', F.mat[1], 3], ['comp', 'Composición', F.comp[1], 1], ['color', 'Color', 'linear-gradient(90deg,#F2E600,#E4007C,#3A2A9B)', 6]]
+      .map(([k, label, color, count]) => ({ label, color, count, bg: this.state.tab === k ? '#17171B' : 'transparent', ink: this.state.tab === k ? '#EDEDEF' : '#A1A1AA', onClick: () => this.setState({ tab: k }) }));
+    return {
+      img, tabs, showWhy,
+      toggleLabel: showWhy ? 'Ocultar fundamentos' : 'Ver fundamentos',
+      toggleAll: () => this.setState({ why: !showWhy }),
+      isTypo: this.state.tab === 'typo', isTex: this.state.tab === 'tex', isComp: this.state.tab === 'comp', isColor: this.state.tab === 'color',
+      stages: [['01', 'Brief'], ['02', 'Corpus'], ['03', 'Inducción'], ['04', 'Auditoría']].map(([n, label]) => ({ n, label })),
+      patterns: [
+        pat('pat_01', 'typo', 'Tipografía display con deformaciones formales y alto impacto', img.a),
+        pat('pat_02', 'id', 'Identidad en emblema circular vintage', img.b),
+        pat('pat_03', 'id', 'Mascotas y personajes de estilo cartoon retro', img.d),
+        pat('pat_04', 'mat', 'Composiciones modulares con grano y textura digital', img.c),
+        pat('pat_05', 'im', 'Producto con luz cenital directa y sustratos metálicos', img.b)
+      ],
+      palette: [
+        { hex: '#111111', name: 'Negro tinta', role: 'fondo', pct: '34%', w: 34, src: 'ref_04', ink: '#EDEDEF' },
+        { hex: '#E4007C', name: 'Magenta rave', role: 'predominante', pct: '22%', w: 22, src: 'ref_05', ink: '#fff' },
+        { hex: '#F2E600', name: 'Amarillo ácido', role: 'acento', pct: '16%', w: 16, src: 'ref_02', ink: '#111' },
+        { hex: '#F4EFE6', name: 'Hueso', role: 'fondo', pct: '14%', w: 14, src: 'ref_01', ink: '#111' },
+        { hex: '#3A2A9B', name: 'Violeta UV', role: 'detalle', pct: '8%', w: 8, src: 'ref_07', ink: '#fff' },
+        { hex: '#B8B8BC', name: 'Acero', role: 'detalle', pct: '6%', w: 6, src: 'ref_08', ink: '#111' }
+      ],
+      pillars: [
+        { num: '01', family: 'Tipografía', color: 'oklch(0.86 0.08 285)', name: 'Distorsión tipográfica psicodélica', pats: 'pat_01', img: img.a, filter: 'saturate(1.4)' },
+        { num: '02', family: 'Materia', color: 'oklch(0.86 0.08 60)', name: 'Estética analógica y grano digital', pats: 'pat_04', img: img.c, filter: 'grayscale(1) contrast(1.4)' },
+        { num: '03', family: 'Identidad', color: 'oklch(0.88 0.08 110)', name: 'Iconografía cartoon irreverente', pats: 'pat_02 pat_03', img: img.d, filter: 'none' },
+        { num: '04', family: 'Imagen', color: 'oklch(0.86 0.08 195)', name: 'Materialidad industrial y urbana', pats: 'pat_05', img: img.b, filter: 'contrast(1.2)' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
