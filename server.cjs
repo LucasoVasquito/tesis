@@ -38,6 +38,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const genai_1 = require("@google/genai");
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
@@ -192,6 +193,15 @@ async function generateContentWithRetry(ai, request) {
 // Health check endpoint
 app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+// Proyecto de ejemplo (primer respaldo .json de la carpeta ejemplos/)
+app.get("/api/example-project", (req, res) => {
+    const dir = path_1.default.join(process.cwd(), "ejemplos");
+    const file = fs_1.default.existsSync(dir) ? fs_1.default.readdirSync(dir).find(f => f.toLowerCase().endsWith(".json")) : undefined;
+    if (!file)
+        return res.status(404).json({ error: "Archivo de ejemplo no encontrado" });
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.sendFile(path_1.default.join(dir, file));
 });
 // ==========================================
 // 1. Multimodal Multi-Reference Pattern Discovery

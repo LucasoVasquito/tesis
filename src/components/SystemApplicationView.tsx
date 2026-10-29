@@ -4,6 +4,7 @@ import { ApplicationSession, GeneratedPiece, GenerationRound, GenMode, Pattern, 
 import { loadPieceImage, savePieceImage, toDataUrl } from '../utils/pieceStore';
 import { Button, EmptyState, ErrorState, LoadingState, TextArea, TextInput } from './ui';
 import { FullView } from './shell/FullView';
+import { LightboxModal } from './LightboxModal';
 import { compressImageString } from '../utils/imageCompressor';
 import { checkPalette, extractColors, PieceAudit } from '../utils/pieceAudit';
 import { AuditState, PieceAuditPanel, scoreLabel } from './application/PieceAuditPanel';
@@ -120,6 +121,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
   const [busy, setBusy] = useState<null | { kind: 'new' | 'revision'; count: number }>(null);
   const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [zoomId, setZoomId] = useState<string | null>(null);
   const [audits, setAudits] = useState<Record<string, AuditState>>(() =>
     Object.fromEntries(Object.entries(session?.audits ?? {}).map(([id, audit]) => [id, { status: 'done', audit } as AuditState])),
   );
@@ -162,6 +164,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
 
   const withImg = (p: GeneratedPiece): Piece => ({ ...p, imageUrl: images[p.id] ?? '' });
   const allPieces = rounds.flatMap(r => r.pieces).map(withImg);
+  const zoomPiece = allPieces.find(p => p.id === zoomId) || null;
   const byId = (id?: string) => allPieces.find(p => p.id === id) ?? null;
   const selected = byId(selectedId ?? undefined);
   const lastRound = rounds[rounds.length - 1] ?? null;
@@ -799,7 +802,10 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                       <li key={p.id}>
                         <button
                           type="button"
-                          onClick={() => setSelectedId(p.id)}
+                          onClick={() => {
+                            setSelectedId(p.id);
+                            setZoomId(p.id);
+                          }}
                           aria-pressed={p.id === selectedId}
                           aria-label={`Variante ${i + 1}: ${directionLabel(p) || pieceInfoOf(p.pieceType).label}${isApproved ? ', aprobada' : ''}`}
                           className={`flex w-full flex-col gap-2 rounded-card border bg-surface p-2 text-left transition-colors duration-120 ${
@@ -937,7 +943,10 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                       <li key={p.id} className="shrink-0">
                         <button
                           type="button"
-                          onClick={() => setSelectedId(p.id)}
+                          onClick={() => {
+                            setSelectedId(p.id);
+                            setZoomId(p.id);
+                          }}
                           aria-pressed={p.id === selectedId}
                           aria-label={`Pieza ${i + 1}: ${pieceInfoOf(p.pieceType).label}${isApproved ? ', aprobada' : ''}`}
                           className={`flex w-[72px] flex-col overflow-hidden rounded-ctrl border ${p.id === selectedId ? 'border-ink' : 'border-line hover:border-line-strong'}`}
@@ -958,6 +967,10 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
         </div>
         )}
       </div>
+      <LightboxModal
+        reference={zoomPiece ? { id: zoomPiece.id, name: `${pieceInfoOf(zoomPiece.pieceType).label} · ${zoomPiece.mode === 'direct' ? 'directo' : 'sistema'}`, image: zoomPiece.imageUrl, position: { x: 0, y: 0 }, createdAt: '' } : null}
+        onClose={() => setZoomId(null)}
+      />
     </FullView>
   );
 }

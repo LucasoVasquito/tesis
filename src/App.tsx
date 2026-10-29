@@ -270,17 +270,32 @@ export default function App() {
     }
   };
 
+  const importBackupText = async (text: string) => {
+    const { project: imported, pieces } = await restoreBackup(text, projectsList.map(x => x.id));
+    // Un proyecto vacío de relleno (sin nombre ni referencias) se reemplaza por el importado.
+    const isBlank = (x: Project) => !x.name.trim() && !x.objective.trim() && !x.references.length && !x.patterns.length && !x.systems.length;
+    setProjectsList(list => [...list.filter(x => !isBlank(x)), imported]);
+    setActiveProjectId(imported.id);
+    resetUiForProject(imported);
+    showToast({ message: `Proyecto importado · ${imported.name || 'sin nombre'} · ${imported.references.length} referencias, ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}`, tone: 'confirmed' }, 5000);
+  };
+
   const handleImportBackup = async (file: File) => {
     try {
-      const { project: imported, pieces } = await restoreBackup(await file.text(), projectsList.map(x => x.id));
-      // Un proyecto vacío de relleno (sin nombre ni referencias) se reemplaza por el importado.
-      const isBlank = (x: Project) => !x.name.trim() && !x.objective.trim() && !x.references.length && !x.patterns.length && !x.systems.length;
-      setProjectsList(list => [...list.filter(x => !isBlank(x)), imported]);
-      setActiveProjectId(imported.id);
-      resetUiForProject(imported);
-      showToast({ message: `Proyecto importado · ${imported.name || 'sin nombre'} · ${imported.references.length} referencias, ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}`, tone: 'confirmed' }, 5000);
+      await importBackupText(await file.text());
     } catch (err: any) {
       showToast({ message: err?.message || 'No se pudo importar el respaldo', tone: 'discarded' }, 6000);
+    }
+  };
+
+  const handleLoadExample = async () => {
+    showToast({ message: 'Cargando el proyecto de ejemplo…', tone: 'pending' }, 60000);
+    try {
+      const res = await fetch('/api/example-project');
+      if (!res.ok) throw new Error('No se encontró el proyecto de ejemplo (¿está corriendo el backend?)');
+      await importBackupText(await res.text());
+    } catch (err: any) {
+      showToast({ message: err?.message || 'No se pudo cargar el ejemplo', tone: 'discarded' }, 6000);
     }
   };
 
@@ -1416,6 +1431,7 @@ export default function App() {
         onDeleteAllProjects={() => setDeleteRequest('all')}
         onExportBackup={handleExportBackup}
         onImportBackup={handleImportBackup}
+        onLoadExample={handleLoadExample}
         onDownloadDossier={() => downloadProjectMarkdown(project)}
         onOpenLog={() => setIsLogOpen(o => !o)}
         onOpenMap={() => setMapOpen(o => !o)}

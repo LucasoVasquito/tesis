@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
@@ -166,6 +167,15 @@ async function generateContentWithRetry(ai: GoogleGenAI, request: any) {
 // Health check endpoint
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Proyecto de ejemplo (primer respaldo .json de la carpeta ejemplos/)
+app.get("/api/example-project", (req, res) => {
+  const dir = path.join(process.cwd(), "ejemplos");
+  const file = fs.existsSync(dir) ? fs.readdirSync(dir).find(f => f.toLowerCase().endsWith(".json")) : undefined;
+  if (!file) return res.status(404).json({ error: "Archivo de ejemplo no encontrado" });
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.sendFile(path.join(dir, file));
 });
 
 // ==========================================

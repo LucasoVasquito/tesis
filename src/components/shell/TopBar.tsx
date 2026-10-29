@@ -15,6 +15,7 @@ interface TopBarProps {
   onDeleteAllProjects: () => void;
   onExportBackup: () => void;
   onImportBackup: (file: File) => void;
+  onLoadExample: () => void;
   onDownloadDossier: () => void;
   onOpenLog: () => void;
   onOpenMap: () => void;
@@ -126,6 +127,9 @@ export function TopBar(props: TopBarProps) {
                 {p.name.trim() || 'Proyecto sin nombre'}
               </MenuItem>
             ))}
+            <MenuItem onSelect={run(props.onLoadExample)} hint="demo">
+              Cargar proyecto de ejemplo
+            </MenuItem>
             <MenuItem onSelect={run(() => importRef.current?.click())}>Importar respaldo…</MenuItem>
             <MenuLabel>Respaldo y exportación</MenuLabel>
             <MenuItem onSelect={run(props.onExportBackup)} hint={project.lastBackupAt ? `último ${new Date(project.lastBackupAt).toLocaleDateString('es-AR')}` : 'nunca'}>
