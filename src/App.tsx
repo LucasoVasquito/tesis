@@ -291,8 +291,10 @@ export default function App() {
   const handleLoadExample = async () => {
     showToast({ message: 'Cargando el proyecto de ejemplo…', tone: 'pending' }, 60000);
     try {
-      const res = await fetch('/api/example-project');
-      if (!res.ok) throw new Error('No se encontró el proyecto de ejemplo (¿está corriendo el backend?)');
+      // Primero el archivo estático (funciona sin backend, p. ej. en Netlify); si no está, el backend local.
+      let res = await fetch('/ejemplo.json');
+      if (!res.ok || !(res.headers.get('content-type') || '').includes('json')) res = await fetch('/api/example-project');
+      if (!res.ok) throw new Error('No se encontró el proyecto de ejemplo');
       await importBackupText(await res.text());
     } catch (err: any) {
       showToast({ message: err?.message || 'No se pudo cargar el ejemplo', tone: 'discarded' }, 6000);
