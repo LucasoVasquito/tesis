@@ -100,6 +100,10 @@ export interface Pattern {
   designerNotes?: string;
   /** Si el patrón responde a un grupo armado por el diseñador: cuál (copia del nombre al inducir). */
   designerGroup?: { id: string; name: string; verdict?: 'supports' | 'refines' | 'contradicts' };
+  /** 'designer': lo escribió el diseñador (nace confirmado y la IA no lo reescribe). */
+  origin?: 'ai' | 'designer';
+  /** El diseñador editó la evidencia a mano: una reinducción no la pisa. */
+  evidenceLocked?: boolean;
 }
 
 /** Hipótesis de la IA sobre qué comparte un grupo. No es un patrón hasta que la inducción la sostiene. */
@@ -243,7 +247,9 @@ export type LogKind =
   | 'import'
   | 'feedback'
   | 'split'
-  | 'group';
+  | 'group'
+  | 'pattern_add'
+  | 'pattern_edit';
 
 export interface LogItem {
   id: string;

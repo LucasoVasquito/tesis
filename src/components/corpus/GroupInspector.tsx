@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Sparkles, Ungroup, X } from 'lucide-react';
+import { Check, Sparkles, Ungroup, X } from 'lucide-react';
 import { RefGroup, Reference } from '../../types';
 import { Button, CategoryTag, ErrorState, IconButton, LoadingState, TextArea, TextInput } from '../ui';
 import { groupColor, groupInk } from '../../utils/groups';
@@ -14,10 +14,12 @@ interface GroupInspectorProps {
   onRemoveMember: (refId: string) => void;
   onSelectReference: (refId: string) => void;
   onUngroup: () => void;
+  /** Convertir el grupo en patrón propio, sin pasar por la IA. */
+  onToPattern: () => void;
 }
 
 /** Panel de un grupo armado por el diseñador: nombre, motivo, miembros y la hipótesis de la IA. */
-export function GroupInspector({ group: g, members, read, onUpdate, onRead, onRemoveMember, onSelectReference, onUngroup }: GroupInspectorProps) {
+export function GroupInspector({ group: g, members, read, onUpdate, onRead, onRemoveMember, onSelectReference, onUngroup, onToPattern }: GroupInspectorProps) {
   const [name, setName] = useState(g.name);
   const [note, setNote] = useState(g.note ?? '');
   const [confirmUngroup, setConfirmUngroup] = useState(false);
@@ -192,6 +194,13 @@ export function GroupInspector({ group: g, members, read, onUpdate, onRead, onRe
             </Button>
           </div>
         )}
+      </section>
+
+      <section className="flex flex-col gap-2 border-t border-line p-5">
+        <Button size="sm" variant="confirm" icon={<Check />} onClick={onToPattern} disabled={members.length < 1} className="self-start">
+          Convertir en patrón
+        </Button>
+        <p className="m-0 text-xs text-ink-2">Entra confirmado, con estas referencias. Además, la próxima inducción lee el grupo y puede sumar lo que encuentre.</p>
       </section>
 
       <section className="flex flex-col gap-3 border-t border-line p-5">

@@ -19,6 +19,8 @@ interface PatternCardProps {
   onDiscard: (reason: string) => void;
   onSaveNote: (note: string) => void;
   onRestore: () => void;
+  /** Editar texto y referencias del patrón. */
+  onEdit?: () => void;
   onFocusEvidence?: (refId: string) => void;
   className?: string;
 }
@@ -34,6 +36,7 @@ export function PatternCard({
   onDiscard,
   onSaveNote,
   onRestore,
+  onEdit,
   onFocusEvidence,
   className,
 }: PatternCardProps) {
@@ -96,6 +99,7 @@ export function PatternCard({
           </span>
           <div className="flex flex-wrap gap-2">
             <TrendTag trend={pattern.trend} />
+            {pattern.origin === 'designer' && <span className="inline-flex h-6 items-center rounded-tag border border-signal/40 px-2 font-mono text-xs text-signal-ink">tuyo</span>}
             <CategoryTag category={pattern.category} />
             <StatusPill status={pattern.status} />
           </div>
@@ -290,7 +294,12 @@ export function PatternCard({
               </Button>
             </>
           )}
-          <Button variant="ghost" kbd="N" className="ml-auto" onClick={() => onModeChange('note')}>
+          {onEdit && (
+            <Button variant="ghost" className="ml-auto" onClick={onEdit}>
+              Editar
+            </Button>
+          )}
+          <Button variant="ghost" kbd="N" className={onEdit ? undefined : 'ml-auto'} onClick={() => onModeChange('note')}>
             Anotar
           </Button>
         </footer>

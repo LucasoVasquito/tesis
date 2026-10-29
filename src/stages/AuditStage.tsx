@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, PanelRightOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PanelRightOpen, Plus } from 'lucide-react';
 import { Pattern, PatternStatus, Project, Reference } from '../types';
-import { EmptyState, IconButton, PatternCard, PatternCardMode } from '../components/ui';
+import { Button, EmptyState, IconButton, PatternCard, PatternCardMode } from '../components/ui';
 import { CanvasArea, CorpusView } from '../components/canvas/CanvasArea';
 import { CanvasHandle } from '../components/canvas/ReferenceCanvas';
 import { DockPanel } from '../components/shell/DockPanel';
@@ -31,6 +31,8 @@ interface AuditStageProps {
   onDiscard: (p: Pattern, reason: string) => void;
   onSaveNote: (p: Pattern, note: string) => void;
   onRestore: (p: Pattern) => void;
+  onNewPattern: () => void;
+  onEditPattern: (p: Pattern) => void;
   onOpenReference: (r: Reference) => void;
   view: CorpusView;
   onViewChange: (v: CorpusView) => void;
@@ -84,6 +86,9 @@ export function AuditStage(props: AuditStageProps) {
           <ChevronRight className="size-4 stroke-[1.5]" />
         </IconButton>
       </div>
+      <Button size="sm" variant="secondary" icon={<Plus />} onClick={props.onNewPattern} className="self-start">
+        Nuevo patrón propio
+      </Button>
       <p className="m-0 hidden font-mono text-xs text-ink-2 lg:block" id="audit-keys">
         <kbd className="kbd">C</kbd> confirmar · <kbd className="kbd">D</kbd> descartar · <kbd className="kbd">N</kbd> anotar · <kbd className="kbd">←</kbd>{' '}
         <kbd className="kbd">→</kbd> navegar
@@ -166,6 +171,7 @@ export function AuditStage(props: AuditStageProps) {
                 props.onSaveNote(current, note);
               }}
               onRestore={() => props.onRestore(current)}
+              onEdit={() => props.onEditPattern(current)}
               onFocusEvidence={id => {
                 if (canvasRef.current) canvasRef.current.focusReference(id);
                 else {

@@ -49,6 +49,7 @@ interface CorpusStageProps {
   onUpdateGroup: (id: string, updates: Partial<RefGroup>) => void;
   onUngroup: (id: string) => void;
   onReadGroup: (id: string) => void;
+  onGroupToPattern: (id: string) => void;
   groupReads: Record<string, { status: 'loading' } | { status: 'error'; message: string }>;
   /** Patrones recién inducidos: se muestran emergiendo en el lienzo. */
   emergence: Pattern[] | null;
@@ -288,6 +289,7 @@ export function CorpusStage(props: CorpusStageProps) {
               canvasRef.current?.focusReference(id, { focus: false });
             }}
             onUngroup={() => props.onUngroup(selectedGroup.id)}
+            onToPattern={() => props.onGroupToPattern(selectedGroup.id)}
           />
         ) : null}
       </DockPanel>

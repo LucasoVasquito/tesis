@@ -24,6 +24,8 @@ export const LOG_TONE: Record<LogKind, Tone> = {
   feedback: 'signal',
   split: 'pending',
   group: 'signal',
+  pattern_add: 'confirmed',
+  pattern_edit: 'signal',
 };
 
 interface LogDrawerProps {

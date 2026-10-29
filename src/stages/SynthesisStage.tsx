@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { FileUp, GripVertical } from 'lucide-react';
+import { FileUp, GripVertical, Plus } from 'lucide-react';
 import { PaletteColor, Pattern, Project, VisualSystem } from '../types';
 import { Button, EmptyState, StatusDot } from '../components/ui';
 import { familyOf } from '../utils/families';
@@ -14,6 +14,9 @@ interface SynthesisStageProps {
   onAssign: (patternId: string, systemId: string) => void;
   onUnassign: (patternId: string, systemId: string) => void;
   onCreateSystemWithPattern: (patternId: string) => void;
+  /** Patrón propio; si hay un sistema abierto se ofrece sumarlo ahí. */
+  onNewPattern: (systemId?: string) => void;
+  onEditPattern: (p: Pattern) => void;
   onSynthesize: (id: string) => void;
   onOpenGuidelines: (id: string) => void;
   onTryPiece: (id: string) => void;
@@ -35,7 +38,19 @@ interface SynthesisStageProps {
 const letter = (i: number) => String.fromCharCode(65 + i);
 
 /* ---------- Patrón confirmado: arrastrable o asignable con Enter ---------- */
-function ConfirmedPattern({ pattern, project, onAssign, onCreate }: { pattern: Pattern; project: Project; onAssign: (sysId: string) => void; onCreate: () => void }) {
+function ConfirmedPattern({
+  pattern,
+  project,
+  onAssign,
+  onCreate,
+  onEdit,
+}: {
+  pattern: Pattern;
+  project: Project;
+  onAssign: (sysId: string) => void;
+  onCreate: () => void;
+  onEdit: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const wrapRef = useRef<HTMLLIElement>(null);
@@ -147,6 +162,16 @@ function ConfirmedPattern({ pattern, project, onAssign, onCreate }: { pattern: P
               + Nuevo sistema con este patrón
             </button>
           </li>
+          <li role="none">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={pick(onEdit)}
+              className="flex min-h-9 w-full items-center gap-2 rounded-ctrl px-3 text-left text-13 text-ink hover:bg-white/5 focus-visible:bg-white/5"
+            >
+              Editar texto y referencias…
+            </button>
+          </li>
         </ul>
       )}
     </li>
@@ -197,6 +222,9 @@ export function SynthesisStage(props: SynthesisStageProps) {
             </h2>
             <FamilyBar patterns={confirmed} />
             <p className="m-0 text-xs text-ink-2">Arrastralos al tablero, o enfocalos y presioná Enter.</p>
+            <Button size="sm" variant="secondary" icon={<Plus />} onClick={() => props.onNewPattern(current?.id)} className="self-start">
+              Patrón propio
+            </Button>
           </div>
           <div className="max-h-[240px] min-h-0 flex-1 overflow-y-auto p-4 lg:max-h-none">
             {confirmed.length === 0 ? (
@@ -212,6 +240,7 @@ export function SynthesisStage(props: SynthesisStageProps) {
                       project.systems.find(s => s.id === sysId)?.patternIds.includes(p.id) ? props.onUnassign(p.id, sysId) : props.onAssign(p.id, sysId)
                     }
                     onCreate={() => props.onCreateSystemWithPattern(p.id)}
+                    onEdit={() => props.onEditPattern(p)}
                   />
                 ))}
               </ul>

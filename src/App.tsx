@@ -26,6 +26,7 @@ import { GuidelinesView } from './components/GuidelinesView';
 import { LogDrawer } from './components/LogDrawer';
 import { TraceMap } from './components/TraceMap';
 import { Modal } from './components/shell/Modal';
+import { PatternDraft, PatternEditor, draftFromPattern, emptyDraft } from './components/PatternEditor';
 
 import { BriefDraft, BriefStage } from './stages/BriefStage';
 import { CorpusStage, InductionState } from './stages/CorpusStage';
@@ -128,6 +129,8 @@ export default function App() {
   const [deleteRequest, setDeleteRequest] = useState<null | 'current' | 'all'>(null);
   const [lightboxRef, setLightboxRef] = useState<Reference | null>(null);
   const [briefDraft, setBriefDraft] = useState<BriefDraft>({ name: project.name, objective: project.objective, description: project.description });
+  /** Editor de patrones propios: alta nueva, edición de uno existente o desde un grupo. */
+  const [patternEditor, setPatternEditor] = useState<null | { patternId?: string; draft: PatternDraft; assignTo?: { id: string; name: string }; title: string; meta: string }>(null);
 
   /* ========== Asincronía ========== */
   const [induction, setInduction] = useState<InductionState>({ status: 'idle', tick: 0 });
@@ -792,8 +795,92 @@ export default function App() {
     showToast({ message: `Restaurado a pendiente · ${pattern.id}`, tone: 'pending' });
   };
 
+  /* ========== Patrones propios (disponibles en cualquier etapa) ========== */
+  const systemRef = (id?: string) => {
+    const s = id ? projectRef.current.systems.find(x => x.id === id) : undefined;
+    return s ? { id: s.id, name: s.name } : undefined;
+  };
+
+  /** Patrón nuevo desde cero. Si se pasa un sistema, el editor ofrece sumarlo ahí. */
+  const openNewPattern = (systemId?: string) =>
+    setPatternEditor({ draft: emptyDraft(), assignTo: systemRef(systemId), title: 'Nuevo patrón propio', meta: 'Lo escribís vos · entra confirmado' });
+
+  /** Editar texto y referencias de un patrón (también los que detectó la IA). */
+  const openEditPattern = (pattern: Pattern) =>
+    setPatternEditor({ patternId: pattern.id, draft: draftFromPattern(pattern), title: `Editar · ${pattern.id}`, meta: 'Texto y referencias · la reinducción no pisa tus cambios' });
+
+  /** Convierte un grupo del lienzo en patrón sin pasar por la IA. */
+  const openPatternFromGroup = (groupId: string) => {
+    const g = (projectRef.current.groups ?? []).find(x => x.id === groupId);
+    if (!g) return;
+    const h = g.hypothesis;
+    setPatternEditor({
+      draft: {
+        name: g.name,
+        category: h?.category ?? 'composition',
+        description: g.note || h?.summary || '',
+        observations: (h?.sharedTraits ?? []).join('\n'),
+        evidence: g.refIds.filter(id => projectRef.current.references.some(r => r.id === id)),
+        designerGroup: { id: g.id, name: g.name },
+      },
+      title: `Patrón desde «${g.name}»`,
+      meta: 'Grupo → patrón · entra confirmado',
+    });
+  };
+
+  const handleSavePattern = (draft: PatternDraft, assign: boolean) => {
+    const editor = patternEditor;
+    setPatternEditor(null);
+    if (!editor) return;
+    const known = new Set(projectRef.current.references.map(r => r.id));
+    const evidence = draft.evidence.filter(id => known.has(id));
+    const observations = draft.observations.split('\n').map(s => s.trim()).filter(Boolean);
+
+    if (editor.patternId) {
+      const id = editor.patternId;
+      updateProject(p => ({
+        ...p,
+        patterns: p.patterns.map(x =>
+          x.id === id ? { ...x, name: draft.name, category: draft.category, description: draft.description, relatedObservations: observations, evidence, evidenceLocked: true } : x,
+        ),
+      }));
+      addLog('pattern_edit', id, `Patrón editado · ${draft.name}`, `${evidence.length} referencias`);
+      showToast({ message: `Patrón actualizado · ${id}`, tone: 'confirmed' });
+      return;
+    }
+
+    const used = projectRef.current.patterns.map(x => Number(/^pat_u(\d+)$/.exec(x.id)?.[1] ?? 0));
+    const id = `pat_u${String(Math.max(0, ...used) + 1).padStart(2, '0')}`;
+    const pattern: Pattern = {
+      id,
+      name: draft.name,
+      category: draft.category,
+      description: draft.description,
+      evidence,
+      confidence: 1,
+      status: 'confirmed',
+      relatedObservations: observations,
+      origin: 'designer',
+      evidenceLocked: true,
+      designerGroup: draft.designerGroup,
+      trend: 'new',
+      assignedSystemId: assign && editor.assignTo ? editor.assignTo.id : null,
+    };
+    updateProject(p => ({
+      ...p,
+      patterns: [...p.patterns, pattern],
+      systems: assign && editor.assignTo ? p.systems.map(s => (s.id === editor.assignTo!.id ? { ...s, patternIds: [...s.patternIds, id] } : s)) : p.systems,
+    }));
+    addLog('pattern_add', id, `Patrón propio · ${draft.name}`, assign && editor.assignTo ? `Sumado a ${editor.assignTo.name}` : `${evidence.length} referencias`);
+    if (stage === 'audit') {
+      setAuditFilter('confirmed');
+      setAuditIndex(projectRef.current.patterns.filter(x => x.status === 'confirmed').length);
+    }
+    showToast({ message: `Patrón propio creado · ${id}${assign && editor.assignTo ? ` → ${editor.assignTo.name}` : ''}`, tone: 'confirmed' });
+  };
+
   /* ========== Síntesis ========== */
-  const updateSystem = (id: string, fn: (s: VisualSystem) => VisualSystem) => updateProject(p => ({ ...p, systems: p.systems.map(s => (s.id === id ? fn(s) : s)) }));
+  const updateSystem =(id: string, fn: (s: VisualSystem) => VisualSystem) => updateProject(p => ({ ...p, systems: p.systems.map(s => (s.id === id ? fn(s) : s)) }));
 
   const createSystem = (patternIds: string[] = [], name?: string) => {
     const id = uid('sys');
@@ -1379,6 +1466,7 @@ export default function App() {
             onUpdateGroup={handleUpdateGroup}
             onUngroup={handleUngroup}
             onReadGroup={handleReadGroup}
+            onGroupToPattern={openPatternFromGroup}
             groupReads={groupReads}
             emergence={emergence}
             onEmergenceEnd={go => {
@@ -1405,6 +1493,8 @@ export default function App() {
             onDiscard={handleDiscardPattern}
             onSaveNote={handleSaveNote}
             onRestore={handleRestorePattern}
+            onNewPattern={() => openNewPattern()}
+            onEditPattern={openEditPattern}
             onOpenReference={setLightboxRef}
             view={view}
             onViewChange={setView}
@@ -1429,6 +1519,8 @@ export default function App() {
             onAssign={handleAssign}
             onUnassign={handleUnassign}
             onCreateSystemWithPattern={pid => createSystem([pid])}
+            onNewPattern={openNewPattern}
+            onEditPattern={openEditPattern}
             onSynthesize={handleSynthesize}
             onOpenGuidelines={setGuidelinesId}
             onTryPiece={openApplication}
@@ -1461,6 +1553,8 @@ export default function App() {
                 onSelectSystem={openApplication}
                 onOpenGuidelines={() => openGuidelines(sys!.id)}
                 onOpenLightbox={setLightboxRef}
+                onNewPattern={() => openNewPattern(sys!.id)}
+                onEditPattern={openEditPattern}
                 session={project.applications?.[sys!.id]}
                 onSaveSession={session => {
                   const pid = project.id;
@@ -1476,6 +1570,18 @@ export default function App() {
 
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} />
       <LightboxModal reference={lightboxRef} onClose={() => setLightboxRef(null)} />
+      {patternEditor && (
+        <PatternEditor
+          title={patternEditor.title}
+          meta={patternEditor.meta}
+          initial={patternEditor.draft}
+          references={project.references}
+          assignTo={patternEditor.assignTo}
+          saveLabel={patternEditor.patternId ? 'Guardar cambios' : 'Crear patrón'}
+          onSave={handleSavePattern}
+          onClose={() => setPatternEditor(null)}
+        />
+      )}
 
       <Modal
         open={!!deleteRequest}

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Check, ClipboardCheck, Copy, Download, Plus, Sparkles } from 'lucide-react';
-import { ApplicationSession, GeneratedPiece, GenerationRound, GenMode, PieceType, Project, Reference, SystemResourceKey, VisualSystem } from '../types';
+import { ApplicationSession, GeneratedPiece, GenerationRound, GenMode, Pattern, PieceType, Project, Reference, SystemResourceKey, VisualSystem } from '../types';
 import { loadPieceImage, savePieceImage, toDataUrl } from '../utils/pieceStore';
 import { Button, EmptyState, ErrorState, LoadingState, TextArea, TextInput } from './ui';
 import { FullView } from './shell/FullView';
@@ -17,6 +17,9 @@ interface SystemApplicationViewProps {
   onSelectSystem: (id: string) => void;
   onOpenGuidelines: () => void;
   onOpenLightbox: (ref: Reference) => void;
+  /** Escribir un patrón propio y sumarlo a este sistema. */
+  onNewPattern: () => void;
+  onEditPattern: (p: Pattern) => void;
   /** Lo generado antes para este sistema. */
   session?: ApplicationSession;
   onSaveSession: (session: ApplicationSession) => void;
@@ -95,7 +98,7 @@ const Block = ({ n, title, children }: { n: string; title: string; children: Rea
  * Verificación externa: piezas generadas con OpenAI a partir de los lineamientos.
  * Flujo: elegir pieza → pedir → comparar variantes → aprobar → la siguiente pieza usa el logo aprobado.
  */
-export function SystemApplicationView({ project, system, systems, onSelectSystem, onOpenGuidelines, onOpenLightbox, session, onSaveSession }: SystemApplicationViewProps) {
+export function SystemApplicationView({ project, system, systems, onSelectSystem, onOpenGuidelines, onOpenLightbox, onNewPattern, onEditPattern, session, onSaveSession }: SystemApplicationViewProps) {
   const patterns = project.patterns.filter(p => system.patternIds.includes(p.id) && p.status === 'confirmed');
   const [pieceType, setPieceType] = useState<PieceType>('logo');
   const [mode, setMode] = useState<GenMode>('system');
@@ -680,6 +683,27 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                         )}
                       </div>
                     </details>
+                  )}
+                  {mode === 'system' && (
+                    <div className="flex flex-col gap-2">
+                      <span className="text-13 text-ink-2">Patrones del sistema · {patterns.length}</span>
+                      {patterns.length > 0 && (
+                        <ul className="m-0 flex list-none flex-col gap-1 p-0">
+                          {patterns.map(p => (
+                            <li key={p.id} className="flex items-center justify-between gap-2 text-13 text-ink">
+                              <span className="truncate">{p.name}</span>
+                              <button type="button" className="shrink-0 text-xs text-ink-2 underline-offset-2 hover:text-ink hover:underline" onClick={() => onEditPattern(p)}>
+                                Editar
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <Button size="sm" variant="ghost" icon={<Plus />} onClick={onNewPattern} className="self-start">
+                        Sumar un patrón propio
+                      </Button>
+                      <p className="m-0 text-xs text-ink-2">Entra a los próximos pedidos. Para que también cambie las reglas del sistema, volvé a redactarlo en Síntesis.</p>
+                    </div>
                   )}
                   {mode === 'system' && leftOutPatterns.length > 0 && (
                     <div className="flex flex-col gap-1">

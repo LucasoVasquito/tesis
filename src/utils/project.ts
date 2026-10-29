@@ -162,13 +162,15 @@ export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { me
   let newCount = 0;
   const merged: Pattern[] = detected.map((d: any) => {
     const c = confirmed.find(x => sameAs(x, d));
-    if (c) return { ...d, id: c.id, status: 'confirmed' as const, assignedSystemId: c.assignedSystemId, designerNotes: c.designerNotes, trend: 'strengthened' as const };
+    // Lo escrito o ajustado a mano por el diseñador manda sobre lo que diga la IA.
+    if (c?.origin === 'designer') return { ...c, trend: 'stable' as const };
+    if (c) return { ...d, id: c.id, status: 'confirmed' as const, assignedSystemId: c.assignedSystemId, designerNotes: c.designerNotes, trend: 'strengthened' as const, ...(c.evidenceLocked ? { evidence: c.evidence, evidenceLocked: true } : {}) };
     const x = discarded.find(y => sameAs(y, d));
     if (x) return { ...d, id: x.id, status: 'discarded' as const, discardReason: x.discardReason, designerNotes: x.designerNotes, trend: 'stable' as const };
     newCount++;
     return { ...d, evidence: Array.isArray(d.evidence) ? d.evidence : [], relatedObservations: Array.isArray(d.relatedObservations) ? d.relatedObservations : [], status: 'detected' as const, trend: d.trend || 'new' };
   });
-  confirmed.forEach(c => !merged.some(m => m.id === c.id) && merged.unshift({ ...c, trend: 'weakened' }));
+  confirmed.forEach(c => !merged.some(m => m.id === c.id) && merged.unshift(c.origin === 'designer' ? c : { ...c, trend: 'weakened' }));
   discarded.forEach(d => !merged.some(m => m.id === d.id) && merged.push(d));
   return { merged, newCount };
 }

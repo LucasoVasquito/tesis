@@ -237,13 +237,22 @@ app.post("/api/analyze-references", async (req, res) => {
             }
             const previousContext = `
 HISTORIAL DE DECISIONES PREVIAS DEL DISEÑADOR:
-- Patrones ya confirmados por el diseñador: ${JSON.stringify(confirmedPatterns.map((p) => ({ id: p.id, name: p.name, category: p.category, assignedSystem: p.assignedSystemId })))}
+- Patrones ya confirmados por el diseñador: ${JSON.stringify(confirmedPatterns.filter((p) => p.origin !== 'designer').map((p) => ({ id: p.id, name: p.name, category: p.category, assignedSystem: p.assignedSystemId })))}
+${confirmedPatterns.some((p) => p.origin === 'designer') ? `
+PATRONES PROPIOS DEL DISEÑADOR (los escribió él; son criterio suyo, no hipótesis):
+${confirmedPatterns.filter((p) => p.origin === 'designer').map((p) => `- [${p.id}] "${p.name}" (${p.category}): ${p.description || 'sin descripción'} · referencias: ${(p.evidence || []).join(', ')}${p.designerGroup?.id ? ` · viene del grupo ${p.designerGroup.id}` : ''}${p.relatedObservations?.length ? ` · rasgos: ${p.relatedObservations.join('; ')}` : ''}`).join('\n')}
+Reglas para estos patrones:
+- No los dupliques ni los reescribas: ya están confirmados y se conservan tal cual.
+- Usalos para entender qué le importa al diseñador: buscá otras dimensiones del corpus que no cubren, o variantes formales que los complementen.
+- Si ves una referencia que claramente comparte sus rasgos y no está en su lista, mencionalo en "overallInsight" con su ID (no lo cites en "evidence" de un patrón nuevo repetido).
+` : ''}
 - Patrones previamente descartados por el diseñador: ${JSON.stringify(discardedPatterns.map((p) => ({ id: p.id, name: p.name, reason: p.discardReason })))}
 - Feedback explícito del diseñador: ${JSON.stringify(feedback.map((f) => ({ type: f.type, comment: f.comment, refId: f.referenceId, patternId: f.patternId })))}
 - Patrones de análisis anterior: ${JSON.stringify(previousPatterns.map((p) => ({ id: p.id, name: p.name, evidenceCount: p.evidence?.length })))}
 ${designerGroups.length ? `
 AGRUPACIONES DEL DISEÑADOR (diagrama de afinidad armado a mano en el lienzo):
 ${designerGroups.map((g) => `- [${g.id}] "${g.name}": ${(g.refIds || []).join(', ')}${g.note ? ` · por qué: ${g.note}` : ''}${g.hypothesis ? ` · hipótesis previa: ${g.hypothesis}` : ''}`).join('\n')}
+OBLIGATORIO: devolvé al menos un patrón por cada grupo de esta lista (con su designerGroupId), aunque la conclusión sea que no comparten rasgos formales. Los grupos tienen prioridad sobre tu propia lectura del corpus: si un grupo se superpone con un patrón tuyo, mantené ambos pero ajustá la evidencia para que el grupo quede representado. Si el diseñador ya convirtió un grupo en patrón propio (ver arriba), no generes otro para ese grupo.
 Tratá cada grupo como una hipótesis del diseñador, no como una verdad. Para cada grupo, buscá en las imágenes si comparte rasgos formales concretos:
 - si los comparte, generá (o reforzá) el patrón correspondiente citando esas referencias y marcá designerGroupId con el ID del grupo y groupVerdict "supports";
 - si lo comparten solo en parte, generá el patrón con las referencias que sí lo sostienen y groupVerdict "refines" (explicá en la descripción qué referencia no encaja);
