@@ -106,6 +106,33 @@ export function GridDiagram({ cols = 4, rows = 4, palette, height = 200 }: { col
   );
 }
 
+/** Franja de imágenes extra de la evidencia, para que la ficha no dependa de un único ejemplo. */
+function ExtraThumbs({ refs }: { refs: Reference[] }) {
+  if (!refs.length) return null;
+  return (
+    <div className="grid gap-px bg-line" style={{ gridTemplateColumns: `repeat(${refs.length}, 1fr)` }}>
+      {refs.map(r => (
+        <div key={r.id} className="relative h-16 bg-bg" title={r.id}>
+          <img src={r.image} alt={`${r.name} (${r.id})`} className="h-full w-full object-cover" referrerPolicy="no-referrer" loading="lazy" />
+          <span className="absolute bottom-1 left-1 rounded-[3px] bg-raised px-1 font-mono text-[10px] leading-4 text-ink-2">{r.id}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Limpia las listas Sí/No: el modelo a veces repite una palabra hasta el infinito. */
+function cleanTags(items?: string[]): string[] {
+  const out: string[] = [];
+  for (const raw of items ?? []) {
+    const words = String(raw).split(/\s+/).filter(Boolean);
+    const collapsed = words.filter((w, i) => i === 0 || w.toLowerCase() !== words[i - 1].toLowerCase());
+    const text = collapsed.join(' ').slice(0, 48).trim();
+    if (text && !out.some(o => o.toLowerCase() === text.toLowerCase())) out.push(text);
+  }
+  return out.slice(0, 4);
+}
+
 /* ---------- Ficha ---------- */
 interface RuleCardProps {
   rule: Rule;
@@ -131,6 +158,8 @@ export function RuleCard({ rule, family, palette, references, fallback, specimen
   // Reglas redactadas como texto corrido: el título es el comienzo truncado del detalle. Se muestra la frase entera.
   const truncated = rule.title.endsWith('…') && rule.detail.startsWith(rule.title.slice(0, -1).trim());
   const title = truncated ? rule.detail : rule.title;
+  const use = cleanTags(rule.use);
+  const avoid = cleanTags(rule.avoid);
   const trace = [rule.patternIds.join(' '), rule.refIds.join(' ')].filter(Boolean).join(' · ');
   // Una regla tipográfica sin espécimen propio (redactada antes de este cambio) muestra la tipografía real
   // del corpus: el recorte de su evidencia, en lugar de repetir el nombre de la marca.
@@ -149,7 +178,10 @@ export function RuleCard({ rule, family, palette, references, fallback, specimen
       ) : kind === 'grid' ? (
         <GridDiagram cols={rule.example?.cols} rows={rule.example?.rows} palette={palette} />
       ) : refs.length ? (
-        <EvidenceCrop reference={refs[0]} crop={ownIds.length ? rule.example?.crop : undefined} note={rule.example?.cropNote} approx={approx} />
+        <div>
+          <EvidenceCrop reference={refs[0]} crop={ownIds.length ? rule.example?.crop : undefined} note={rule.example?.cropNote} approx={approx} />
+          <ExtraThumbs refs={refs.slice(1, 4)} />
+        </div>
       ) : family.id === 'typography' ? (
         <Specimen text={specimenText} style={guessStyle(`${rule.title} ${rule.detail}`, index)} palette={palette} index={index} />
       ) : family.id === 'composition' ? (
@@ -162,13 +194,13 @@ export function RuleCard({ rule, family, palette, references, fallback, specimen
           {rule.code} · {family.label}
         </span>
         <h4 className="m-0 text-base font-semibold leading-[1.3] text-ink">{title}</h4>
-        {(rule.use?.length || rule.avoid?.length || (kind === 'grid' && rule.example?.cols)) && (
+        {(use.length || avoid.length || (kind === 'grid' && rule.example?.cols)) && (
           <div className="flex flex-wrap gap-1.5">
-            {rule.use?.length ? (
-              <span className="inline-flex h-6 items-center rounded-tag bg-confirmed/10 px-2 text-xs text-confirmed-ink">Sí · {rule.use.join(', ')}</span>
+            {use.length ? (
+              <span className="inline-flex min-h-6 items-center rounded-tag bg-confirmed/10 px-2 py-0.5 text-xs text-confirmed-ink">Sí · {use.join(', ')}</span>
             ) : null}
-            {rule.avoid?.length ? (
-              <span className="inline-flex h-6 items-center rounded-tag bg-discarded/10 px-2 text-xs text-discarded-ink">No · {rule.avoid.join(', ')}</span>
+            {avoid.length ? (
+              <span className="inline-flex min-h-6 items-center rounded-tag bg-discarded/10 px-2 py-0.5 text-xs text-discarded-ink">No · {avoid.join(', ')}</span>
             ) : null}
             {kind === 'grid' && rule.example?.cols ? (
               <span className="inline-flex h-6 items-center rounded-tag bg-white/5 px-2 font-mono text-xs text-ink-2">

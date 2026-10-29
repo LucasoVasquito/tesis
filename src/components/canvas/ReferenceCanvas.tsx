@@ -49,6 +49,8 @@ interface ReferenceCanvasProps {
   onSelectGroup?: (id: string) => void;
   /** Soltar una ficha sobre otra, dentro de un marco o fuera de su grupo. */
   onGroupDrop?: (drop: GroupDrop) => void;
+  /** Iconos de atajo de cada ficha (abajo a la derecha). */
+  cardActions?: (r: Reference) => React.ReactNode;
 }
 
 export type GroupDrop =
@@ -88,6 +90,7 @@ export function ReferenceCanvas({
   selectedGroupId,
   onSelectGroup,
   onGroupDrop,
+  cardActions,
 }: ReferenceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [t, setT] = useState({ x: 0, y: 0, scale: 1 });
@@ -651,6 +654,7 @@ export function ReferenceCanvas({
                 selected={selected}
                 evidence={isEv}
                 analysis={analysisFor?.(r) ?? null}
+                actions={!locked ? cardActions?.(r) : undefined}
               />
               {onResize && !locked && zoom !== 'far' && (
                 <span

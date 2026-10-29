@@ -15,6 +15,7 @@ export const CATEGORY_LABEL: Record<PatternCategory, string> = {
   social_media: 'Redes',
   geometry: 'Geometría',
   graphic_elements: 'Recursos gráficos',
+  space_environment: 'Espacio',
   mood: 'Clima',
 };
 

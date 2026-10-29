@@ -92,12 +92,15 @@ export default function App() {
     [activeProjectId],
   );
 
+  const [saveFailed, setSaveFailed] = useState(false);
   useEffect(() => {
     try {
       localStorage.setItem(LIST_KEY, JSON.stringify(projectsList));
       localStorage.setItem(ACTIVE_KEY, activeProjectId);
+      setSaveFailed(false);
     } catch (e) {
       console.warn('No se pudo guardar en localStorage (¿espacio lleno?)', e);
+      setSaveFailed(true);
     }
   }, [projectsList, activeProjectId]);
 
@@ -150,6 +153,9 @@ export default function App() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(null);
   }, []);
+  useEffect(() => {
+    if (saveFailed) showToast({ message: 'No hay espacio para guardar el proyecto: descargá el respaldo ahora o se perderán los últimos cambios', tone: 'discarded' }, 12000);
+  }, [saveFailed, showToast]);
 
   /** Agrega entradas a la bitácora del proyecto. */
   const addLog = useCallback(

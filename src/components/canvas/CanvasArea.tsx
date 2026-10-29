@@ -31,6 +31,7 @@ interface CanvasAreaProps {
   selectedGroupId?: string | null;
   onSelectGroup?: (id: string) => void;
   onGroupDrop?: (drop: GroupDrop) => void;
+  cardActions?: (r: Reference) => React.ReactNode;
 }
 
 /** Lienzo o lista de referencias, con la barra flotante común. En < 1024px siempre es Lista. */
@@ -124,6 +125,7 @@ export function CanvasArea(props: CanvasAreaProps) {
       selectedGroupId={props.selectedGroupId}
       onSelectGroup={props.onSelectGroup}
       onGroupDrop={props.onGroupDrop}
+      cardActions={props.cardActions}
     />
   );
 }

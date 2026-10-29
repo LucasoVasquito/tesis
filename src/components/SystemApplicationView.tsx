@@ -77,6 +77,10 @@ const RESOURCES: { key: SystemResourceKey; label: string }[] = [
   { key: 'composition', label: 'Composición' },
 ];
 
+/** Referencias que se mandan al modelo: las que elige la app solas y el tope de las que elige el diseñador. */
+const AUTO_REFS = 6;
+const MAX_REFS = 8;
+
 const Block = ({ n, title, children }: { n: string; title: string; children: React.ReactNode }) => (
   <fieldset className="m-0 flex flex-col gap-4 border-0 p-0">
     <legend className="mb-3 flex items-center gap-2 p-0 text-13 font-medium text-ink">
@@ -165,13 +169,37 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
   const anchor = pieceType !== 'logo' && useLogo ? approvedLogo : null;
   const details = requests[pieceType] ?? '';
 
-  /** Referencias de evidencia (hasta 4) que el modelo recibe como contexto visual. */
+  /** Referencias elegidas a mano (null = selección automática). */
+  const [refOverride, setRefOverride] = useState<string[] | null>(null);
+  /** Patrones del corpus fuera del sistema que el diseñador decide sumar a la pieza. */
+  const [extraPatternIds, setExtraPatternIds] = useState<string[]>([]);
+  const leftOutPatterns = project.patterns.filter(p => !system.patternIds.includes(p.id) && p.status !== 'discarded');
+  const extraPatterns = leftOutPatterns.filter(p => extraPatternIds.includes(p.id));
+
+  /** Referencias que el modelo recibe como contexto visual: las del diseñador o una mezcla variada de todos los patrones. */
   const evidenceRefs = useMemo(() => {
-    const ranked = [...patterns].sort((a, b) => b.confidence - a.confidence);
+    const byRefId = new Map(project.references.map(r => [r.id, r]));
+    if (refOverride) return refOverride.map(id => byRefId.get(id)).filter(Boolean).slice(0, MAX_REFS) as Reference[];
+    // Una referencia por patrón en cada vuelta, para que ninguna idea quede afuera por tener menos confianza.
+    const ranked = [...patterns, ...extraPatterns].sort((a, b) => b.confidence - a.confidence);
     const ids: string[] = [];
-    for (const p of ranked) for (const id of p.evidence) if (!ids.includes(id)) ids.push(id);
-    return ids.map(id => project.references.find(r => r.id === id)).filter(Boolean).slice(0, 4) as Reference[];
-  }, [patterns, project.references]);
+    for (let i = 0; ids.length < AUTO_REFS; i++) {
+      let any = false;
+      for (const p of ranked) {
+        const id = p.evidence[i];
+        if (id === undefined) continue;
+        any = true;
+        if (!ids.includes(id) && ids.length < AUTO_REFS) ids.push(id);
+      }
+      if (!any) break;
+    }
+    return ids.map(id => byRefId.get(id)).filter(Boolean) as Reference[];
+  }, [patterns, extraPatterns, refOverride, project.references]);
+  const toggleRef = (id: string) =>
+    setRefOverride(cur => {
+      const base = cur ?? evidenceRefs.map(r => r.id);
+      return base.includes(id) ? base.filter(x => x !== id) : base.length >= MAX_REFS ? base : [...base, id];
+    });
 
   /** Cambia la pieza del formulario y lleva el foco al pedido. */
   const startPiece = (t: PieceType) => {
@@ -199,6 +227,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
     project: { name: project.name, objective: project.objective, description: project.description },
     patterns: patterns.map(p => ({ id: p.id, name: p.name, category: p.category, description: p.description })),
     resources,
+    extraPatterns: extraPatterns.map(p => ({ id: p.id, name: p.name, description: p.description })),
     pieceType,
     brandText: brandText.trim(),
     details: details.trim(),
@@ -606,6 +635,68 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                         </li>
                       ))}
                     </ul>
+                  )}
+                  {sendsRefs && (
+                    <details className="rounded-ctrl border border-line">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-13 text-ink [&::-webkit-details-marker]:hidden">
+                        <span>Elegir referencias del corpus</span>
+                        <span className="font-mono text-xs text-ink-2">
+                          {evidenceRefs.length}/{MAX_REFS} · {refOverride ? 'a mano' : 'automático'}
+                        </span>
+                      </summary>
+                      <div className="flex flex-col gap-2 border-t border-line p-2.5">
+                        <p className="m-0 text-xs text-ink-2">Tocá para sumar o quitar. Podés usar cualquier referencia, también las que el sistema no citó (por ejemplo, las de la marca).</p>
+                        <ul className="m-0 grid max-h-64 list-none grid-cols-4 gap-2 overflow-y-auto p-0">
+                          {project.references
+                            .filter(r => r.image)
+                            .map(r => {
+                              const on = evidenceRefs.some(e => e.id === r.id);
+                              return (
+                                <li key={r.id}>
+                                  <button
+                                    type="button"
+                                    aria-pressed={on}
+                                    onClick={() => toggleRef(r.id)}
+                                    className="flex w-full flex-col gap-1 text-left text-ink-2 hover:text-ink"
+                                    title={`${r.name} (${r.id})`}
+                                  >
+                                    <img
+                                      src={r.image}
+                                      alt=""
+                                      className={`aspect-square w-full rounded-tag border object-cover ${on ? 'border-signal' : 'border-line opacity-50'}`}
+                                      referrerPolicy="no-referrer"
+                                      loading="lazy"
+                                    />
+                                    <span className="font-mono text-xs">{r.id}</span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                        </ul>
+                        {refOverride && (
+                          <button type="button" className="w-fit text-xs text-ink underline-offset-2 hover:underline" onClick={() => setRefOverride(null)}>
+                            Volver a la selección automática
+                          </button>
+                        )}
+                      </div>
+                    </details>
+                  )}
+                  {mode === 'system' && leftOutPatterns.length > 0 && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-13 text-ink-2">Ideas que el sistema dejó afuera</span>
+                      <p className="m-0 text-xs text-ink-2">Patrones del corpus que no entraron al sistema. Los que marques se suman al pedido como prioridad tuya.</p>
+                      {leftOutPatterns.map(p => (
+                        <label key={p.id} className="flex cursor-pointer items-start gap-2 text-13 text-ink">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 size-4 shrink-0 accent-[#EDEDEF]"
+                            checked={extraPatternIds.includes(p.id)}
+                            onChange={() => setExtraPatternIds(x => (x.includes(p.id) ? x.filter(i => i !== p.id) : [...x, p.id]))}
+                          />
+                          <span>{p.name}</span>
+                        </label>
+                      ))}
+                    </div>
                   )}
                   <div className="flex flex-col gap-1">
                     {RESOURCES.filter(r => r.key === 'palette' || (mode === 'system' && pieceInfo.rules.includes(r.key as RuleFamily))).map(r => (

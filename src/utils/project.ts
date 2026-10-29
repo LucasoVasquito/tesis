@@ -76,6 +76,32 @@ const readAsDataURL = (file: File) =>
     reader.readAsDataURL(file);
   });
 
+const MAX_SIDE = 1600;
+
+/**
+ * Lee la imagen y mide su proporción real. Las que pasan de MAX_SIDE se reducen y recomprimen:
+ * el proyecto vive en localStorage (~5 MB) y una captura PNG sin reducir lo llena con pocas imágenes.
+ */
+async function prepareImage(file: File): Promise<{ url: string; ratio: number }> {
+  const original = await readAsDataURL(file);
+  const img = await new Promise<HTMLImageElement | null>(resolve => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => resolve(null);
+    el.src = original;
+  });
+  if (!img || !img.naturalWidth || !img.naturalHeight) return { url: original, ratio: 0 };
+  const ratio = img.naturalWidth / img.naturalHeight;
+  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return { url: original, ratio };
+  const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
+  canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const compact = canvas.toDataURL('image/webp', 0.9);
+  return { url: compact.startsWith('data:image/webp') && compact.length < original.length ? compact : original, ratio };
+}
+
 export function cleanFileName(name: string) {
   return name.replace(/\.[^/.]+$/, '').replace(/[-_]+/g, ' ').trim();
 }
@@ -92,7 +118,9 @@ export async function filesToReferences(
   const images = files.filter(f => f.type.startsWith('image/'));
   if (images.length === 0) return [];
   const ids = nextReferenceIds(existing, images.length);
-  const urls = await Promise.all(images.map(readAsDataURL));
+  const prepared = await Promise.all(images.map(prepareImage));
+  const urls = prepared.map(p => p.url);
+  const ratios = prepared.map(p => p.ratio);
   return images.map((file, i) => {
     const base = cleanFileName(file.name);
     const isGeneric = !base || base === 'image' || base.startsWith('blob');
@@ -105,6 +133,7 @@ export async function filesToReferences(
         : gridPosition(existing.length + i),
       width: CARD_W,
       height: 340,
+      aspectRatio: ratios[i] || undefined,
       createdAt: new Date().toISOString(),
       tags: opts.tags,
       notes: opts.notes,

@@ -97,7 +97,7 @@ export async function cropImage(src: string, boxes: CropBox[], maxSide = 720): P
 
 /** Proporción (ancho / alto) con la que se muestra la imagen de una ficha. */
 export function imageRatio(r: Reference): number {
-  if (r.parentId && r.aspectRatio) return Math.min(2.2, Math.max(0.55, r.aspectRatio));
+  if (r.aspectRatio) return Math.min(2.2, Math.max(0.55, r.aspectRatio));
   return 0.8;
 }
 

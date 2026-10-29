@@ -39,6 +39,7 @@ export const CATEGORY_FAMILY: Record<PatternCategory, FamilyId> = {
   graphic_elements: 'composition',
   texture: 'matter',
   packaging: 'matter',
+  space_environment: 'matter',
   logo_identity: 'identity',
   mascot_illustration: 'identity',
   photography_treatment: 'image',

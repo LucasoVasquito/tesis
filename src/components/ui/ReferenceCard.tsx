@@ -26,11 +26,13 @@ interface ReferenceCardProps {
   evidence?: boolean;
   /** Punto de estado de análisis (p. ej. nueva / incluida en la inducción). */
   analysis?: { tone: Tone; label: string } | null;
+  /** Iconos de atajo abajo a la derecha (aparecen al pasar el mouse o con la ficha elegida). */
+  actions?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
 }
 
-export function ReferenceCard({ reference: ref, zoom, width, selected, evidence, analysis, className, style }: ReferenceCardProps) {
+export function ReferenceCard({ reference: ref, zoom, width, selected, evidence, analysis, actions, className, style }: ReferenceCardProps) {
   const dominant = useDominantColor(ref, zoom === 'far');
   const border = selected
     ? 'border-ink'
@@ -43,7 +45,7 @@ export function ReferenceCard({ reference: ref, zoom, width, selected, evidence,
 
   return (
     <article
-      className={`flex flex-col overflow-hidden rounded-card border bg-surface shadow-card transition-[border-color] duration-120 ease-emergent ${border} ${className ?? ''}`}
+      className={`relative flex flex-col overflow-hidden rounded-card border bg-surface shadow-card transition-[border-color] duration-120 ease-emergent ${border} ${className ?? ''}`}
       style={{ width, ...style }}
     >
       {zoom === 'far' ? (
@@ -57,7 +59,7 @@ export function ReferenceCard({ reference: ref, zoom, width, selected, evidence,
           <img
             src={ref.image}
             alt={ref.name}
-            className={`block w-full bg-raised ${part ? 'object-contain' : 'object-cover'}`}
+            className="block w-full bg-raised object-contain"
             style={{ aspectRatio: ratio }}
             loading="lazy"
             referrerPolicy="no-referrer"
@@ -99,6 +101,13 @@ export function ReferenceCard({ reference: ref, zoom, width, selected, evidence,
               </>
             )}
           </div>
+          {actions && (
+            <div
+              className={`absolute bottom-2 right-2 flex gap-1 transition-opacity duration-120 ease-emergent focus-within:opacity-100 group-hover:opacity-100 ${selected ? 'opacity-100' : 'opacity-0'}`}
+            >
+              {actions}
+            </div>
+          )}
         </>
       )}
     </article>

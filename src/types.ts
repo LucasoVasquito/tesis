@@ -11,6 +11,7 @@ export type PatternCategory =
   | 'social_media'
   | 'geometry'
   | 'graphic_elements'
+  | 'space_environment'
   | 'mood';
 
 export type PatternStatus = 'detected' | 'confirmed' | 'discarded';

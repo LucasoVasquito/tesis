@@ -271,17 +271,32 @@ Para cada descubrimiento o patrón que detectes, analiza y detalla rigurosamente
    - 'texture' (Textura, Grano y Materialidad)
    - 'composition' (Composición y Grilla)
    - 'graphic_elements' (Recursos Gráficos Secundarios)
+   - 'space_environment' (Espacio, Fachadas, Locales e Interiores: soportes en el espacio físico, señalética, escaparates, ambientación)
 
 2. NOMBRE DEL PATRÓN: Un título conceptual y técnico preciso (ej: "Tipografía display con deformaciones formales y alto impacto", "Mascotas estilo ilustración vintage cartoon").
 
 3. DESCRIPCIÓN PROFUNDA Y RELACIONAL: Explica a fondo cómo opera este patrón, qué tensiones visuales resuelve y cómo dialoga entre diferentes soportes (por ejemplo, cómo la tipografía de los carteles se acopla con el packaging o cómo la fotografía complementa al sistema de marca).
 
-4. RASGOS OBSERVABLES: Características visuales concretas y técnicas (ej: trazos porosos, grillas perimetrales, saturación controlada, iluminación cenital de estudio).
+4. RASGOS OBSERVABLES: Características visuales concretas y técnicas, descritas a partir de lo que realmente se ve en las imágenes de este corpus (trazo, contorno, saturación, grano, luz, estructura de la grilla, materiales).
 
 5. EVIDENCIA CRUZADA: Vincula explícitamente los IDs exactos de las referencias del canvas que sostienen este hallazgo (ej: [ref_01, ref_05, ref_06]).
    Algunas referencias son PARTES recortadas por el diseñador de otra referencia (ej. ref_07a es la tipografía de ref_07). Cuando un patrón trata justo sobre lo que muestra una parte, citá la parte (es evidencia más precisa); citá la referencia completa solo si el patrón depende de la pieza entera.
 
 6. HIPÓTESIS DE SISTEMA VISUAL: Fundamenta cómo este descubrimiento puede traducirse en un subsistema reutilizable para soportes físicos (espacio, envoltorios) y digitales (web, redes).
+
+MÉTODO OBLIGATORIO (seguilo en orden antes de responder):
+
+A. RECONOCÉ EL CORPUS. Cada relevamiento es distinto: no asumas un tipo de marca ni de material. Identificá primero qué tipos de material hay realmente (logos, afiches, empaques, fotos de producto, fachadas, interiores, ilustraciones, capturas de redes, etc.) y adaptá los patrones a ese corpus. Un patrón debe nacer de lo que se repite en las imágenes, nunca de una expectativa previa.
+
+B. UNA PASADA POR DIMENSIÓN. Revisá el corpus completo, una dimensión por vez, y devolvé al menos un patrón por cada dimensión que tenga evidencia real (si una dimensión no aparece, no la inventes):
+   tipografía · color · textura y materialidad (grano, papel, relieve, superficies) · composición y grilla · logo e identidad · ilustración y mascotas · fotografía · packaging y soportes · espacio físico (fachadas, locales, interiores, señalética) · piezas gráficas y redes · recursos gráficos secundarios.
+   Las fachadas, locales e interiores son soportes en el espacio: no los trates como un logo más; dales su propio patrón ('space_environment') cuando aparezcan.
+
+C. MÁS EVIDENCIA. En "evidence" citá TODAS las referencias que cumplen el patrón, no solo las más claras. Un patrón central debería tener muchas referencias; si solo tiene 2 o 3, preguntate si no te faltan casos. Las referencias que apenas lo cumplen se citan igual, y lo aclarás en la descripción.
+
+D. COBERTURA. Ninguna referencia debe quedar huérfana sin motivo. Al terminar, verificá qué referencias no aparecen en ningún patrón y, en "overallInsight", listalas con una frase sobre por qué no encajaron (ej. "ref_12, ref_40: piezas aisladas sin rasgos compartidos").
+
+E. GRANULARIDAD. No colapses todo en pocos patrones amplios. Prefiero 8 a 15 patrones específicos y bien sostenidos antes que 4 genéricos; dividí un patrón cuando sus referencias muestran variantes formales distintas.
 
 No generalices. Si encuentras contradicciones estéticas entre referencias (ej. estilos tipográficos divergentes), señálalo como evidencia de múltiples sistemas visuales en tensión. Sé exhaustivo y riguroso.
 
@@ -312,7 +327,7 @@ Devuelve el análisis en formato JSON estricto cumpliendo el schema provisto.`;
                                         name: { type: genai_1.Type.STRING, description: "Nombre conceptual y técnico preciso del patrón" },
                                         category: {
                                             type: genai_1.Type.STRING,
-                                            description: "typography | color | texture | composition | logo_identity | packaging | photography_treatment | mascot_illustration | flyer_poster | social_media | graphic_elements",
+                                            description: "typography | color | texture | composition | logo_identity | packaging | photography_treatment | mascot_illustration | flyer_poster | social_media | graphic_elements | space_environment",
                                         },
                                         description: { type: genai_1.Type.STRING, description: "Descripción profunda y relacional: cómo opera este patrón, tensiones que resuelve y diálogo entre soportes" },
                                         evidence: {
@@ -1144,7 +1159,7 @@ function buildBrief(b, piece) {
         ]
             .filter(Boolean)
             .join(" — ");
-    const list = (title, items, max = 4) => Array.isArray(items) && items.length ? `${title}:\n${items.slice(0, max).map((x) => `- ${asText(x)}`).join("\n")}` : "";
+    const list = (title, items, max = 6) => Array.isArray(items) && items.length ? `${title}:\n${items.slice(0, max).map((x) => `- ${asText(x)}`).join("\n")}` : "";
     const palette = (s.colorPalette || []).map((c) => `- ${String(c.hex).toUpperCase()}${c.name ? ` · ${c.name}` : ""}${c.role ? ` (${c.role})` : ""}`).join("\n");
     const photo = piece.mode === "photo";
     const request = [
@@ -1173,7 +1188,7 @@ function buildBrief(b, piece) {
         `
 # Visual system "${s.name}" (how it should look)`,
         s.description || "",
-        list("Aesthetic pillars", s.aestheticPillars, 4),
+        list("Aesthetic pillars", s.aestheticPillars, 6),
         r.palette !== false && palette
             ? photo
                 ? `Brand palette (for signage, packaging graphics, typography and brand elements only; the environment keeps natural colors):\n${palette}`
@@ -1183,6 +1198,13 @@ function buildBrief(b, piece) {
         wants("texture") ? list(photo ? "Material and finish rules" : "Texture rules", s.textureRules) : "",
         wants("composition") ? list("Composition rules", s.compositionRules) : "",
         details,
+        // Ideas del corpus que el diseñador eligió sumar aunque el sistema no las haya incorporado.
+        Array.isArray(b.extraPatterns) && b.extraPatterns.length
+            ? `\n# Designer's priorities (the designer explicitly wants these ideas present in the piece, even if the system above does not emphasize them)\n${b.extraPatterns
+                .slice(0, 6)
+                .map((p) => `- ${String(p.name || "").slice(0, 120)}: ${String(p.description || "").slice(0, 400)}`)
+                .join("\n")}`
+            : "",
     ]
         .filter(x => x !== "")
         .join("\n");
@@ -1440,7 +1462,7 @@ app.post("/api/generate-application", async (req, res) => {
         // En fotos y en el modo directo no se adjuntan las referencias gráficas: empujan el resultado hacia la ilustración.
         const refImages = [];
         if (!direct && piece.mode === "graphic") {
-            for (const r of (b.references || []).slice(0, 4)) {
+            for (const r of (b.references || []).slice(0, 8)) {
                 const url = r?.image ? await toDataUrl(r.image, r.id) : null;
                 if (url)
                     refImages.push({ id: r.id, url });

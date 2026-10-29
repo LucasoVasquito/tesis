@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Expand, ScanSearch, Trash2 } from 'lucide-react';
 import { Emergence } from '../components/corpus/Emergence';
 import { Pattern, Project, RefGroup, Reference } from '../types';
 import { GroupInspector } from '../components/corpus/GroupInspector';
@@ -86,6 +87,55 @@ export function CorpusStage(props: CorpusStageProps) {
     return () => window.removeEventListener('paste', onPaste);
   }, [running, props.onAddFiles]);
 
+  // Supr / Borrar elimina la referencia elegida (no mientras se escribe ni con una ventana abierta).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      if (running || emerging || !selected || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      if (document.querySelector('[role="dialog"], [aria-modal="true"]')) return;
+      e.preventDefault();
+      props.onDeleteReference(selected.id);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [running, emerging, selected?.id, props.onDeleteReference]);
+
+  const iconBtn =
+    'grid size-7 place-items-center rounded-ctrl border border-line-mid bg-raised/90 text-ink-2 shadow-float backdrop-blur transition-colors duration-120 ease-emergent hover:text-ink focus-visible:text-ink [&>svg]:size-[15px]';
+  const cardActions = (r: Reference) => {
+    const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+    const act = (label: string, icon: React.ReactNode, run: () => void, extra = '') => (
+      <button
+        key={label}
+        type="button"
+        title={label}
+        aria-label={label}
+        className={`${iconBtn} ${extra}`}
+        onPointerDown={stop}
+        onKeyDown={stop}
+        onClick={e => {
+          e.stopPropagation();
+          run();
+        }}
+      >
+        {icon}
+      </button>
+    );
+    return (
+      <>
+        {!r.breakdown && !props.inspectingIds.includes(r.id) &&
+          act('Desglosar con IA', <ScanSearch aria-hidden="true" />, () => {
+            props.onSelect(r.id);
+            props.onInspect(r, false);
+          })}
+        {act('Ampliar', <Expand aria-hidden="true" />, () => props.onOpenLightbox(r))}
+        {act('Eliminar (Supr)', <Trash2 aria-hidden="true" />, () => props.onDeleteReference(r.id), 'hover:border-discarded/50 hover:text-discarded-ink')}
+      </>
+    );
+  };
+
   const reading = running && refs.length ? refs[induction.tick % refs.length] : null;
   const stepIdx = induction.tick % CATEGORIES.length;
   const steps: LoadingStep[] = CATEGORIES.map((label, i) => ({ label, state: i < stepIdx ? 'done' : i === stepIdx ? 'current' : 'todo' }));
@@ -146,6 +196,7 @@ export function CorpusStage(props: CorpusStageProps) {
           highlight={emerging ? emergeHighlight : undefined}
           dimAll={running ? 0.4 : undefined}
           locked={running || emerging}
+          cardActions={cardActions}
           analysisFor={r =>
             r.isNew
               ? { tone: 'pending', label: project.patterns.length ? 'Nueva: todavía no se indujo' : 'Sin inducir' }
