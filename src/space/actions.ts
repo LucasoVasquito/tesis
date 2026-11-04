@@ -286,3 +286,26 @@ export function categoryFor(types: FragmentType[]): PatternCategory {
   types.forEach(t => count.set(TYPE_CATEGORY[t] ?? 'composition', (count.get(TYPE_CATEGORY[t] ?? 'composition') ?? 0) + 1));
   return [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'composition';
 }
+
+/* ---------- Auditoría (A) ---------- */
+
+export function markAudited(p: Project, id: string): ActionResult {
+  const pat = p.patterns.find(x => x.id === id);
+  if (!pat) return { project: p, log: [] };
+  return {
+    project: { ...p, patterns: p.patterns.map(x => (x.id === id ? { ...x, audited: true } : x)) },
+    log: [{ kind: 'confirm', targetId: id, label: `Auditado · ${pat.name}`, reason: `${pat.evidence.length} referencias revisadas` }],
+    message: `Auditado · ${pat.name}`,
+  };
+}
+
+/** El diseñador saca una referencia de la evidencia: la reinducción ya no la pisa. */
+export function removeEvidence(p: Project, id: string, refId: string): ActionResult {
+  const pat = p.patterns.find(x => x.id === id);
+  if (!pat || !pat.evidence.includes(refId)) return { project: p, log: [] };
+  return {
+    project: { ...p, patterns: p.patterns.map(x => (x.id === id ? { ...x, evidence: x.evidence.filter(e => e !== refId), evidenceLocked: true } : x)) },
+    log: [{ kind: 'pattern_edit', targetId: id, label: `${refId} no es evidencia de ${pat.name}` }],
+    message: `${refId} fuera de la evidencia de ${pat.name}`,
+  };
+}

@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Project, Reference } from '../types';
+import { Moment, Project, Reference } from '../types';
 import { useShortcuts } from '../hooks/useAuditShortcuts';
 import { Shortcut, ShortcutBar } from '../components/shell/ShortcutBar';
 import { corpusRefs, layerInfo, layerTag } from '../utils/layers';
 import { STOPS, Stop, clampT, stopIndex } from './geometry';
 import { StackScene } from './StackScene';
-import { SceneItem, stopItems, stopOf } from './items';
-import { ActionResult, FragmentProposal, acceptProposals, addFragments, discard, groupFragments, groupToPattern, layerOf, proposalFor, setLayer, stepLayer } from './actions';
+import { SceneItem, pendingRevealed, stopItems, stopOf } from './items';
+import { ActionResult, FragmentProposal, acceptProposals, addFragments, discard, groupFragments, groupToPattern, layerOf, markAudited, proposalFor, removeEvidence, setLayer, stepLayer } from './actions';
+import { EvidencePanel, MirrorStrip, RevealedCard, mirrorLine, mirrorTarget } from './RevealHud';
 import { BREAKDOWN_SHORTCUTS, Breakdown, BreakdownState, proposalsFromParts } from './Breakdown';
 import { BriefPanel, IntentBlock } from './ArmarHud';
 
@@ -24,6 +25,11 @@ interface SpaceViewProps {
   onSaveBrief: (text: string) => void;
   /** Pide a la IA los recortes de una referencia (/api/segment-reference). */
   segment: (ref: Reference) => Promise<any[]>;
+  moment: Moment;
+  /** 02 · Revelar: la IA recorre el corpus buscando los patrones de la pila. */
+  reveal: { status: 'idle' | 'running' | 'error'; message?: string; tick: number };
+  onReveal: () => void;
+  onCancelReveal: () => void;
 }
 
 const stopName = (s: Stop) => (s === 'corpus' ? 'CORPUS' : layerTag(s));
@@ -36,8 +42,9 @@ function describe(item: SceneItem | undefined) {
 }
 
 /**
- * Vista espacial: la pila de láminas y el momento 01 · Armar.
+ * Vista espacial: la pila de láminas con los momentos 01 · Armar y 02 · Revelar.
  * Rueda y W/S mueven la cámara; ← / → eligen; ↑ / ↓ cambian de lámina; D, G, P, X, ⏎ y Esc.
+ * En Revelar: 1 / 2 / 3 ubican un revelado, A abre sus evidencias y el espejo muestra contradicciones.
  */
 export function SpaceView(props: SpaceViewProps) {
   const { project, enabled, apply } = props;
@@ -48,12 +55,32 @@ export function SpaceView(props: SpaceViewProps) {
   const [breakdown, setBreakdown] = useState<{ ref: Reference; state: BreakdownState } | null>(null);
   const [briefOpen, setBriefOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  /** Patrón cuyas evidencias están abiertas (A). */
+  const [auditId, setAuditId] = useState<string | null>(null);
   const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const active = STOPS[Math.round(t)];
   const items = stopItems(project, active);
   const primary = selection[selection.length - 1] ?? null;
   const empty = corpusRefs(project).length === 0;
+  const revealing = props.moment === 'revelar';
+  const running = props.reveal.status === 'running';
+  const revealedQueue = pendingRevealed(project);
+  const revealedHead = revealedQueue[0] ?? null;
+  const selectedPattern = primary ? project.patterns.find(x => x.id === primary && !x.isGroup) : undefined;
+  /** A qué apunta A / 1 2 3 / X en Revelar: lo seleccionado o, si no hay, el revelado que espera. */
+  const revealTarget = !selection.length ? revealedHead : null;
+  const auditPattern = auditId ? project.patterns.find(x => x.id === auditId) ?? null : null;
+
+  /* Trazabilidad: al elegir un patrón se iluminan sus referencias en el corpus; las demás se apagan. */
+  let litRefs: Set<string> | null = null;
+  if (running) {
+    const refs = corpusRefs(project);
+    litRefs = refs.length ? new Set([refs[props.reveal.tick % refs.length].id]) : null;
+  } else if (auditPattern) litRefs = new Set(auditPattern.evidence);
+  else if (selectedPattern) litRefs = new Set(selectedPattern.evidence);
+  else if (primary && project.fragments?.some(f => f.id === primary)) litRefs = new Set([project.fragments!.find(f => f.id === primary)!.refId]);
+  else if (revealing && revealTarget) litRefs = new Set(revealTarget.evidence);
 
   // Lo que desaparece (se borró o se agrupó) sale de la selección.
   useEffect(() => {
@@ -121,7 +148,12 @@ export function SpaceView(props: SpaceViewProps) {
     if (ids.length) setSelection([ids[0]]);
   };
 
-  useShortcuts(enabled && !breakdown && !naming && !briefOpen, {
+  const placeRevealed = (l: 1 | 2 | 3) => {
+    if (!revealing || !revealTarget) return false;
+    apply(p => setLayer(p, [revealTarget.id], l));
+  };
+
+  useShortcuts(enabled && !breakdown && !naming && !briefOpen && !auditPattern, {
     // W avanza hacia el fondo (hacia el corpus); S vuelve hacia el núcleo.
     w: () => goStop(STOPS[Math.min(STOPS.length - 1, Math.round(t) + 1)]),
     s: () => goStop(STOPS[Math.max(0, Math.round(t) - 1)]),
@@ -138,12 +170,24 @@ export function SpaceView(props: SpaceViewProps) {
     },
     p: () => (selectedGroup ? setNaming({ groupId: selectedGroup.id, value: '' }) : false),
     x: () => {
+      if (!primary && revealing && revealTarget) return void apply(p => discard(p, revealTarget.id));
       if (!primary || project.references.some(r => r.id === primary)) return false;
       apply(p => discard(p, primary));
       setSelection(sel => sel.filter(id => id !== primary));
     },
+    '1': () => placeRevealed(1),
+    '2': () => placeRevealed(2),
+    '3': () => placeRevealed(3),
+    a: () => {
+      const target = selectedPattern ?? (selectedGroup ? undefined : revealTarget);
+      if (!target) return false;
+      setAuditId(target.id);
+    },
     enter: () => (acceptable.length ? void apply(p => acceptProposals(p, acceptable)) : false),
-    escape: () => (selection.length ? setSelection([]) : false),
+    escape: () => {
+      if (running) return props.onCancelReveal();
+      return selection.length ? setSelection([]) : false;
+    },
   });
 
   // ⌘V: pegar imágenes al corpus.
@@ -165,7 +209,16 @@ export function SpaceView(props: SpaceViewProps) {
   let shortcuts: Shortcut[];
   if (breakdown) shortcuts = BREAKDOWN_SHORTCUTS;
   else if (naming) shortcuts = [{ keys: '⏎', label: 'Crear patrón' }, { keys: 'ESC', label: 'Cancelar' }];
-  else if (empty) shortcuts = [{ keys: '⏎', label: 'Continuar' }, { keys: '⌘V', label: 'Pegar imágenes' }, { keys: 'RUEDA', label: 'Z' }];
+  else if (auditPattern) shortcuts = [{ keys: '←→', label: 'Referencia' }, { keys: 'X', label: 'No es evidencia' }, { keys: '⏎', label: 'Auditado' }, { keys: 'ESC', label: 'Cerrar' }];
+  else if (running) shortcuts = [{ keys: 'ESC', label: 'Cancelar búsqueda' }];
+  else if (revealing) {
+    shortcuts = [{ keys: 'RUEDA', label: 'Z' }, { keys: 'W S', label: 'Lámina' }, { keys: '←→', label: 'Patrón' }];
+    if (revealTarget) shortcuts.push({ keys: '1 2 3', label: 'Ubicar' }, { keys: 'X', label: 'Descartar' });
+    if (selectedPattern || revealTarget) shortcuts.push({ keys: 'A', label: 'Auditar' });
+    if (movable.length) shortcuts.push({ keys: '↑↓', label: 'Lámina' });
+    if (acceptable.length) shortcuts.push({ keys: '⏎', label: acceptable.length > 1 ? `Aceptar ${acceptable.length} propuestas` : 'Aceptar propuesta' });
+    if (selection.length) shortcuts.push({ keys: 'ESC', label: 'Soltar' });
+  } else if (empty) shortcuts = [{ keys: '⏎', label: 'Continuar' }, { keys: '⌘V', label: 'Pegar imágenes' }, { keys: 'RUEDA', label: 'Z' }];
   else {
     shortcuts = [
       { keys: 'RUEDA', label: 'Z' },
@@ -183,6 +236,8 @@ export function SpaceView(props: SpaceViewProps) {
   }
 
   const selectedItem = items.find(x => x.id === primary);
+  const mirrorPattern = revealing ? mirrorTarget(project, selectedPattern ? selectedPattern.id : null) : null;
+  const mirror = mirrorPattern ? mirrorLine(mirrorPattern, project) : null;
 
   return (
     <div
@@ -217,6 +272,7 @@ export function SpaceView(props: SpaceViewProps) {
           onFocusStop={goStop}
           onWheelDepth={onWheelDepth}
           overview={empty}
+          litRefs={litRefs}
         />
 
         {/* 01 · Armar: la frase de intención (estado vacío completo o rótulo compacto). */}
@@ -233,6 +289,47 @@ export function SpaceView(props: SpaceViewProps) {
           />
         </div>
         {briefOpen && <BriefPanel brief={project.brief ?? ''} onSave={props.onSaveBrief} onClose={() => setBriefOpen(false)} />}
+
+        {revealing && (
+          <div className="pointer-events-none absolute right-5 top-4 z-20 flex flex-col items-end gap-3">
+            <div className="flex items-center gap-3 font-mono text-[11px] font-medium text-ink-2">
+              {running ? (
+                <span className="text-ink">
+                  <span className="text-accent">●</span> BUSCANDO TUS PATRONES EN {corpusRefs(project).length} REFS…
+                </span>
+              ) : (
+                <>
+                  <span>02 REVELAR · {project.patterns.filter(x => x.status !== 'discarded' && !x.isGroup).length} PATRONES</span>
+                  <button type="button" className="pointer-events-auto underline decoration-line-strong underline-offset-4 hover:text-ink" onClick={props.onReveal}>
+                    BUSCAR DE NUEVO
+                  </button>
+                </>
+              )}
+            </div>
+            {props.reveal.status === 'error' && (
+              <div role="alert" className="pointer-events-auto w-[300px] border-2 border-discarded bg-void p-3 text-[13px]">
+                {props.reveal.message}
+                <button type="button" className="type-label mt-2 block text-[12px] underline" onClick={props.onReveal}>
+                  REINTENTAR
+                </button>
+              </div>
+            )}
+            {!running && revealTarget && <RevealedCard pattern={revealTarget} project={project} position={1} total={revealedQueue.length} />}
+          </div>
+        )}
+
+        {auditPattern && (
+          <EvidencePanel
+            pattern={auditPattern}
+            project={project}
+            onRemove={refId => apply(p => removeEvidence(p, auditPattern.id, refId))}
+            onAudited={() => {
+              apply(p => markAudited(p, auditPattern.id));
+              setAuditId(null);
+            }}
+            onClose={() => setAuditId(null)}
+          />
+        )}
 
         {/* Indicador de profundidad: dónde está la cámara. */}
         <nav aria-label="Profundidad" className="absolute right-5 top-1/2 z-10 flex -translate-y-1/2 flex-col items-end gap-2">
@@ -306,11 +403,13 @@ export function SpaceView(props: SpaceViewProps) {
         </p>
       </div>
 
-      {props.notice && (
+      {props.notice ? (
         <div className="no-print mx-3 mb-2 flex h-[38px] shrink-0 items-center gap-3 border-t-2 border-bone bg-void px-5" role="status">
           <span className="layer-tag">{props.notice.tag ?? 'AVISO'}</span>
           <span className="truncate text-[14px]">{props.notice.text}</span>
         </div>
+      ) : (
+        revealing && !running && mirror && <MirrorStrip>{mirror}</MirrorStrip>
       )}
       <ShortcutBar items={shortcuts} />
     </div>

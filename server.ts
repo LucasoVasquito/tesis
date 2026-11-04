@@ -193,6 +193,8 @@ app.post("/api/analyze-references", async (req, res) => {
       discardedPatterns = [],
       feedback = [],
       designerGroups = [],
+      // Pila de láminas: patrones definidos por el diseñador con fragmentos (opcional).
+      stackPatterns = [],
     } = req.body;
 
     if (!references || references.length === 0) {
@@ -237,7 +239,35 @@ app.post("/api/analyze-references", async (req, res) => {
         refSummaryList.push(`- ID: ${ref.id} (${ref.name || 'Sin título'})${ref.parentId ? ` · parte de ${ref.parentId}` : ''}`);
       }
 
-      const previousContext = `
+      // Definición visual de los patrones de la pila: los recortes que eligió el diseñador.
+      const LAYER_NAME: Record<number, string> = { 1: "1 núcleo", 2: "2 soporte", 3: "3 acento" };
+      for (const sp of stackPatterns as any[]) {
+        for (const f of (sp.fragments || []).slice(0, 4)) {
+          if (!f?.image) continue;
+          try {
+            const imgPart = await resolveImagePart(f.image, `${sp.id}_${f.refId}`);
+            if (!imgPart) continue;
+            parts.push({ text: `[DEFINICIÓN DEL PATRÓN DEL DISEÑADOR id="${sp.id}" nombre="${sp.name}" · fragmento "${f.label}" (${f.type}) recortado de ${f.refId}. NO es una referencia del corpus: es la definición.]` });
+            parts.push({ inlineData: { mimeType: imgPart.mimeType, data: imgPart.data } });
+          } catch {
+            /* un recorte que no se puede leer no impide el análisis */
+          }
+        }
+      }
+
+      const stackContext = (stackPatterns as any[]).length
+        ? `
+PATRONES DE LA PILA DEL DISEÑADOR (los definió él, con recortes de imágenes; son su hipótesis):
+${(stackPatterns as any[]).map((sp: any) => `- [${sp.id}] "${sp.name}" · lámina que eligió: ${LAYER_NAME[sp.layer] || "sin lámina"}${sp.description ? ` · ${sp.description}` : ""} · fragmentos: ${(sp.fragments || []).map((f: any) => `${f.label} (${f.type}, de ${f.refId})`).join("; ") || "ninguno"} · referencias propias: ${(sp.evidence || []).join(", ") || "ninguna"}`).join("\n")}
+OBLIGATORIO para cada uno de estos patrones:
+- Devolvé un patrón con el MISMO id y el MISMO nombre, con "designerPattern": true.
+- Buscalo en TODO el corpus usando sus fragmentos como definición visual: en "evidence" citá todas las referencias donde aparece (incluidas las de sus propios fragmentos). Si casi no aparece, decilo en la descripción: no lo infles.
+- No cambies la lámina que eligió el diseñador. Proponé la tuya en "suggestedLayer" según la evidencia, aunque contradiga la suya.
+Todos los demás patrones que devuelvas son hallazgos tuyos que el diseñador NO marcó: van con "designerPattern": false. Son los más valiosos cuando se repiten de verdad en el corpus y no se parecen a ninguno de la pila.
+`
+        : "";
+
+      const previousContext = `${stackContext}
 HISTORIAL DE DECISIONES PREVIAS DEL DISEÑADOR:
 - Patrones ya confirmados por el diseñador: ${JSON.stringify(confirmedPatterns.filter((p: any) => p.origin !== 'designer').map((p: any) => ({ id: p.id, name: p.name, category: p.category, assignedSystem: p.assignedSystemId })))}
 ${confirmedPatterns.some((p: any) => p.origin === 'designer') ? `
@@ -309,6 +339,12 @@ C. MÁS EVIDENCIA. En "evidence" citá TODAS las referencias que cumplen el patr
 
 D. COBERTURA. Ninguna referencia debe quedar huérfana sin motivo. Al terminar, verificá qué referencias no aparecen en ningún patrón y, en "overallInsight", listalas con una frase sobre por qué no encajaron (ej. "ref_12, ref_40: piezas aisladas sin rasgos compartidos").
 
+F. LÁMINA SUGERIDA. Para cada patrón proponé en "suggestedLayer" dónde iría en una pila de tres láminas (es solo una sugerencia; decide el diseñador):
+   1 = núcleo: define el sistema; aparece en una parte grande del corpus y en sus piezas principales.
+   2 = soporte: acompaña y se repite, pero no es la identidad.
+   3 = acento: aparece poco y da carácter; un detalle.
+   Basate en la evidencia: en cuántas referencias aparece y con qué peso visual.
+
 E. GRANULARIDAD. No colapses todo en pocos patrones amplios. Prefiero 8 a 15 patrones específicos y bien sostenidos antes que 4 genéricos; dividí un patrón cuando sus referencias muestran variantes formales distintas.
 
 No generalices. Si encuentras contradicciones estéticas entre referencias (ej. estilos tipográficos divergentes), señálalo como evidencia de múltiples sistemas visuales en tensión. Sé exhaustivo y riguroso.
@@ -367,6 +403,8 @@ Devuelve el análisis en formato JSON estricto cumpliendo el schema provisto.`;
                     },
                     designerGroupId: { type: Type.STRING, description: "ID del grupo del diseñador al que responde este patrón (ej. grp_01), si responde a uno" },
                     groupVerdict: { type: Type.STRING, description: "supports | refines | contradicts (solo si hay designerGroupId)" },
+                    suggestedLayer: { type: Type.NUMBER, description: "Lámina sugerida: 1 núcleo, 2 soporte, 3 acento" },
+                    designerPattern: { type: Type.BOOLEAN, description: "true solo si es uno de los patrones de la pila del diseñador (mismo id)" },
                   },
                   required: ["id", "name", "category", "description", "evidence", "confidence", "relatedObservations", "systemHypothesis"],
                 },

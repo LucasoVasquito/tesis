@@ -10,6 +10,7 @@ import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getC
 import { downloadProjectMarkdown, exportProjectAsJSON, exportVisualSystemAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid, withLog } from './utils/project';
 import type { ActionResult } from './space/actions';
+import { buildRevealBody, mergeRevealed, needsReveal } from './space/reveal';
 import { PART_CARD_W, PartDraft, PartProposal, cropImage, nextPartIds, partKindInfo, placeParts, wholeReferences } from './utils/parts';
 import { createGroup, dropOnto, addToGroup, freeSpotNear, groupOf, refRect, withoutRefs } from './utils/groups';
 import { GroupDrop } from './components/canvas/ReferenceCanvas';
@@ -431,6 +432,71 @@ export default function App() {
     if (!parts.length) throw new Error('La IA no encontró recortes. Marcalos a mano arrastrando sobre la imagen.');
     return parts;
   };
+
+  /* ---------- 02 · Revelar ---------- */
+  const [reveal, setReveal] = useState<{ status: 'idle' | 'running' | 'error'; message?: string; tick: number }>({ status: 'idle', tick: 0 });
+  const revealAbort = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (reveal.status !== 'running') return;
+    const t = setInterval(() => setReveal(r => (r.status === 'running' ? { ...r, tick: r.tick + 1 } : r)), 450);
+    return () => clearInterval(t);
+  }, [reveal.status]);
+
+  /** La IA recorre el corpus buscando los patrones de la pila y revela los que el diseñador no marcó. */
+  const handleReveal = async () => {
+    const p = projectRef.current;
+    if (reveal.status === 'running') return;
+    if (wholeReferences(p.references).length < MIN_REFERENCES) {
+      setReveal({ status: 'error', message: `Hacen falta ${MIN_REFERENCES} referencias o más para revelar.`, tick: 0 });
+      return;
+    }
+    const controller = new AbortController();
+    revealAbort.current = controller;
+    setReveal({ status: 'running', tick: 0 });
+    try {
+      const body = await buildRevealBody(p);
+      const res = await fetch('/api/analyze-references', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw new Error(`El servidor no devolvió una respuesta válida (HTTP ${res.status}). ¿Está corriendo "npm run server"?`);
+      }
+      if (!res.ok || !result.success) throw new Error(result.error || result.details || 'La IA no respondió');
+      const detected: any[] = result.data?.patterns ?? [];
+      const r = applyStack(cur => {
+        const m = mergeRevealed(cur, detected);
+        return {
+          project: { ...m.project, suggestedSystems: Array.isArray(result.data?.suggestedSystems) ? result.data.suggestedSystems : cur.suggestedSystems },
+          log: [{ kind: 'induce', targetId: 'corpus', label: `Revelar · ${wholeReferences(cur.references).length} referencias`, reason: `${m.strengthened} patrones tuyos con más evidencia · ${m.revealed} revelados` }, ...m.log],
+          message: m.revealed ? `${m.revealed} ${m.revealed === 1 ? 'patrón que no marcaste' : 'patrones que no marcaste'} · ubicalos con 1 2 3` : `Sin patrones nuevos · ${m.strengthened} tuyos con más evidencia`,
+        };
+      });
+      void r;
+      setReveal({ status: 'idle', tick: 0 });
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        setReveal({ status: 'idle', tick: 0 });
+        showToast({ message: 'Búsqueda cancelada. La pila no cambió.' });
+        return;
+      }
+      setReveal({ status: 'error', tick: 0, message: err instanceof TypeError ? 'Sin conexión con el servidor. Verificá que "npm run server" esté corriendo.' : err?.message || String(err) });
+    } finally {
+      revealAbort.current = null;
+    }
+  };
+
+  // Al entrar a Revelar, la IA recorre el corpus si hace falta (corpus nuevo o patrones que no vio).
+  useEffect(() => {
+    if (!legacy && moment === 'revelar' && needsReveal(projectRef.current) && reveal.status === 'idle') void handleReveal();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moment, project.id, legacy]);
 
   /* ========== Corpus ========== */
   const handleAddReferences = useCallback(
@@ -1579,6 +1645,10 @@ export default function App() {
             briefError={briefError}
             onSaveBrief={handleSaveBrief}
             segment={segmentReference}
+            moment={moment}
+            reveal={reveal}
+            onReveal={handleReveal}
+            onCancelReveal={() => revealAbort.current?.abort()}
           />
         )}
         {!mapOpen && legacy && stage !== 'application' && (

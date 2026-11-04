@@ -152,7 +152,14 @@ function CorpusPlane(props: StackSceneProps & { active: Stop | 'overview' }) {
   const gridTop = pending.length ? 48 + pendingRows * PENDING_ROW : 40;
   const cols = Math.max(4, Math.ceil(Math.sqrt(refs.length * (CORPUS_W / (CORPUS_H - gridTop)))));
   return (
-    <section aria-label="Corpus" style={planeStyle('corpus', CORPUS_W, CORPUS_H, active)}>
+    <section
+      aria-label="Corpus"
+      style={{
+        ...planeStyle('corpus', CORPUS_W, CORPUS_H, active),
+        // Trazabilidad: con referencias iluminadas, el corpus se lee aunque la cámara esté adelante.
+        ...(props.litRefs && active !== 'corpus' ? { opacity: 0.9 } : {}),
+      }}
+    >
       <button type="button" tabIndex={-1} className="type-label pointer-events-auto absolute left-0 top-0 border-2 border-line-strong px-2 py-[3px] text-[12px] text-ink-2" onClick={() => props.onFocusStop('corpus')}>
         CORPUS · {refs.length} REFS{pending.length ? ` · ${pending.length} SIN LÁMINA` : ''}
       </button>
