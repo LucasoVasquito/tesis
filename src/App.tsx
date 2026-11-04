@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { loadStoredProjects, saveProjects } from './utils/projectStore';
 import { LogItem, LogKind, Moment, Pattern, Project, Reference, ReferenceBreakdown } from './types';
 import { createEmptyProject } from './data/emptyProject';
 import { compressImageString } from './utils/imageCompressor';
@@ -27,14 +28,7 @@ import { SpaceView } from './space/SpaceView';
 import type { ActionResult } from './space/actions';
 import { buildRevealBody, mergeRevealed, needsReveal } from './space/reveal';
 
-// Claves heredadas de cuando la app se llamaba Emergent: se conservan para no perder proyectos guardados.
-const LIST_KEY = 'emergent_projects_list_v5';
-const ACTIVE_KEY = 'emergent_active_project_v5';
-
-/**
- * Datos de versiones anteriores. Al pasar a v5 se descartan una sola vez
- * (proyectos de prueba y ejemplos) y la app arranca vacía.
- */
+/** Claves viejas de localStorage que ya no se usan (los proyectos pasaron a IndexedDB). */
 const DISCARDED_KEYS = [
   'emergent_projects_list_v4',
   'emergent_active_project_v4',
@@ -59,20 +53,40 @@ interface Toast {
   tone?: Tone;
 }
 
-function loadProjects(): Project[] {
-  try {
-    const saved = localStorage.getItem(LIST_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(migrateProject);
-    } else if (DISCARDED_KEYS.some(k => localStorage.getItem(k) !== null)) {
-      DISCARDED_KEYS.forEach(k => localStorage.removeItem(k));
-      clearBreakdownCache();
-    }
-  } catch (e) {
-    console.error('No se pudo leer la lista de proyectos', e);
+interface Boot {
+  projects: Project[];
+  activeId: string;
+}
+
+/** Carga los proyectos de IndexedDB antes de mostrar la app. */
+export default function App() {
+  const [boot, setBoot] = useState<Boot | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    loadStoredProjects()
+      .then(({ projects, activeId }) => {
+        try {
+          if (DISCARDED_KEYS.some(k => localStorage.getItem(k) !== null)) {
+            DISCARDED_KEYS.forEach(k => localStorage.removeItem(k));
+            clearBreakdownCache();
+          }
+        } catch {
+          /* sin localStorage: no hay nada viejo que limpiar */
+        }
+        const list = projects.length ? projects.map(migrateProject) : [createEmptyProject()];
+        setBoot({ projects: list, activeId: activeId && list.some(p => p.id === activeId) ? activeId : list[0].id });
+      })
+      .catch(e => setError(String(e?.message || e)));
+  }, []);
+  if (error) {
+    return (
+      <div role="alert" className="flex h-full items-center justify-center p-6 text-center text-[15px]">
+        No se pudieron leer los proyectos guardados en este navegador ({error}).
+      </div>
+    );
   }
-  return [createEmptyProject()];
+  if (!boot) return <div className="flex h-full items-center justify-center type-label text-[13px] text-ink-2">CARGANDO…</div>;
+  return <Workspace boot={boot} />;
 }
 
 const serverError = (text: string, status: number) =>
@@ -82,13 +96,10 @@ const serverError = (text: string, status: number) =>
       : `El servidor no respondió (HTTP ${status}). ¿Está corriendo "npm run server"?`,
   );
 
-export default function App() {
+function Workspace({ boot }: { boot: Boot }) {
   /* ========== Proyectos ========== */
-  const [projectsList, setProjectsList] = useState<Project[]>(loadProjects);
-  const [activeProjectId, setActiveProjectId] = useState<string>(() => {
-    const saved = localStorage.getItem(ACTIVE_KEY);
-    return saved && projectsList.some(p => p.id === saved) ? saved : projectsList[0].id;
-  });
+  const [projectsList, setProjectsList] = useState<Project[]>(boot.projects);
+  const [activeProjectId, setActiveProjectId] = useState<string>(boot.activeId);
   const project = projectsList.find(p => p.id === activeProjectId) ?? projectsList[0];
   const projectRef = useRef(project);
   projectRef.current = project;
@@ -102,16 +113,23 @@ export default function App() {
     [activeProjectId],
   );
 
+  /* Guardado en IndexedDB: solo lo que cambió, medio segundo después del último cambio. */
   const [saveFailed, setSaveFailed] = useState(false);
+  const saved = useRef(new Map<string, Project>());
   useEffect(() => {
-    try {
-      localStorage.setItem(LIST_KEY, JSON.stringify(projectsList));
-      localStorage.setItem(ACTIVE_KEY, activeProjectId);
-      setSaveFailed(false);
-    } catch (e) {
-      console.warn('No se pudo guardar en localStorage (¿espacio lleno?)', e);
-      setSaveFailed(true);
-    }
+    const t = setTimeout(() => {
+      const changed = new Set(projectsList.filter(p => saved.current.get(p.id) !== p).map(p => p.id));
+      saveProjects(projectsList, activeProjectId, changed)
+        .then(() => {
+          saved.current = new Map(projectsList.map(p => [p.id, p]));
+          setSaveFailed(false);
+        })
+        .catch(e => {
+          console.warn('No se pudo guardar el proyecto', e);
+          setSaveFailed(true);
+        });
+    }, 500);
+    return () => clearTimeout(t);
   }, [projectsList, activeProjectId]);
 
   /* ========== Momento y vista ========== */
