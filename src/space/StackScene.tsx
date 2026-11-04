@@ -11,12 +11,15 @@ interface StackSceneProps {
   t: number;
   /** true mientras se mueve con la rueda: la cámara sigue sin la transición larga. */
   scrubbing: boolean;
-  selectedId: string | null;
-  onSelect: (id: string, stop: Stop) => void;
+  selectedIds: string[];
+  /** additive: Shift + clic suma a la selección. */
+  onSelect: (id: string, stop: Stop, additive: boolean) => void;
   onFocusStop: (stop: Stop) => void;
   onWheelDepth: (deltaY: number) => void;
   /** Referencias que se iluminan en el corpus (trazabilidad). null = ninguna en particular. */
   litRefs?: Set<string> | null;
+  /** Vista general (estado vacío): la pila entera, chica, a la derecha; todas las láminas visibles. */
+  overview?: boolean;
 }
 
 const CORPUS_W = 1200;
@@ -58,24 +61,27 @@ export function StackScene(props: StackSceneProps) {
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  const cam = cameraAt(t);
+  const cam = props.overview ? cameraAt(1.5) : cameraAt(t);
   const active = STOPS[Math.round(t)];
-  const transform = `scale(${fit}) rotateX(${SIDE_ROTATION.x}deg) rotateY(${SIDE_ROTATION.y}deg) translate3d(${-cam.x}px, ${-cam.y}px, ${-cam.z}px)`;
+  const scale = props.overview ? fit * 0.42 : fit;
+  const transform = `scale(${scale}) rotateX(${SIDE_ROTATION.x}deg) rotateY(${SIDE_ROTATION.y}deg) translate3d(${-cam.x}px, ${-cam.y}px, ${-cam.z}px)`;
 
   return (
     <div ref={wrapRef} className="relative h-full w-full select-none overflow-hidden" style={{ perspective: `${PERSPECTIVE}px`, perspectiveOrigin: '50% 45%' }}>
       <div
-        className="absolute left-1/2 top-[48%] h-0 w-0"
+        className="absolute h-0 w-0"
         style={{
+          left: props.overview ? '70%' : '50%',
+          top: props.overview ? '58%' : '48%',
           transformStyle: 'preserve-3d',
           transform,
-          transition: props.scrubbing ? 'transform 140ms linear' : 'transform 500ms var(--ease-camera)',
+          transition: props.scrubbing ? 'transform 140ms linear' : 'transform 500ms var(--ease-camera), left 500ms var(--ease-camera), top 500ms var(--ease-camera)',
         }}
       >
         {/* Del fondo hacia adelante: el corpus primero, el núcleo último (queda arriba). */}
-        <CorpusPlane {...props} active={active} />
+        <CorpusPlane {...props} active={props.overview ? 'overview' : active} />
         {([3, 2, 1] as const).map(l => (
-          <LayerPlane key={l} {...props} layer={l} active={active} />
+          <LayerPlane key={l} {...props} layer={l} active={props.overview ? 'overview' : active} />
         ))}
       </div>
     </div>
@@ -83,14 +89,15 @@ export function StackScene(props: StackSceneProps) {
 }
 
 /** Opacidad de un plano según dónde está la cámara: el activo lleno, lo de atrás tenue, lo de adelante casi transparente. */
-function planeOpacity(stop: Stop, active: Stop) {
+function planeOpacity(stop: Stop, active: Stop | 'overview') {
+  if (active === 'overview') return stop === 'corpus' ? 0.5 : 1;
   const d = stopIndex(stop) - stopIndex(active);
   if (d === 0) return 1;
   if (d > 0) return d === 1 ? 0.55 : 0.35;
   return 0.18;
 }
 
-function planeStyle(stop: Stop, w: number, h: number, active: Stop): React.CSSProperties {
+function planeStyle(stop: Stop, w: number, h: number, active: Stop | 'overview'): React.CSSProperties {
   const p = stopPos(stop);
   return {
     position: 'absolute',
@@ -107,7 +114,7 @@ function planeStyle(stop: Stop, w: number, h: number, active: Stop): React.CSSPr
 
 /* ---------- Láminas ---------- */
 
-function LayerPlane(props: StackSceneProps & { layer: 1 | 2 | 3; active: Stop }) {
+function LayerPlane(props: StackSceneProps & { layer: 1 | 2 | 3; active: Stop | 'overview' }) {
   const { project, layer, active } = props;
   const info = layerInfo(layer);
   const items = stopItems(project, layer);
@@ -136,7 +143,7 @@ function LayerPlane(props: StackSceneProps & { layer: 1 | 2 | 3; active: Stop })
 
 /* ---------- Corpus ---------- */
 
-function CorpusPlane(props: StackSceneProps & { active: Stop }) {
+function CorpusPlane(props: StackSceneProps & { active: Stop | 'overview' }) {
   const { project, active } = props;
   const items = stopItems(project, 'corpus');
   const pending = items.filter(i => i.kind !== 'ref');
@@ -168,9 +175,9 @@ function CorpusPlane(props: StackSceneProps & { active: Stop }) {
 /* ---------- Elementos ---------- */
 
 function Item(props: StackSceneProps & { item: SceneItem; stop: Stop }) {
-  const { item, project, selectedId, stop } = props;
-  const selected = selectedId === item.id;
-  const select = () => props.onSelect(item.id, stop);
+  const { item, project, selectedIds, stop } = props;
+  const selected = selectedIds.includes(item.id);
+  const select = (e: React.MouseEvent) => props.onSelect(item.id, stop, e.shiftKey);
   const common = {
     'data-scene-item': item.id,
     'aria-pressed': selected,
@@ -211,7 +218,6 @@ function Item(props: StackSceneProps & { item: SceneItem; stop: Stop }) {
   }
 
   const pat = item.pattern;
-  const cover = patternCover(project, item);
   const layer = isLayer(pat.layer) ? pat.layer : null;
   const dot = !pat.audited ? <span title="Sin auditar" aria-label="Sin auditar" className="inline-block size-[10px] shrink-0 rounded-full bg-[#8d8d8d]" /> : null;
   const data = evidenceLabel(pat, project);
@@ -220,7 +226,7 @@ function Item(props: StackSceneProps & { item: SceneItem; stop: Stop }) {
   if (layer === 1) {
     return (
       <button type="button" {...common} className="flex w-[430px] items-stretch gap-4 bg-core p-3 text-left text-void" style={ring}>
-        {cover && <Crop image={cover.image} crop={cover.crop} fit="cover" alt={cover.alt} className="h-[132px] w-[140px] shrink-0" />}
+        <PatternCover project={project} item={item} className="h-[132px] w-[140px] shrink-0" />
         <span className="flex min-w-0 flex-col justify-between gap-2">
           <span className="type-name line-clamp-3 text-[44px] leading-[0.84]">{pat.name}</span>
           <span className="flex items-center gap-2">
@@ -236,7 +242,7 @@ function Item(props: StackSceneProps & { item: SceneItem; stop: Stop }) {
   const sug = layer ? null : suggestedLayer(pat, project);
   return (
     <button type="button" {...common} className={`flex items-center gap-3 text-left ${stop === 'corpus' ? 'w-full' : 'w-[260px]'}`} style={ring}>
-      {cover && <Crop image={cover.image} crop={cover.crop} fit="cover" alt={cover.alt} className={`shrink-0 ${stop === 'corpus' ? 'size-[80px]' : 'size-[92px]'}`} />}
+      <PatternCover project={project} item={item} className={`shrink-0 ${stop === 'corpus' ? 'size-[80px]' : 'size-[92px]'}`} />
       <span className="flex min-w-0 flex-col gap-1">
         <span className={`type-name line-clamp-2 leading-[0.92] ${stop === 'corpus' ? 'text-[20px]' : 'text-[24px]'}`}>{pat.name}</span>
         <span className="flex items-center gap-2">
@@ -247,6 +253,23 @@ function Item(props: StackSceneProps & { item: SceneItem; stop: Stop }) {
       </span>
     </button>
   );
+}
+
+/** Imagen de un patrón o grupo: sus fragmentos lado a lado (hasta 3) o, si no tiene, su primera evidencia. */
+function PatternCover({ project, item, className }: { project: Project; item: Extract<SceneItem, { kind: 'pattern' }>; className: string }) {
+  const frags = item.fragments.slice(0, 3);
+  if (frags.length > 1) {
+    return (
+      <span className={`flex gap-[3px] ${className}`}>
+        {frags.map(f => {
+          const ref = project.references.find(r => r.id === f.refId);
+          return ref ? <Crop key={f.id} image={ref.image} crop={f.crop} fit="cover" alt={f.label} className="h-full min-w-0 flex-1" /> : null;
+        })}
+      </span>
+    );
+  }
+  const cover = patternCover(project, item);
+  return cover ? <Crop image={cover.image} crop={cover.crop} fit="cover" alt={cover.alt} className={className} /> : <span className={`bg-raised ${className}`} />;
 }
 
 export function FragmentCrop({ f, image, ratio, className }: { f: Fragment; image: string; ratio?: number; className?: string }) {

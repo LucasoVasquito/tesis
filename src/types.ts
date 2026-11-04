@@ -313,7 +313,8 @@ export type LogKind =
   | 'split'
   | 'group'
   | 'pattern_add'
-  | 'pattern_edit';
+  | 'pattern_edit'
+  | 'layer';
 
 export interface LogItem {
   id: string;

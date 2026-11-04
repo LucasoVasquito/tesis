@@ -26,6 +26,7 @@ export const LOG_TONE: Record<LogKind, Tone> = {
   group: 'signal',
   pattern_add: 'confirmed',
   pattern_edit: 'signal',
+  layer: 'confirmed',
 };
 
 interface LogDrawerProps {

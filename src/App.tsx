@@ -8,7 +8,8 @@ import { deleteProjectPieces } from './utils/pieceStore';
 import { buildBackup, downloadBackup, restoreBackup } from './utils/backup';
 import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
 import { downloadProjectMarkdown, exportProjectAsJSON, exportVisualSystemAsJSON, parseVisualSystemJSON } from './utils/exportHelpers';
-import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid } from './utils/project';
+import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid, withLog } from './utils/project';
+import type { ActionResult } from './space/actions';
 import { PART_CARD_W, PartDraft, PartProposal, cropImage, nextPartIds, partKindInfo, placeParts, wholeReferences } from './utils/parts';
 import { createGroup, dropOnto, addToGroup, freeSpotNear, groupOf, refRect, withoutRefs } from './utils/groups';
 import { GroupDrop } from './components/canvas/ReferenceCanvas';
@@ -345,6 +346,90 @@ export default function App() {
     updateProject(p => ({ ...p, ...d }));
     if (changed) addLog('brief', 'brief', isBriefComplete(project) ? 'Brief actualizado' : 'Brief definido', d.objective);
     setStage('corpus');
+  };
+
+  /* ========== Pila de láminas ========== */
+  /**
+   * Aplica una acción de la pila sobre el proyecto más reciente. La bitácora va dentro del mismo
+   * cambio para que dos acciones seguidas no se pisen.
+   */
+  const applyStack = (fn: (p: Project) => ActionResult): ActionResult => {
+    const current = projectRef.current;
+    const r = fn(current);
+    if (r.project === current && !r.log.length) {
+      if (r.message) showToast({ message: r.message });
+      return r;
+    }
+    const next = withLog(r.project, ...r.log.map(l => makeLog(l.kind, l.targetId, l.label, l.reason)));
+    projectRef.current = next;
+    updateProject(() => next, current.id);
+    if (r.message) showToast({ message: r.message });
+    return r;
+  };
+
+  const [briefBusy, setBriefBusy] = useState(false);
+  const [briefError, setBriefError] = useState<string | null>(null);
+  /** 01 · Armar: la IA redacta el brief a partir de la frase. Queda como borrador editable. */
+  const handleSubmitIntent = async (intent: string) => {
+    const projectId = projectRef.current.id;
+    updateProject(p => ({ ...p, intent, name: p.name.trim() ? p.name : intent, objective: p.objective.trim() ? p.objective : intent }), projectId);
+    addLog('brief', 'brief', 'Frase de intención', intent, { projectId });
+    setBriefBusy(true);
+    setBriefError(null);
+    try {
+      const res = await fetch('/api/draft-brief', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ intent }) });
+      const text = await res.text();
+      let result: any;
+      try {
+        result = JSON.parse(text);
+      } catch {
+        throw new Error(text.trim().startsWith('<') ? 'El servidor corre una versión anterior: reiniciá "npm run server".' : `El servidor no respondió (HTTP ${res.status}). ¿Está corriendo "npm run server"?`);
+      }
+      if (!res.ok || !result.success) throw new Error(result.details || result.error || 'No se pudo redactar el brief');
+      const d = result.data;
+      updateProject(
+        p => ({
+          ...p,
+          name: p.name.trim() && p.name !== intent ? p.name : d.name || intent,
+          objective: d.objective || p.objective,
+          description: d.brief || p.description,
+          brief: d.brief || p.brief,
+        }),
+        projectId,
+      );
+      addLog('brief', 'brief', 'Brief redactado por la IA', 'Borrador: el diseñador lo puede editar', { projectId });
+    } catch (err: any) {
+      setBriefError(err instanceof TypeError ? 'Sin conexión con el servidor: el brief queda para después.' : err?.message || String(err));
+    } finally {
+      setBriefBusy(false);
+    }
+  };
+
+  const handleSaveBrief = (text: string) => {
+    updateProject(p => ({ ...p, brief: text, description: text }));
+    addLog('brief', 'brief', 'Brief editado por el diseñador');
+  };
+
+  /** Recortes propuestos por la IA para una referencia, con lámina sugerida. */
+  const segmentReference = async (ref: Reference): Promise<any[]> => {
+    const image = await compressImageString(ref.image, { maxWidth: 1024, maxHeight: 1024, quality: 0.85 });
+    const p = projectRef.current;
+    const res = await fetch('/api/segment-reference', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reference: { id: ref.id, image }, objective: p.objective, intent: p.intent }),
+    });
+    const text = await res.text();
+    let result: any;
+    try {
+      result = JSON.parse(text);
+    } catch {
+      throw new Error(text.trim().startsWith('<') ? 'El servidor corre una versión anterior: reiniciá "npm run server".' : `El servidor no respondió (HTTP ${res.status}). ¿Está corriendo "npm run server"?`);
+    }
+    if (!res.ok || !result.success) throw new Error(result.details || result.error || 'No se pudo desglosar la referencia');
+    const parts: any[] = result.data?.parts ?? [];
+    if (!parts.length) throw new Error('La IA no encontró recortes. Marcalos a mano arrastrando sobre la imagen.');
+    return parts;
   };
 
   /* ========== Corpus ========== */
@@ -1474,17 +1559,26 @@ export default function App() {
         onToggleLegacy={toggleLegacy}
       />
 
-      <p className="sr-only" aria-live="polite">
-        Etapa {STAGE_NUM[stage]} de 05: {STAGE_LABEL[stage]}
-      </p>
+      {legacy && (
+        <p className="sr-only" aria-live="polite">
+          Etapa {STAGE_NUM[stage]} de 05: {STAGE_LABEL[stage]}
+        </p>
+      )}
       <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
         {mapOpen && <TraceMap project={project} onBack={() => setMapOpen(false)} />}
         {!mapOpen && !legacy && (
           <SpaceView
             key={project.id}
             project={project}
-            enabled={!overlay && !patternEditor && !isUploadOpen && !lightboxRef && !deleteRequest}
+            enabled={!overlay && !patternEditor && !isUploadOpen && !lightboxRef && !deleteRequest && !isLogOpen}
             notice={toast ? { text: toast.message } : null}
+            apply={applyStack}
+            onAddFiles={handleAddFiles}
+            onSubmitIntent={handleSubmitIntent}
+            briefBusy={briefBusy}
+            briefError={briefError}
+            onSaveBrief={handleSaveBrief}
+            segment={segmentReference}
           />
         )}
         {!mapOpen && legacy && stage !== 'application' && (

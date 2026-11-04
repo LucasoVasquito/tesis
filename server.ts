@@ -602,12 +602,12 @@ No inventes nada que no esté presente en la imagen. Devuelve el resultado en JS
 // 2c. Separar una referencia en partes (tipografía, mascota, logo...)
 // ==========================================
 // Gemini devuelve cajas normalizadas (0-1000, [ymin, xmin, ymax, xmax]); el recorte se hace en el navegador.
-const PART_KINDS = ["typography", "logo", "mascot", "illustration", "photo", "texture", "graphic", "other"];
+const PART_KINDS = ["typography", "logo", "mascot", "illustration", "photo", "texture", "graphic", "color", "shape", "other"];
 
 app.post("/api/segment-reference", async (req, res) => {
   dotenv.config({ override: true });
   try {
-    const { reference, objective = "" } = req.body || {};
+    const { reference, objective = "", intent = "" } = req.body || {};
     if (!reference?.image) return res.status(400).json({ error: "Se requiere una referencia con imagen." });
     const imgPart = await resolveImagePart(reference.image, reference.id || "ref_segment");
     if (!imgPart) return res.status(400).json({ error: "No se pudo leer la imagen de la referencia." });
@@ -622,7 +622,12 @@ Rules:
 - box_2d is [ymin, xmin, ymax, xmax] normalized 0-1000.
 - kind is one of: ${PART_KINDS.join(", ")}.
 - label: 2 to 5 words in Spanish naming the part concretely (e.g. "Lettering BUNKER VINYLS", "Mascota hamburguesa", "Sello circular rojo").
-- description: one short sentence in Spanish about its formal qualities (shape, weight, line, color).`;
+- description: one short sentence in Spanish about its formal qualities (shape, weight, line, color).
+- layer: where this part would sit in the designer's visual system, as a SUGGESTION only (the designer decides):
+  1 = core (it defines the system: the element that, removed, would make it a different brand${intent ? ` for "${intent}"` : ""}),
+  2 = support (accompanies and repeats, but is not the identity),
+  3 = accent (appears rarely, gives character, a small detail).
+  Most parts are 2. Use 1 for at most one or two parts per image.`;
 
     const ai = getGeminiClient();
     const response = await generateContentWithRetry(ai, {
@@ -642,6 +647,7 @@ Rules:
                   kind: { type: Type.STRING },
                   label: { type: Type.STRING },
                   description: { type: Type.STRING },
+                  layer: { type: Type.NUMBER },
                 },
                 required: ["box_2d", "kind", "label"],
               },
@@ -664,6 +670,8 @@ Rules:
           kind: PART_KINDS.includes(p.kind) ? p.kind : "other",
           label: String(p.label || "Parte").slice(0, 60),
           description: p.description ? String(p.description).slice(0, 240) : undefined,
+          // Lámina sugerida (1 núcleo, 2 soporte, 3 acento). Es solo una propuesta.
+          layer: [1, 2, 3].includes(Number(p.layer)) ? Number(p.layer) : undefined,
           box,
         };
       })
@@ -673,6 +681,55 @@ Rules:
   } catch (error: any) {
     console.error("Error en /api/segment-reference:", error);
     return res.status(500).json({ error: "No se pudo separar la referencia en partes.", details: error?.message });
+  }
+});
+
+// ==========================================
+// 2c-bis. Brief a partir de una frase de intención
+// ==========================================
+// La IA redacta un borrador; el diseñador lo edita. No inventa datos del cliente: si falta algo, lo deja abierto.
+app.post("/api/draft-brief", async (req, res) => {
+  dotenv.config({ override: true });
+  try {
+    const intent = String(req.body?.intent || "").trim();
+    if (!intent) return res.status(400).json({ error: "Se requiere una frase de intención." });
+    const prompt = `Sos asistente de un diseñador gráfico. A partir de su frase de intención, redactá un brief breve en español rioplatense para orientar la lectura de un corpus de imágenes de referencia.
+
+Frase de intención: "${intent.slice(0, 300)}"
+
+Devolvé:
+- name: nombre corto del proyecto (2 a 5 palabras), sacado de la frase. Si la frase nombra una marca, usala.
+- objective: una oración con qué tiene que lograr el sistema visual.
+- brief: entre 3 y 6 oraciones: rubro, tono, público probable, qué buscar en las referencias y qué evitar. No inventes datos concretos del cliente (direcciones, precios, fechas): si algo no se sabe, decilo como pregunta abierta.`;
+    const ai = getGeminiClient();
+    const response = await generateContentWithRetry(ai, {
+      model: "gemini-3.5-flash",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            objective: { type: Type.STRING },
+            brief: { type: Type.STRING },
+          },
+          required: ["name", "objective", "brief"],
+        },
+      },
+    });
+    const d = parseModelJsonResponse(response.text || "{}");
+    return res.json({
+      success: true,
+      data: {
+        name: String(d?.name || "").slice(0, 80),
+        objective: String(d?.objective || "").slice(0, 400),
+        brief: String(d?.brief || "").slice(0, 2000),
+      },
+    });
+  } catch (error: any) {
+    console.error("Error en /api/draft-brief:", error);
+    return res.status(500).json({ error: "No se pudo redactar el brief.", details: error?.message });
   }
 });
 
