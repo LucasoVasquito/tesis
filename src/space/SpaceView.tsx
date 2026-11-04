@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Moment, Project, Reference } from '../types';
+import { Moment, Project, Reference, StackView } from '../types';
 import { useShortcuts } from '../hooks/useAuditShortcuts';
 import { Shortcut, ShortcutBar } from '../components/shell/ShortcutBar';
 import { corpusRefs, layerInfo, layerTag } from '../utils/layers';
@@ -30,6 +30,9 @@ interface SpaceViewProps {
   reveal: { status: 'idle' | 'running' | 'error'; message?: string; tick: number };
   onReveal: () => void;
   onCancelReveal: () => void;
+  /** Costado ↔ frente (Espacio). */
+  view: StackView;
+  onToggleView: () => void;
 }
 
 const stopName = (s: Stop) => (s === 'corpus' ? 'CORPUS' : layerTag(s));
@@ -63,7 +66,8 @@ export function SpaceView(props: SpaceViewProps) {
   const items = stopItems(project, active);
   const primary = selection[selection.length - 1] ?? null;
   const empty = corpusRefs(project).length === 0;
-  const revealing = props.moment === 'revelar';
+  const front = props.view === 'front';
+  const revealing = props.moment === 'revelar' && !front;
   const running = props.reveal.status === 'running';
   const revealedQueue = pendingRevealed(project);
   const revealedHead = revealedQueue[0] ?? null;
@@ -153,7 +157,14 @@ export function SpaceView(props: SpaceViewProps) {
     apply(p => setLayer(p, [revealTarget.id], l));
   };
 
-  useShortcuts(enabled && !breakdown && !naming && !briefOpen && !auditPattern, {
+  // De frente: Espacio (o Esc) vuelve al costado.
+  useShortcuts(enabled && front, {
+    ' ': () => props.onToggleView(),
+    escape: () => props.onToggleView(),
+  });
+
+  useShortcuts(enabled && !front && !breakdown && !naming && !briefOpen && !auditPattern, {
+    ' ': () => (running ? false : props.onToggleView()),
     // W avanza hacia el fondo (hacia el corpus); S vuelve hacia el núcleo.
     w: () => goStop(STOPS[Math.min(STOPS.length - 1, Math.round(t) + 1)]),
     s: () => goStop(STOPS[Math.max(0, Math.round(t) - 1)]),
@@ -207,7 +218,8 @@ export function SpaceView(props: SpaceViewProps) {
 
   /* ---------- Barra de atajos ---------- */
   let shortcuts: Shortcut[];
-  if (breakdown) shortcuts = BREAKDOWN_SHORTCUTS;
+  if (front) shortcuts = [{ keys: 'ESPACIO', label: 'Volver al costado' }];
+  else if (breakdown) shortcuts = BREAKDOWN_SHORTCUTS;
   else if (naming) shortcuts = [{ keys: '⏎', label: 'Crear patrón' }, { keys: 'ESC', label: 'Cancelar' }];
   else if (auditPattern) shortcuts = [{ keys: '←→', label: 'Referencia' }, { keys: 'X', label: 'No es evidencia' }, { keys: '⏎', label: 'Auditado' }, { keys: 'ESC', label: 'Cerrar' }];
   else if (running) shortcuts = [{ keys: 'ESC', label: 'Cancelar búsqueda' }];
@@ -218,6 +230,7 @@ export function SpaceView(props: SpaceViewProps) {
     if (movable.length) shortcuts.push({ keys: '↑↓', label: 'Lámina' });
     if (acceptable.length) shortcuts.push({ keys: '⏎', label: acceptable.length > 1 ? `Aceptar ${acceptable.length} propuestas` : 'Aceptar propuesta' });
     if (selection.length) shortcuts.push({ keys: 'ESC', label: 'Soltar' });
+    shortcuts.push({ keys: 'ESPACIO', label: 'Girar' });
   } else if (empty) shortcuts = [{ keys: '⏎', label: 'Continuar' }, { keys: '⌘V', label: 'Pegar imágenes' }, { keys: 'RUEDA', label: 'Z' }];
   else {
     shortcuts = [
@@ -233,6 +246,7 @@ export function SpaceView(props: SpaceViewProps) {
     if (primary && !selectedRef) shortcuts.push({ keys: 'X', label: 'Descartar' });
     if (selection.length) shortcuts.push({ keys: 'ESC', label: 'Soltar' });
     if (!selection.length) shortcuts.push({ keys: '⌘V', label: 'Pegar imágenes' });
+    shortcuts.push({ keys: 'ESPACIO', label: 'Girar' });
   }
 
   const selectedItem = items.find(x => x.id === primary);
@@ -271,12 +285,17 @@ export function SpaceView(props: SpaceViewProps) {
           }}
           onFocusStop={goStop}
           onWheelDepth={onWheelDepth}
-          overview={empty}
-          litRefs={litRefs}
+          overview={empty && !front}
+          litRefs={front ? null : litRefs}
+          view={props.view}
         />
 
+        {front && (
+          <div className="pointer-events-none absolute right-5 top-4 z-10 font-mono text-[11px] font-medium text-ink-2">03 GIRAR · VISTA DE FRENTE</div>
+        )}
+
         {/* 01 · Armar: la frase de intención (estado vacío completo o rótulo compacto). */}
-        <div className="pointer-events-none absolute left-12 top-8 z-10">
+        <div className="pointer-events-none absolute left-12 top-8 z-10 transition-opacity duration-200" style={{ opacity: front ? 0 : 1, visibility: front ? 'hidden' : 'visible' }}>
           <IntentBlock
             intent={project.intent ?? ''}
             compact={!empty}
@@ -332,7 +351,7 @@ export function SpaceView(props: SpaceViewProps) {
         )}
 
         {/* Indicador de profundidad: dónde está la cámara. */}
-        <nav aria-label="Profundidad" className="absolute right-5 top-1/2 z-10 flex -translate-y-1/2 flex-col items-end gap-2">
+        <nav aria-label="Profundidad" hidden={front} className="absolute right-5 top-1/2 z-10 flex -translate-y-1/2 flex-col items-end gap-2">
           {STOPS.map(s => {
             const on = s === active;
             const cls = s === 'corpus' ? '' : layerInfo(s).className;

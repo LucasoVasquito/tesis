@@ -1,9 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Fragment, Project } from '../types';
+import { Fragment, Project, StackView } from '../types';
 import { evidenceLabel, isLayer, layerInfo, layerTag, suggestedLayer } from '../utils/layers';
 import { Crop } from './Crop';
 import { PERSPECTIVE, PLANE_H, PLANE_W, SIDE_ROTATION, STOPS, Stop, cameraAt, stopIndex, stopPos } from './geometry';
 import { SceneItem, patternCover, stopItems } from './items';
+import { FrontPage } from './FrontPage';
+
+/**
+ * De frente, las láminas se alinean una detrás de otra (como en 2d): la de adelante es la página
+ * y las de atrás asoman como filetes corridos. Es la misma pila, girada.
+ */
+const FRONT_POS: Record<string, { x: number; y: number; z: number }> = {
+  '1': { x: 0, y: 0, z: 90 },
+  '2': { x: 20, y: 16, z: 45 },
+  '3': { x: 40, y: 32, z: 0 },
+  corpus: { x: 0, y: 0, z: -500 },
+};
+const FRONT_CAM = { x: 20, y: 16, z: 90 };
 
 interface StackSceneProps {
   project: Project;
@@ -20,6 +33,8 @@ interface StackSceneProps {
   litRefs?: Set<string> | null;
   /** Vista general (estado vacío): la pila entera, chica, a la derecha; todas las láminas visibles. */
   overview?: boolean;
+  /** Costado (ordenar) o frente (la Síntesis como página). */
+  view?: StackView;
 }
 
 const CORPUS_W = 1200;
@@ -33,6 +48,7 @@ export function StackScene(props: StackSceneProps) {
   const { project, t } = props;
   const wrapRef = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState(0.7);
+  const [fitFront, setFitFront] = useState(1);
 
   // Escala de la escena según el tamaño disponible (no cambia la jerarquía: la da la profundidad).
   useEffect(() => {
@@ -41,6 +57,7 @@ export function StackScene(props: StackSceneProps) {
     const ro = new ResizeObserver(([e]) => {
       const { width, height } = e.contentRect;
       setFit(Math.max(0.42, Math.min(1.05, Math.min(width / 1500, height / 940))));
+      setFitFront(Math.max(0.5, Math.min(1.4, Math.min((width - 240) / 960, height / 640))));
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -61,35 +78,57 @@ export function StackScene(props: StackSceneProps) {
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  const cam = props.overview ? cameraAt(1.5) : cameraAt(t);
+  const front = props.view === 'front';
+  const cam = front ? FRONT_CAM : props.overview ? cameraAt(1.5) : cameraAt(t);
   const active = STOPS[Math.round(t)];
-  const scale = props.overview ? fit * 0.42 : fit;
-  const transform = `scale(${scale}) rotateX(${SIDE_ROTATION.x}deg) rotateY(${SIDE_ROTATION.y}deg) translate3d(${-cam.x}px, ${-cam.y}px, ${-cam.z}px)`;
+  const scale = front ? fitFront : props.overview ? fit * 0.42 : fit;
+  const rx = front ? 0 : SIDE_ROTATION.x;
+  const ry = front ? 0 : SIDE_ROTATION.y;
+  const transform = `scale(${scale}) rotateX(${rx}deg) rotateY(${ry}deg) translate3d(${-cam.x}px, ${-cam.y}px, ${-cam.z}px)`;
+  const where: Stop | 'overview' | 'front' = front ? 'front' : props.overview ? 'overview' : active;
 
   return (
     <div ref={wrapRef} className="relative h-full w-full select-none overflow-hidden" style={{ perspective: `${PERSPECTIVE}px`, perspectiveOrigin: '50% 45%' }}>
       <div
         className="absolute h-0 w-0"
         style={{
-          left: props.overview ? '70%' : '50%',
-          top: props.overview ? '58%' : '48%',
+          left: front ? 'calc(50% - 100px)' : props.overview ? '70%' : '50%',
+          top: front ? '50%' : props.overview ? '58%' : '48%',
           transformStyle: 'preserve-3d',
           transform,
           transition: props.scrubbing ? 'transform 140ms linear' : 'transform 500ms var(--ease-camera), left 500ms var(--ease-camera), top 500ms var(--ease-camera)',
         }}
       >
         {/* Del fondo hacia adelante: el corpus primero, el núcleo último (queda arriba). */}
-        <CorpusPlane {...props} active={props.overview ? 'overview' : active} />
+        <CorpusPlane {...props} active={where} />
         {([3, 2, 1] as const).map(l => (
-          <LayerPlane key={l} {...props} layer={l} active={props.overview ? 'overview' : active} />
+          <LayerPlane key={l} {...props} layer={l} active={where} />
         ))}
+        {/* La página: aparece sobre la lámina de adelante cuando la pila termina de girar. */}
+        <div
+          aria-hidden={!front}
+          style={{
+            position: 'absolute',
+            left: -PLANE_W / 2,
+            top: -PLANE_H / 2,
+            width: PLANE_W,
+            height: PLANE_H,
+            transform: `translate3d(${FRONT_POS['1'].x}px, ${FRONT_POS['1'].y}px, ${FRONT_POS['1'].z + 1}px)`,
+            opacity: front ? 1 : 0,
+            transition: front ? 'opacity 260ms var(--ease-emergent) 240ms' : 'opacity 160ms var(--ease-emergent)',
+            pointerEvents: front ? 'auto' : 'none',
+          }}
+        >
+          <FrontPage project={project} />
+        </div>
       </div>
     </div>
   );
 }
 
 /** Opacidad de un plano según dónde está la cámara: el activo lleno, lo de atrás tenue, lo de adelante casi transparente. */
-function planeOpacity(stop: Stop, active: Stop | 'overview') {
+function planeOpacity(stop: Stop, active: Stop | 'overview' | 'front') {
+  if (active === 'front') return stop === 'corpus' ? 0 : 1;
   if (active === 'overview') return stop === 'corpus' ? 0.5 : 1;
   const d = stopIndex(stop) - stopIndex(active);
   if (d === 0) return 1;
@@ -97,8 +136,8 @@ function planeOpacity(stop: Stop, active: Stop | 'overview') {
   return 0.18;
 }
 
-function planeStyle(stop: Stop, w: number, h: number, active: Stop | 'overview'): React.CSSProperties {
-  const p = stopPos(stop);
+function planeStyle(stop: Stop, w: number, h: number, active: Stop | 'overview' | 'front'): React.CSSProperties {
+  const p = active === 'front' ? FRONT_POS[String(stop)] : stopPos(stop);
   return {
     position: 'absolute',
     left: -w / 2,
@@ -107,15 +146,16 @@ function planeStyle(stop: Stop, w: number, h: number, active: Stop | 'overview')
     height: h,
     transform: `translate3d(${p.x}px, ${p.y}px, ${p.z}px)`,
     opacity: planeOpacity(stop, active),
-    transition: 'opacity 300ms var(--ease-emergent)',
+    transition: 'opacity 300ms var(--ease-emergent), transform 500ms var(--ease-camera)',
     pointerEvents: stop === active ? 'auto' : 'none',
   };
 }
 
 /* ---------- Láminas ---------- */
 
-function LayerPlane(props: StackSceneProps & { layer: 1 | 2 | 3; active: Stop | 'overview' }) {
+function LayerPlane(props: StackSceneProps & { layer: 1 | 2 | 3; active: Stop | 'overview' | 'front' }) {
   const { project, layer, active } = props;
+  const front = active === 'front';
   const info = layerInfo(layer);
   const items = stopItems(project, layer);
   return (
@@ -124,14 +164,25 @@ function LayerPlane(props: StackSceneProps & { layer: 1 | 2 | 3; active: Stop | 
         type="button"
         tabIndex={-1}
         className="layer-tag pointer-events-auto absolute left-0 top-0"
+        style={{ opacity: front ? 0 : 1, transition: 'opacity 200ms' }}
         onClick={() => props.onFocusStop(layer)}
       >
         {layerTag(layer)}
       </button>
-      <div className="layer-rule absolute left-0 right-0 top-[26px]" />
-      {/* Contorno del plano: lo vuelve legible como lámina aunque esté vacío. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[26px] border-x border-b" style={{ borderColor: 'color-mix(in oklab, var(--layer-color) 22%, transparent)' }} />
-      <div className="absolute inset-x-0 bottom-0 top-[52px] flex flex-wrap content-start items-start gap-6 overflow-hidden px-1">
+      <div className="layer-rule absolute left-0 right-0 top-[26px]" style={{ opacity: front ? 0 : 1, transition: 'opacity 200ms' }} />
+      {/* Contorno del plano: lo vuelve legible como lámina aunque esté vacío. De frente, es el filete que asoma detrás de la página. */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 border-x border-b"
+        style={
+          front
+            ? { top: 0, border: `2px solid ${layer === 3 ? 'var(--color-accent)' : 'rgba(242,239,232,.5)'}`, transition: 'top 300ms' }
+            : { top: 26, borderColor: 'color-mix(in oklab, var(--layer-color) 22%, transparent)', transition: 'top 300ms' }
+        }
+      />
+      <div
+        className="absolute inset-x-0 bottom-0 top-[52px] flex flex-wrap content-start items-start gap-6 overflow-hidden px-1"
+        style={{ opacity: front ? 0 : 1, transition: 'opacity 200ms var(--ease-emergent)' }}
+      >
         {items.length === 0 && <span className="type-label text-[13px] text-ink-3">VACÍA · {info.role.toUpperCase()}</span>}
         {items.map(it => (
           <Item key={it.id} item={it} {...props} stop={layer} />
@@ -143,7 +194,7 @@ function LayerPlane(props: StackSceneProps & { layer: 1 | 2 | 3; active: Stop | 
 
 /* ---------- Corpus ---------- */
 
-function CorpusPlane(props: StackSceneProps & { active: Stop | 'overview' }) {
+function CorpusPlane(props: StackSceneProps & { active: Stop | 'overview' | 'front' }) {
   const { project, active } = props;
   const items = stopItems(project, 'corpus');
   const pending = items.filter(i => i.kind !== 'ref');

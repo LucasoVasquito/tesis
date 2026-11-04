@@ -128,8 +128,13 @@ export default function App() {
       }
       return !v;
     });
-  const moment: Moment = project.moment ?? 'armar';
-  const setMoment = (m: Moment) => updateProject(p => ({ ...p, moment: m }));
+  /** 03 · Girar es la vista de frente; Armar y Revelar se miran de costado. */
+  const stackView = project.view ?? 'side';
+  const sideMoment: Moment = project.moment === 'revelar' ? 'revelar' : 'armar';
+  const moment: Moment = stackView === 'front' ? 'girar' : sideMoment;
+  const setMoment = (m: Moment) =>
+    updateProject(p => (m === 'girar' ? { ...p, view: 'front' } : { ...p, view: 'side', moment: m }));
+  const toggleView = () => updateProject(p => ({ ...p, view: (p.view ?? 'side') === 'front' ? 'side' : 'front' }));
 
   const [stage, setStage] = useState<VisitableStage>(() => initialStage(project));
   const [view, setView] = useState<CorpusView>('canvas');
@@ -1649,6 +1654,8 @@ export default function App() {
             reveal={reveal}
             onReveal={handleReveal}
             onCancelReveal={() => revealAbort.current?.abort()}
+            view={stackView}
+            onToggleView={toggleView}
           />
         )}
         {!mapOpen && legacy && stage !== 'application' && (
