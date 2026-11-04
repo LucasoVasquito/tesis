@@ -118,6 +118,13 @@ export interface Pattern {
   revealed?: boolean;
   /** Todavía es solo un grupo (G), sin nombre de patrón (P). */
   isGroup?: boolean;
+  /** Imagen de la pieza: un recorte de una de sus referencias. Sin recorte se usa la primera evidencia entera. */
+  cover?: { refId: string; crop?: CropBox };
+  /**
+   * La hoja (layer) la confirmó el diseñador. false = sugerencia de la IA (borde punteado).
+   * Fuera del sistema = status 'discarded' (recuperable).
+   */
+  layerConfirmed?: boolean;
 }
 
 /* ---------- Pila de láminas ---------- */
@@ -126,7 +133,8 @@ export interface Pattern {
 export type Layer = 1 | 2 | 3;
 
 /** Los tres momentos del flujo (reemplazan a las 5 etapas). */
-export type Moment = 'armar' | 'revelar' | 'girar';
+/** Las tres pantallas: 01 SUBIR · 02 ORDENAR · 03 SISTEMA. */
+export type Moment = 'subir' | 'ordenar' | 'sistema';
 
 /** Costado: láminas separadas en profundidad. Frente: la Síntesis, como página editorial. */
 export type StackView = 'side' | 'front';
@@ -364,8 +372,10 @@ export interface Project {
   fragments?: Fragment[];
   /** Costado (ordenar) o frente (Síntesis). */
   view?: StackView;
-  /** Último momento visitado. */
+  /** Pantalla en la que quedó (01 SUBIR · 02 ORDENAR · 03 SISTEMA). */
   moment?: Moment;
+  /** Proyecto de ejemplo (muestra el cartel "EMPEZAR EL MÍO"). */
+  example?: boolean;
 }
 
 /* ---------- Etapa 06 · Aplicación ---------- */

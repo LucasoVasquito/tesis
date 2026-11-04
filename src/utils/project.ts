@@ -1,9 +1,10 @@
 import { normalizeSystemRules } from './rules';
 import { FeedbackItem, Fragment, LogItem, LogKind, Pattern, Project, Reference } from '../types';
 import { fragmentTypeFromPart, isLayer } from './layers';
+import { rankLayers } from '../pieces/model';
 
-/** Esquema actual: 2 = pila de láminas; 3 = sin partes como referencias (ya son fragmentos). */
-export const SCHEMA = 3;
+/** Esquema actual: 2 = pila de láminas; 3 = sin partes como referencias; 4 = piezas (sugerencia / confirmada). */
+export const SCHEMA = 4;
 
 let seq = 0;
 /** ID único y ordenable por tiempo. */
@@ -31,7 +32,7 @@ export function migrateProject(raw: any): Project {
     applications: raw?.applications && typeof raw.applications === 'object' ? raw.applications : {},
   };
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';
-  return migrateToStack(p, raw);
+  return migrateToPieces(migrateToStack(p, raw), raw);
 }
 
 /**
@@ -114,7 +115,6 @@ export function migrateToStack(p: Project, raw: any): Project {
     fragments: fragments.map(f => ({ ...f, layer: isLayer(f.layer) ? f.layer : null, z: Number.isFinite(f.z) ? f.z : 0 })),
     patterns: cleanPatterns,
     view: raw?.view === 'front' ? 'front' : 'side',
-    moment: raw?.moment === 'revelar' || raw?.moment === 'girar' ? raw.moment : 'armar',
   };
 }
 
@@ -284,4 +284,77 @@ export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { me
   confirmed.forEach(c => !merged.some(m => m.id === c.id) && merged.unshift(c.origin === 'designer' ? c : { ...c, trend: 'weakened' }));
   discarded.forEach(d => !merged.some(m => m.id === d.id) && merged.push(d));
   return { merged, newCount };
+}
+
+/**
+ * Pasa la pila a piezas (esquema 4).
+ * - Grupos y fragmentos sueltos pasan a ser piezas; la imagen de la pieza es el recorte de su fragmento.
+ * - Lo que ya estaba en una hoja la conserva, confirmada (lo decidió el diseñador).
+ * - Lo demás entra en la hoja que sugiere la IA o la evidencia, como sugerencia: nunca se arranca vacío.
+ * - Los momentos viejos (armar, revelar, girar) pasan a subir, ordenar y sistema.
+ */
+export function migrateToPieces(p: Project, raw: any): Project {
+  const moment = (): Project['moment'] => {
+    const m = raw?.moment;
+    if (m === 'subir' || m === 'ordenar' || m === 'sistema') return m;
+    if (raw?.view === 'front' || m === 'girar') return 'sistema';
+    return p.patterns.some(x => x.status !== 'discarded') ? 'ordenar' : 'subir';
+  };
+  if ((raw?.schema ?? 0) >= 4) return { ...p, schema: SCHEMA, moment: moment() };
+
+  const frags = p.fragments ?? [];
+  const live = new Set(p.patterns.filter(x => x.status !== 'discarded').map(x => x.id));
+  const claimed = new Set(p.patterns.filter(x => live.has(x.id)).flatMap(x => x.fragmentIds ?? []));
+  const fragsOf = (x: Pattern) => frags.filter(f => f.groupId === x.id || x.fragmentIds?.includes(f.id));
+
+  let patterns: Pattern[] = p.patterns.map(x => {
+    const own = fragsOf(x);
+    const placed = isLayer(x.layer);
+    return {
+      ...x,
+      isGroup: false,
+      cover: x.cover ?? (own[0] ? { refId: own[0].refId, crop: own[0].crop } : undefined),
+      evidence: [...new Set([...x.evidence, ...own.map(f => f.refId)])],
+      // Antes, ubicar en una lámina era una decisión del diseñador.
+      layerConfirmed: x.layerConfirmed ?? (placed && (x.origin === 'designer' || x.status === 'confirmed')),
+      status: x.status === 'discarded' ? 'discarded' : x.status,
+    };
+  });
+
+  // Fragmentos sueltos: cada uno es una pieza.
+  const used = new Set(patterns.map(x => x.id));
+  frags
+    .filter(f => !claimed.has(f.id) && !(f.groupId && live.has(f.groupId)))
+    .forEach(f => {
+      let id = `pat_f_${f.id.replace(/^frag_/, '')}`;
+      for (let i = 1; used.has(id); i++) id = `pat_f${i}_${f.id}`;
+      used.add(id);
+      patterns.push({
+        id,
+        name: f.label,
+        category: 'composition',
+        description: f.description ?? '',
+        evidence: [f.refId],
+        confidence: 1,
+        status: isLayer(f.layer) ? 'confirmed' : 'detected',
+        relatedObservations: [],
+        origin: f.origin === 'designer' ? 'designer' : 'ai',
+        layer: isLayer(f.layer) ? f.layer : null,
+        aiSuggestedLayer: isLayer(f.aiSuggestedLayer) ? f.aiSuggestedLayer : null,
+        layerConfirmed: isLayer(f.layer),
+        audited: true,
+        revealed: false,
+        cover: { refId: f.refId, crop: f.crop },
+      });
+    });
+
+  // Lo que no tiene hoja entra como sugerencia.
+  const draft: Project = { ...p, patterns };
+  const ranks = rankLayers(draft);
+  patterns = patterns.map(x =>
+    x.status === 'discarded' || isLayer(x.layer) ? x : { ...x, layer: isLayer(x.aiSuggestedLayer) ? x.aiSuggestedLayer : ranks.get(x.id) ?? 3, layerConfirmed: false },
+  );
+
+  // Los fragmentos ya son piezas (o la imagen de una): no se usan más.
+  return { ...p, patterns, fragments: [], schema: SCHEMA, moment: moment() };
 }

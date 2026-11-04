@@ -21,6 +21,6 @@ export function createEmptyProject(): Project {
     brief: '',
     fragments: [],
     view: 'side',
-    moment: 'armar',
+    moment: 'subir',
   };
 }

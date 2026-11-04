@@ -62,20 +62,20 @@ interface ExportBarProps {
 export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function ExportBar({ project, onGenerate, onNotice, paletteMissing, paletteBusy, onCompletePalette }, ref) {
   const [busy, setBusy] = useState(false);
   const name = fileSlug(project.name || project.intent || '');
-  const unaudited = project.patterns.filter(x => x.status !== 'discarded' && !x.isGroup && x.layer != null && !x.audited).length;
+  const unaudited = project.patterns.filter(x => x.status !== 'discarded' && !x.isGroup && x.layer != null && !x.layerConfirmed).length;
 
   const exportGuidelines = () => {
     downloadText(stackGuidelinesMarkdown(project), `${name}_lineamientos.md`, 'text/markdown');
-    onNotice(unaudited ? `Lineamientos descargados · ${unaudited} sin auditar quedan marcados` : 'Lineamientos descargados');
+    onNotice(unaudited ? `Lineamientos descargados · ${unaudited} sugerencias quedan marcadas` : 'Lineamientos descargados');
   };
   const exportPrompt = async () => {
     const text = buildStackPrompt(project);
     downloadText(text, `${name}_prompt_dalle.txt`, 'text/plain');
     try {
       await navigator.clipboard.writeText(text);
-      onNotice('Prompt de DALL·E descargado y copiado · el núcleo va primero');
+      onNotice('Prompt de DALL·E descargado y copiado · el Núcleo va primero');
     } catch {
-      onNotice('Prompt de DALL·E descargado · el núcleo va primero');
+      onNotice('Prompt de DALL·E descargado · el Núcleo va primero');
     }
   };
   const exportImage = async () => {
@@ -103,23 +103,23 @@ export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function Exp
   return (
     <div ref={ref} role="group" aria-label="Exportar" className="flex w-[150px] flex-col gap-2">
       <button type="button" onClick={exportGuidelines} className={`${btn} border-core bg-core text-void hover:bg-bone hover:border-bone`}>
-        LINEAMIENTOS .MD
+        LINEAMIENTOS
       </button>
       <button type="button" onClick={exportPrompt} className={`${btn} border-bone text-bone hover:bg-bone hover:text-void`}>
         PROMPT DALL·E
       </button>
       <button type="button" onClick={exportImage} disabled={busy} className={`${btn} border-bone text-bone hover:bg-bone hover:text-void disabled:opacity-60`}>
-        {busy ? 'EXPORTANDO…' : 'IMAGEN .PNG'}
+        {busy ? 'EXPORTANDO…' : 'IMAGEN'}
       </button>
       <button type="button" onClick={onGenerate} className={`${btn} mt-2 border-accent bg-accent text-bone hover:bg-bone hover:text-void hover:border-bone`}>
         GENERAR CON DALL·E
       </button>
       {paletteMissing > 0 && (
         <button type="button" onClick={onCompletePalette} disabled={paletteBusy} className={`${btn} mt-2 border-line-strong text-ink-2 hover:border-bone hover:text-ink disabled:opacity-60`}>
-          {paletteBusy ? 'DESGLOSANDO COLORES…' : `COMPLETAR PALETA · ${paletteMissing} REFS`}
+          {paletteBusy ? 'LEYENDO COLORES…' : `COMPLETAR PALETA · ${paletteMissing} REFERENCIAS`}
         </button>
       )}
-      {unaudited > 0 && <span className="font-mono text-[11px] text-ink-2">{unaudited} sin auditar · quedan marcados al exportar</span>}
+      {unaudited > 0 && <span className="text-[12px] leading-snug text-ink-2">{unaudited} sugerencias sin confirmar: salen marcadas al exportar.</span>}
     </div>
   );
 });

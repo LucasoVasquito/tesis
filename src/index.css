@@ -435,6 +435,22 @@
   }
 }
 
+/* 03 SISTEMA: la pila gira y queda de frente (unos 500 ms, desacelerando al final). */
+@keyframes tesis-turn {
+  from {
+    opacity: 0.2;
+    transform: rotateY(-38deg) rotateX(4deg) scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.system-page {
+  transform-origin: 30% 50%;
+  animation: tesis-turn 500ms var(--ease-camera) both;
+}
+
 @keyframes em-spin {
   to {
     transform: rotate(360deg);

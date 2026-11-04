@@ -1,7 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Check, ChevronDown, CircleHelp, ScrollText, Waypoints } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { Moment, Project } from '../../types';
-import { IconButton } from '../ui';
 
 interface TopBarProps {
   project: Project;
@@ -16,24 +15,23 @@ interface TopBarProps {
   onLoadExample: () => void;
   onDownloadDossier: () => void;
   onOpenLog: () => void;
-  onOpenMap: () => void;
-  isMapOpen: boolean;
   onOpenAbout: () => void;
-  isLogOpen: boolean;
+  /** Ayuda: vuelve a mostrar la guía de tres carteles. */
+  onOpenHelp: () => void;
   moment: Moment;
   onSelectMoment: (m: Moment) => void;
 }
 
 const MOMENTS: { id: Moment; num: string; label: string }[] = [
-  { id: 'armar', num: '01', label: 'ARMAR' },
-  { id: 'revelar', num: '02', label: 'REVELAR' },
-  { id: 'girar', num: '03', label: 'GIRAR' },
+  { id: 'subir', num: '01', label: 'SUBIR' },
+  { id: 'ordenar', num: '02', label: 'ORDENAR' },
+  { id: 'sistema', num: '03', label: 'SISTEMA' },
 ];
 
-/** Indicador de momento: 01 ARMAR · 02 REVELAR · 03 GIRAR. No es un riel de etapas: se puede ir y volver. */
+/** Indicador de pantalla: 01 SUBIR · 02 ORDENAR · 03 SISTEMA. Se puede ir y volver. */
 function MomentIndicator({ current, onSelect }: { current: Moment; onSelect?: (m: Moment) => void }) {
   return (
-    <nav aria-label="Momento" className="flex items-center gap-2 font-mono text-[11px] font-medium">
+    <nav aria-label="Pantalla" className="flex items-center gap-3">
       {MOMENTS.map((m, i) => (
         <React.Fragment key={m.id}>
           {i > 0 && <span aria-hidden="true" className="text-ink-3">·</span>}
@@ -41,7 +39,7 @@ function MomentIndicator({ current, onSelect }: { current: Moment; onSelect?: (m
             type="button"
             aria-current={m.id === current ? 'step' : undefined}
             onClick={() => onSelect?.(m.id)}
-            className={`px-1 py-1 transition-colors duration-120 ${m.id === current ? 'text-ink underline decoration-core decoration-2 underline-offset-[6px]' : 'text-ink-3 hover:text-ink'}`}
+            className={`type-label px-2 py-1 text-[14px] transition-colors duration-120 ${m.id === current ? 'bg-bone text-void' : 'text-ink-2 hover:text-ink'}`}
           >
             {m.num} {m.label}
           </button>
@@ -146,7 +144,7 @@ export function TopBar(props: TopBarProps) {
             aria-label="Proyecto"
             className="absolute left-0 top-full z-50 mt-2 max-h-[70vh] w-[min(300px,calc(100vw-24px))] overflow-y-auto rounded-card border border-line-mid bg-raised p-1 shadow-float"
           >
-            <MenuItem onSelect={run(props.onEditBrief)}>Editar brief</MenuItem>
+            <MenuItem onSelect={run(props.onEditBrief)}>Ver y editar el brief</MenuItem>
             <MenuItem onSelect={run(props.onNewProject)}>Nuevo proyecto</MenuItem>
             <MenuLabel>Mis proyectos</MenuLabel>
             {projects.map(p => (
@@ -158,6 +156,9 @@ export function TopBar(props: TopBarProps) {
               Cargar proyecto de ejemplo
             </MenuItem>
             <MenuItem onSelect={run(() => importRef.current?.click())}>Importar respaldo…</MenuItem>
+            <MenuLabel>Registro</MenuLabel>
+            <MenuItem onSelect={run(props.onOpenLog)}>Bitácora</MenuItem>
+            <MenuItem onSelect={run(props.onOpenAbout)}>Acerca del método</MenuItem>
             <MenuLabel>Respaldo y exportación</MenuLabel>
             <MenuItem onSelect={run(props.onExportBackup)} hint={project.lastBackupAt ? `último ${new Date(project.lastBackupAt).toLocaleDateString('es-AR')}` : 'nunca'}>
               Descargar respaldo completo
@@ -185,28 +186,16 @@ export function TopBar(props: TopBarProps) {
         />
       </div>
 
-      {/* Momento: 01 ARMAR · 02 REVELAR · 03 GIRAR */}
+      {/* Pantalla: 01 SUBIR · 02 ORDENAR · 03 SISTEMA */}
       <div className="flex min-w-0 flex-1 justify-center lg:px-6 xl:px-10">
         <MomentIndicator current={props.moment} onSelect={props.onSelectMoment} />
       </div>
 
-      {/* Global */}
-      <div className="flex shrink-0 items-center gap-1 lg:w-[240px] lg:justify-end">
-        <button type="button" className="btn btn-ghost hidden px-3 sm:inline-flex" aria-pressed={props.isMapOpen} onClick={props.onOpenMap}>
-          Mapa
+      {/* Ayuda */}
+      <div className="flex shrink-0 items-center lg:w-[240px] lg:justify-end">
+        <button type="button" onClick={props.onOpenHelp} className="type-label px-3 py-2 text-[13px] text-ink-2 hover:text-ink">
+          ? AYUDA
         </button>
-        <IconButton label="Mapa de trazabilidad" bare className="sm:hidden" aria-pressed={props.isMapOpen} onClick={props.onOpenMap}>
-          <Waypoints className="size-4 stroke-[1.5]" />
-        </IconButton>
-        <button type="button" className="btn btn-ghost hidden px-3 sm:inline-flex" aria-pressed={props.isLogOpen} onClick={props.onOpenLog}>
-          Bitácora
-        </button>
-        <IconButton label="Bitácora" bare className="sm:hidden" aria-pressed={props.isLogOpen} onClick={props.onOpenLog}>
-          <ScrollText className="size-4 stroke-[1.5]" />
-        </IconButton>
-        <IconButton label="Acerca del método" bare onClick={props.onOpenAbout}>
-          <CircleHelp className="size-4 stroke-[1.5]" />
-        </IconButton>
       </div>
     </header>
   );

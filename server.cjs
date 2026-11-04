@@ -346,6 +346,8 @@ C. MÁS EVIDENCIA. En "evidence" citá TODAS las referencias que cumplen el patr
 
 D. COBERTURA. Ninguna referencia debe quedar huérfana sin motivo. Al terminar, verificá qué referencias no aparecen en ningún patrón y, en "overallInsight", listalas con una frase sobre por qué no encajaron (ej. "ref_12, ref_40: piezas aisladas sin rasgos compartidos").
 
+G. IMAGEN DE CADA PATRÓN. En "cover" elegí UNA referencia donde el patrón se ve mejor (refId) y marcá en box_2d [ymin, xmin, ymax, xmax], normalizado 0-1000, la zona exacta donde se ve (ej. solo el logo, solo la textura). Si el patrón es la pieza entera, usá [0, 0, 1000, 1000].
+
 F. LÁMINA SUGERIDA. Para cada patrón proponé en "suggestedLayer" dónde iría en una pila de tres láminas (es solo una sugerencia; decide el diseñador):
    1 = núcleo: define el sistema; aparece en una parte grande del corpus y en sus piezas principales.
    2 = soporte: acompaña y se repite, pero no es la identidad.
@@ -410,6 +412,14 @@ Devuelve el análisis en formato JSON estricto cumpliendo el schema provisto.`;
                                         groupVerdict: { type: genai_1.Type.STRING, description: "supports | refines | contradicts (solo si hay designerGroupId)" },
                                         suggestedLayer: { type: genai_1.Type.NUMBER, description: "Lámina sugerida: 1 núcleo, 2 soporte, 3 acento" },
                                         designerPattern: { type: genai_1.Type.BOOLEAN, description: "true solo si es uno de los patrones de la pila del diseñador (mismo id)" },
+                                        cover: {
+                                            type: genai_1.Type.OBJECT,
+                                            description: "Referencia donde mejor se ve el patrón y la zona exacta",
+                                            properties: {
+                                                refId: { type: genai_1.Type.STRING },
+                                                box_2d: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.NUMBER } },
+                                            },
+                                        },
                                     },
                                     required: ["id", "name", "category", "description", "evidence", "confidence", "relatedObservations", "systemHypothesis"],
                                 },
@@ -770,6 +780,65 @@ Devolvé:
     catch (error) {
         console.error("Error en /api/draft-brief:", error);
         return res.status(500).json({ error: "No se pudo redactar el brief.", details: error?.message });
+    }
+});
+// ==========================================
+// 2c-ter. Separar una pieza que mezcla dos cosas
+// ==========================================
+// La IA propone la división; el diseñador la confirma en la interfaz.
+app.post("/api/split-piece", async (req, res) => {
+    dotenv_1.default.config({ override: true });
+    try {
+        const { piece, references = [] } = req.body || {};
+        if (!piece?.name || !references.length)
+            return res.status(400).json({ error: "Se requiere una pieza con referencias." });
+        const parts = [];
+        for (const ref of references.slice(0, 12)) {
+            const img = ref?.image ? await resolveImagePart(ref.image, ref.id) : null;
+            if (!img)
+                continue;
+            parts.push({ text: `[REFERENCIA ${ref.id}]` });
+            parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+        }
+        parts.push({
+            text: `Un diseñador agrupó estas referencias en una sola pieza de su sistema visual: "${piece.name}"${piece.description ? ` (${piece.description})` : ""}.
+Sospecha que la pieza mezcla dos cosas distintas. Separala en 2 (como máximo 3) piezas formalmente distintas.
+Para cada una devolvé: name (2 a 5 palabras en español, concreto), description (una oración), evidence (los IDs de las referencias que le corresponden; cada referencia va en una sola), y cover: la referencia donde mejor se ve (refId) y la zona en box_2d [ymin, xmin, ymax, xmax] normalizada 0-1000.
+Si de verdad es una sola cosa, devolvé igual la mejor división posible y decilo en la descripción.`,
+        });
+        const ai = getGeminiClient();
+        const response = await generateContentWithRetry(ai, {
+            model: "gemini-3.5-flash",
+            contents: [{ role: "user", parts }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: genai_1.Type.OBJECT,
+                    properties: {
+                        pieces: {
+                            type: genai_1.Type.ARRAY,
+                            items: {
+                                type: genai_1.Type.OBJECT,
+                                properties: {
+                                    name: { type: genai_1.Type.STRING },
+                                    description: { type: genai_1.Type.STRING },
+                                    evidence: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
+                                    cover: { type: genai_1.Type.OBJECT, properties: { refId: { type: genai_1.Type.STRING }, box_2d: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.NUMBER } } } },
+                                },
+                                required: ["name", "evidence"],
+                            },
+                        },
+                    },
+                    required: ["pieces"],
+                },
+            },
+        });
+        const d = parseModelJsonResponse(response.text || "{}");
+        return res.json({ success: true, data: { pieces: Array.isArray(d?.pieces) ? d.pieces.slice(0, 3) : [] } });
+    }
+    catch (error) {
+        console.error("Error en /api/split-piece:", error);
+        return res.status(500).json({ error: "No se pudo separar la pieza.", details: error?.message });
     }
 });
 // ==========================================
