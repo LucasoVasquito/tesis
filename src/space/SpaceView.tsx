@@ -20,6 +20,11 @@ interface SpaceViewProps {
   /** Aplica una acción de la pila (con su bitácora y su aviso). */
   apply: (fn: (p: Project) => ActionResult) => ActionResult;
   onAddFiles: (files: File[]) => void;
+  /** Sumar imágenes por URL o desde los packs de ejemplo. */
+  onOpenUpload: () => void;
+  onDeleteReference: (id: string) => void;
+  /** Cambia cuando el menú del proyecto pide abrir el brief. */
+  briefRequest: number;
   onSubmitIntent: (intent: string) => void;
   briefBusy: boolean;
   briefError?: string | null;
@@ -37,6 +42,10 @@ interface SpaceViewProps {
   /** I: abrir la generación con DALL·E (la pila pondera el prompt). */
   onOpenGenerate: () => void;
   onNotice: (text: string) => void;
+  /** Referencias de evidencia sin colores desglosados (la paleta sale del corpus). */
+  paletteMissing: number;
+  paletteBusy: boolean;
+  onCompletePalette: () => void;
 }
 
 const stopName = (s: Stop) => (s === 'corpus' ? 'CORPUS' : layerTag(s));
@@ -66,6 +75,18 @@ export function SpaceView(props: SpaceViewProps) {
   const [auditId, setAuditId] = useState<string | null>(null);
   const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
+  /** Borrar una referencia pide X dos veces seguidas. */
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const t = setTimeout(() => setConfirmDelete(null), 3000);
+    return () => clearTimeout(t);
+  }, [confirmDelete]);
+  // El menú del proyecto pide el brief.
+  const firstBrief = useRef(props.briefRequest);
+  useEffect(() => {
+    if (props.briefRequest !== firstBrief.current) setBriefOpen(true);
+  }, [props.briefRequest]);
 
   const active = STOPS[Math.round(t)];
   const items = stopItems(project, active);
@@ -190,7 +211,16 @@ export function SpaceView(props: SpaceViewProps) {
     p: () => (selectedGroup ? setNaming({ groupId: selectedGroup.id, value: '' }) : false),
     x: () => {
       if (!primary && revealing && revealTarget) return void apply(p => discard(p, revealTarget.id));
-      if (!primary || project.references.some(r => r.id === primary)) return false;
+      if (selectedRef) {
+        // Referencia del corpus: X dos veces para borrarla (con sus fragmentos).
+        if (confirmDelete === selectedRef.id) {
+          props.onDeleteReference(selectedRef.id);
+          setConfirmDelete(null);
+          setSelection([]);
+        } else setConfirmDelete(selectedRef.id);
+        return;
+      }
+      if (!primary) return false;
       apply(p => discard(p, primary));
       setSelection(sel => sel.filter(id => id !== primary));
     },
@@ -205,6 +235,7 @@ export function SpaceView(props: SpaceViewProps) {
     enter: () => (acceptable.length ? void apply(p => acceptProposals(p, acceptable)) : false),
     escape: () => {
       if (running) return props.onCancelReveal();
+      if (confirmDelete) return setConfirmDelete(null);
       return selection.length ? setSelection([]) : false;
     },
   });
@@ -246,7 +277,7 @@ export function SpaceView(props: SpaceViewProps) {
       { keys: 'W S', label: 'Lámina' },
       { keys: '←→', label: active === 'corpus' ? 'Elegir' : 'Fragmento' },
     ];
-    if (selectedRef) shortcuts.push({ keys: 'D', label: 'Desglosar' });
+    if (selectedRef) shortcuts.push({ keys: 'D', label: 'Desglosar' }, { keys: 'X', label: confirmDelete === selectedRef.id ? 'Otra vez para borrar' : 'Borrar' });
     if (movable.length) shortcuts.push({ keys: '↑↓', label: 'Lámina' });
     if (fragOrGroupSel.length) shortcuts.push({ keys: '⇧←→', label: 'Sumar' }, { keys: 'G', label: 'Agrupar' });
     if (selectedGroup) shortcuts.push({ keys: 'P', label: 'Patrón' });
@@ -302,7 +333,15 @@ export function SpaceView(props: SpaceViewProps) {
           <>
             <div className="pointer-events-none absolute right-5 top-4 z-10 font-mono text-[11px] font-medium text-ink-2">03 GIRAR · VISTA DE FRENTE</div>
             <div className="absolute right-5 top-14 z-10">
-              <ExportBar ref={exportRef} project={project} onGenerate={props.onOpenGenerate} onNotice={props.onNotice} />
+              <ExportBar
+                ref={exportRef}
+                project={project}
+                onGenerate={props.onOpenGenerate}
+                onNotice={props.onNotice}
+                paletteMissing={props.paletteMissing}
+                paletteBusy={props.paletteBusy}
+                onCompletePalette={props.onCompletePalette}
+              />
             </div>
           </>
         )}
@@ -317,6 +356,7 @@ export function SpaceView(props: SpaceViewProps) {
             onSubmit={props.onSubmitIntent}
             onPickFiles={props.onAddFiles}
             onOpenBrief={() => setBriefOpen(true)}
+            onOpenUpload={props.onOpenUpload}
             hasBrief={!!project.brief?.trim()}
           />
         </div>
@@ -435,7 +475,12 @@ export function SpaceView(props: SpaceViewProps) {
         </p>
       </div>
 
-      {props.notice ? (
+      {confirmDelete && !props.notice ? (
+        <div className="no-print mx-3 mb-2 flex h-[38px] shrink-0 items-center gap-3 border-t-2 border-discarded bg-void px-5" role="alert">
+          <span className="layer-tag" style={{ background: 'var(--color-discarded)' }}>BORRAR</span>
+          <span className="truncate text-[14px]">X otra vez para borrar {confirmDelete} del corpus, con sus fragmentos. Esc o esperá para cancelar.</span>
+        </div>
+      ) : props.notice ? (
         <div className="no-print mx-3 mb-2 flex h-[38px] shrink-0 items-center gap-3 border-t-2 border-bone bg-void px-5" role="status">
           <span className="layer-tag">{props.notice.tag ?? 'AVISO'}</span>
           <span className="truncate text-[14px]">{props.notice.text}</span>

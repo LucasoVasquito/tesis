@@ -2,8 +2,8 @@ import { normalizeSystemRules } from './rules';
 import { FeedbackItem, Fragment, LogItem, LogKind, Pattern, Project, Reference } from '../types';
 import { fragmentTypeFromPart, isLayer } from './layers';
 
-/** Esquema actual: 2 = pila de láminas (fragmentos, láminas, revelados y auditoría). */
-export const SCHEMA = 2;
+/** Esquema actual: 2 = pila de láminas; 3 = sin partes como referencias (ya son fragmentos). */
+export const SCHEMA = 3;
 
 let seq = 0;
 /** ID único y ordenable por tiempo. */
@@ -37,7 +37,7 @@ export function migrateProject(raw: any): Project {
 /**
  * Pasa un proyecto a la pila de láminas.
  * - Las partes recortadas (referencias con parentId) pasan a ser fragmentos de su imagen de origen.
- *   Las partes se conservan como referencias hasta la limpieza final, para no romper la vista vieja.
+ *   Después dejan de ser referencias: la evidencia que las citaba pasa a su imagen de origen.
  * - Los patrones confirmados entran a la pila sin lámina: el diseñador nunca eligió una.
  *   Mientras la IA no proponga una lámina, la sugerencia sale de la evidencia (suggestedLayer).
  *   ⏎ acepta la sugerencia. Cuentan como auditados.
@@ -95,14 +95,24 @@ export function migrateToStack(p: Project, raw: any): Project {
     });
   }
 
+  // Las partes ya son fragmentos (se dibujan recortando su imagen de origen): dejan de ser referencias.
+  // La evidencia que citaba una parte pasa a citar la imagen de la que salió.
+  const parentOf = new Map(p.references.filter(r => r.parentId).map(r => [r.id, r.parentId!]));
+  const toWhole = (ids: string[]) => [...new Set(ids.map(id => parentOf.get(id) ?? id))];
+  const references = parentOf.size ? p.references.filter(r => !r.parentId) : p.references;
+  const cleanPatterns = parentOf.size ? patterns.map(pt => ({ ...pt, evidence: toWhole(pt.evidence) })) : patterns;
+  const systems = parentOf.size ? p.systems.map(s => ({ ...s, referenceIds: toWhole(s.referenceIds) })) : p.systems;
+
   return {
     ...p,
+    references,
+    systems,
     schema: SCHEMA,
     // La intención es una frase: el nombre del proyecto; el objetivo y la descripción pasan al brief.
     intent: typeof raw?.intent === 'string' ? raw.intent : p.name,
     brief: typeof raw?.brief === 'string' ? raw.brief : [p.objective, p.description].filter(x => x.trim()).join('\n\n'),
     fragments: fragments.map(f => ({ ...f, layer: isLayer(f.layer) ? f.layer : null, z: Number.isFinite(f.z) ? f.z : 0 })),
-    patterns,
+    patterns: cleanPatterns,
     view: raw?.view === 'front' ? 'front' : 'side',
     moment: raw?.moment === 'revelar' || raw?.moment === 'girar' ? raw.moment : 'armar',
   };

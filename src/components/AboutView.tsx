@@ -2,11 +2,9 @@ import React from 'react';
 import { FullView } from './shell/FullView';
 
 const STEPS: [string, string, string][] = [
-  ['01', 'Brief', 'El diseñador define nombre, objetivo y contexto. Orienta la lectura, no la condiciona.'],
-  ['02', 'Corpus', 'Las referencias se cargan, se agrupan y se separan en partes en un lienzo espacial. Al inducir, Gemini detecta recurrencias formales y vincula cada patrón a su evidencia exacta.'],
-  ['03', 'Auditoría', 'El diseñador confirma o descarta cada hallazgo, con motivo. Es el núcleo del método.'],
-  ['04', 'Síntesis', 'Con los patrones confirmados se arman sistemas divergentes y sus lineamientos.'],
-  ['05', 'Aplicación', 'Verificación externa: se generan piezas con el sistema y se verifica, regla por regla, si se sostiene fuera del corpus.'],
+  ['01', 'Armar', 'Una frase de intención y las imágenes del corpus. El diseñador desglosa referencias en fragmentos, los lleva a tres láminas (núcleo, soporte, acento) y agrupa lo que define un patrón. Es su hipótesis, pero espacial.'],
+  ['02', 'Revelar', 'La IA busca los patrones del diseñador en todo el corpus y les suma evidencia. Revela lo que se repite y nadie marcó, y el espejo muestra dónde la lámina elegida contradice la evidencia. Auditar es abrir esa evidencia.'],
+  ['03', 'Girar', 'La misma pila, de frente: el núcleo titula, el soporte desarrolla y el acento anota. La lámina pondera los lineamientos, la paleta y el prompt de DALL·E.'],
 ];
 
 /** Marco conceptual de la tesis (antes ThesisConceptModal). */

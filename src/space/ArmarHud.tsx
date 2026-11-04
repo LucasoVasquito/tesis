@@ -9,6 +9,7 @@ interface IntentProps {
   onSubmit: (intent: string) => void;
   onPickFiles: (files: File[]) => void;
   onOpenBrief: () => void;
+  onOpenUpload: () => void;
   hasBrief: boolean;
 }
 
@@ -16,7 +17,7 @@ interface IntentProps {
  * 01 · Armar. Estado vacío (2a): una frase de intención y una zona para soltar imágenes.
  * Las tres láminas vacías ya se ven en el espacio, detrás.
  */
-export function IntentBlock({ intent, compact, busy, error, onSubmit, onPickFiles, onOpenBrief, hasBrief }: IntentProps) {
+export function IntentBlock({ intent, compact, busy, error, onSubmit, onPickFiles, onOpenBrief, onOpenUpload, hasBrief }: IntentProps) {
   const [value, setValue] = useState(intent);
   const [editing, setEditing] = useState(!intent);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -70,6 +71,9 @@ export function IntentBlock({ intent, compact, busy, error, onSubmit, onPickFile
           <button type="button" onClick={onOpenBrief} className="type-label text-[12px] text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink">
             {busy ? 'LA IA REDACTA EL BRIEF…' : hasBrief ? 'VER Y EDITAR EL BRIEF' : 'SIN BRIEF · ESCRIBÍ LA FRASE Y ⏎'}
           </button>
+          <button type="button" onClick={onOpenUpload} className="type-label text-[12px] text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink">
+            + IMÁGENES
+          </button>
           {error && <span className="text-[12px] text-error-ink">{error}</span>}
         </div>
       </div>
@@ -98,6 +102,9 @@ export function IntentBlock({ intent, compact, busy, error, onSubmit, onPickFile
       >
         <span className="type-name text-[20px]">SOLTÁ IMÁGENES</span>
         <span className="font-mono text-[11px] font-medium text-ink-2">caen al fondo · todavía no pesan</span>
+      </button>
+      <button type="button" onClick={onOpenUpload} className="type-label -mt-8 self-start text-[12px] text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink">
+        O SUMAR POR URL
       </button>
       <input
         ref={fileRef}

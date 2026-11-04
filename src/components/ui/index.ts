@@ -5,12 +5,6 @@ export { StatusPill, StatusDot, TrendTag, STATUS_LABEL, STATUS_TONE, TONE_COLOR 
 export type { Tone } from './StatusPill';
 export { CategoryTag, CATEGORY_LABEL } from './CategoryTag';
 export { ConfidenceBar, ProgressTrack } from './ConfidenceBar';
-export { StageRail, StageRailCompact } from './StageRail';
-export type { StageRailItem, StageRailState } from './StageRail';
-export { ReferenceCard, zoomLevelFor, shortRefId } from './ReferenceCard';
-export type { ZoomLevel } from './ReferenceCard';
-export { PatternCard } from './PatternCard';
-export type { PatternCardMode } from './PatternCard';
 export { Swatch } from './Swatch';
 export { LogEntry, LogList } from './LogEntry';
 export { EmptyState, LoadingState, ErrorState } from './States';

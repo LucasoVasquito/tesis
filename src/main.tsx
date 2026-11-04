@@ -2,9 +2,6 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 
-// Vista de verificación del sistema visual (solo desarrollo): http://localhost:5173/#ds
-const DesignSystemPreview = import.meta.env.DEV ? React.lazy(() => import('./dev/DesignSystemPreview')) : null;
-const showDesignSystem = !!DesignSystemPreview && window.location.hash === '#ds';
 import './index.css';
 
 interface Props {
@@ -72,13 +69,7 @@ class ErrorBoundary extends Component<Props, State> {
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {showDesignSystem && DesignSystemPreview ? (
-        <React.Suspense fallback={null}>
-          <DesignSystemPreview />
-        </React.Suspense>
-      ) : (
-        <App />
-      )}
+      <App />
     </ErrorBoundary>
   </React.StrictMode>,
 );

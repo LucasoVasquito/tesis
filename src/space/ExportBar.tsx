@@ -50,13 +50,16 @@ interface ExportBarProps {
   project: Project;
   onGenerate: () => void;
   onNotice: (text: string) => void;
+  paletteMissing: number;
+  paletteBusy: boolean;
+  onCompletePalette: () => void;
 }
 
 /**
  * Exportar desde la vista de frente: lineamientos, prompt de DALL·E e imagen de la página.
  * La lámina define el peso de cada patrón en las tres.
  */
-export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function ExportBar({ project, onGenerate, onNotice }, ref) {
+export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function ExportBar({ project, onGenerate, onNotice, paletteMissing, paletteBusy, onCompletePalette }, ref) {
   const [busy, setBusy] = useState(false);
   const name = fileSlug(project.name || project.intent || '');
   const unaudited = project.patterns.filter(x => x.status !== 'discarded' && !x.isGroup && x.layer != null && !x.audited).length;
@@ -111,6 +114,11 @@ export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function Exp
       <button type="button" onClick={onGenerate} className={`${btn} mt-2 border-accent bg-accent text-bone hover:bg-bone hover:text-void hover:border-bone`}>
         GENERAR CON DALL·E
       </button>
+      {paletteMissing > 0 && (
+        <button type="button" onClick={onCompletePalette} disabled={paletteBusy} className={`${btn} mt-2 border-line-strong text-ink-2 hover:border-bone hover:text-ink disabled:opacity-60`}>
+          {paletteBusy ? 'DESGLOSANDO COLORES…' : `COMPLETAR PALETA · ${paletteMissing} REFS`}
+        </button>
+      )}
       {unaudited > 0 && <span className="font-mono text-[11px] text-ink-2">{unaudited} sin auditar · quedan marcados al exportar</span>}
     </div>
   );

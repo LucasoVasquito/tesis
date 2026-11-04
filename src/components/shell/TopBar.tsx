@@ -1,13 +1,11 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, CircleHelp, ScrollText, Waypoints } from 'lucide-react';
 import { Moment, Project } from '../../types';
-import { IconButton, StageRail, StageRailCompact, StageRailItem } from '../ui';
+import { IconButton } from '../ui';
 
 interface TopBarProps {
   project: Project;
   projects: Project[];
-  rail: StageRailItem[];
-  onSelectStage: (id: string) => void;
   onSelectProject: (id: string) => void;
   onNewProject: () => void;
   onEditBrief: () => void;
@@ -22,11 +20,8 @@ interface TopBarProps {
   isMapOpen: boolean;
   onOpenAbout: () => void;
   isLogOpen: boolean;
-  /** Momento actual (vista espacial). Si no se pasa, se muestra el riel de etapas (vista anterior). */
-  moment?: Moment;
-  onSelectMoment?: (m: Moment) => void;
-  legacy: boolean;
-  onToggleLegacy: () => void;
+  moment: Moment;
+  onSelectMoment: (m: Moment) => void;
 }
 
 const MOMENTS: { id: Moment; num: string; label: string }[] = [
@@ -81,7 +76,7 @@ function MenuItem({ children, onSelect, current, hint }: { children: React.React
 }
 
 export function TopBar(props: TopBarProps) {
-  const { project, projects, rail } = props;
+  const { project, projects } = props;
   const [open, setOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const menuId = useId();
@@ -152,9 +147,6 @@ export function TopBar(props: TopBarProps) {
             className="absolute left-0 top-full z-50 mt-2 max-h-[70vh] w-[min(300px,calc(100vw-24px))] overflow-y-auto rounded-card border border-line-mid bg-raised p-1 shadow-float"
           >
             <MenuItem onSelect={run(props.onEditBrief)}>Editar brief</MenuItem>
-            <MenuItem onSelect={run(props.onToggleLegacy)} current={props.legacy} hint="hasta la limpieza">
-              Vista por etapas (anterior)
-            </MenuItem>
             <MenuItem onSelect={run(props.onNewProject)}>Nuevo proyecto</MenuItem>
             <MenuLabel>Mis proyectos</MenuLabel>
             {projects.map(p => (
@@ -193,16 +185,9 @@ export function TopBar(props: TopBarProps) {
         />
       </div>
 
-      {/* Momento (vista espacial) o etapas (vista anterior) */}
+      {/* Momento: 01 ARMAR · 02 REVELAR · 03 GIRAR */}
       <div className="flex min-w-0 flex-1 justify-center lg:px-6 xl:px-10">
-        {props.legacy || !props.moment ? (
-          <>
-            <StageRail stages={rail} onSelect={props.onSelectStage} />
-            <StageRailCompact stages={rail} onSelect={props.onSelectStage} />
-          </>
-        ) : (
-          <MomentIndicator current={props.moment} onSelect={props.onSelectMoment} />
-        )}
+        <MomentIndicator current={props.moment} onSelect={props.onSelectMoment} />
       </div>
 
       {/* Global */}

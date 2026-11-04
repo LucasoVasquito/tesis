@@ -403,7 +403,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
     <FullView
       embedded
       title={system.name}
-      meta="05 · Aplicación · verificación externa, no forma parte del sistema"
+      meta="03 · Girar · verificación externa, no forma parte del sistema"
       actions={
         <>
           {systems.length > 1 && (

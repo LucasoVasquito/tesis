@@ -1,6 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { Pattern } from '../types';
-import { PatternCardMode } from '../components/ui';
 
 /**
  * Sistema único de atajos de Tesis. Cada vista declara un mapa tecla → acción;
@@ -39,30 +37,4 @@ export function useShortcuts(enabled: boolean, map: ShortcutMap) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-}
-
-/* ---------- Auditoría por etapas (vista anterior, se va en la limpieza) ---------- */
-
-interface AuditShortcutsApi {
-  enabled: boolean;
-  current: Pattern | null;
-  mode: PatternCardMode;
-  setMode: (m: PatternCardMode) => void;
-  prev: () => void;
-  next: () => void;
-  confirm: () => void;
-}
-
-/** C confirmar, D descartar, N anotar, ← / → navegar, Esc cerrar el input. */
-export function useAuditShortcuts(a: AuditShortcutsApi) {
-  const pending = a.current?.status === 'detected';
-  const idle = a.mode === 'idle' && !!a.current;
-  useShortcuts(a.enabled, {
-    escape: () => (a.mode !== 'idle' ? a.setMode('idle') : false),
-    arrowleft: () => a.prev(),
-    arrowright: () => a.next(),
-    c: () => (idle && pending ? a.confirm() : false),
-    d: () => (idle && pending ? a.setMode('discard') : false),
-    n: () => (idle ? a.setMode('note') : false),
-  });
 }
