@@ -24,6 +24,8 @@ interface SystemApplicationViewProps {
   /** Lo generado antes para este sistema. */
   session?: ApplicationSession;
   onSaveSession: (session: ApplicationSession) => void;
+  /** Datos extra para el pedido (p. ej. la pila en orden de lámina). */
+  extraBody?: Record<string, unknown>;
 }
 
 type RuleFamily = 'typography' | 'texture' | 'composition';
@@ -99,7 +101,7 @@ const Block = ({ n, title, children }: { n: string; title: string; children: Rea
  * Verificación externa: piezas generadas con OpenAI a partir de los lineamientos.
  * Flujo: elegir pieza → pedir → comparar variantes → aprobar → la siguiente pieza usa el logo aprobado.
  */
-export function SystemApplicationView({ project, system, systems, onSelectSystem, onOpenGuidelines, onOpenLightbox, onNewPattern, onEditPattern, session, onSaveSession }: SystemApplicationViewProps) {
+export function SystemApplicationView({ project, system, systems, onSelectSystem, onOpenGuidelines, onOpenLightbox, onNewPattern, onEditPattern, session, onSaveSession, extraBody }: SystemApplicationViewProps) {
   const patterns = project.patterns.filter(p => system.patternIds.includes(p.id) && p.status === 'confirmed');
   const [pieceType, setPieceType] = useState<PieceType>('logo');
   const [mode, setMode] = useState<GenMode>('system');
@@ -239,6 +241,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
     details: details.trim(),
     transparent: pieceType === 'logo' && transparent,
     mode,
+    ...(extraBody ?? {}),
   });
 
   /** Piezas nuevas de una respuesta: sus imágenes se muestran ya y se guardan en IndexedDB. */

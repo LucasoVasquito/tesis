@@ -10,6 +10,7 @@ import { ActionResult, FragmentProposal, acceptProposals, addFragments, discard,
 import { EvidencePanel, MirrorStrip, RevealedCard, mirrorLine, mirrorTarget } from './RevealHud';
 import { BREAKDOWN_SHORTCUTS, Breakdown, BreakdownState, proposalsFromParts } from './Breakdown';
 import { BriefPanel, IntentBlock } from './ArmarHud';
+import { ExportBar } from './ExportBar';
 
 interface SpaceViewProps {
   project: Project;
@@ -33,6 +34,9 @@ interface SpaceViewProps {
   /** Costado ↔ frente (Espacio). */
   view: StackView;
   onToggleView: () => void;
+  /** I: abrir la generación con DALL·E (la pila pondera el prompt). */
+  onOpenGenerate: () => void;
+  onNotice: (text: string) => void;
 }
 
 const stopName = (s: Stop) => (s === 'corpus' ? 'CORPUS' : layerTag(s));
@@ -61,6 +65,7 @@ export function SpaceView(props: SpaceViewProps) {
   /** Patrón cuyas evidencias están abiertas (A). */
   const [auditId, setAuditId] = useState<string | null>(null);
   const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   const active = STOPS[Math.round(t)];
   const items = stopItems(project, active);
@@ -161,6 +166,9 @@ export function SpaceView(props: SpaceViewProps) {
   useShortcuts(enabled && front, {
     ' ': () => props.onToggleView(),
     escape: () => props.onToggleView(),
+    // E lleva el foco a los botones de exportación (Tab recorre, ⏎ exporta).
+    e: () => exportRef.current?.querySelector<HTMLButtonElement>('button')?.focus(),
+    i: () => props.onOpenGenerate(),
   });
 
   useShortcuts(enabled && !front && !breakdown && !naming && !briefOpen && !auditPattern, {
@@ -218,7 +226,7 @@ export function SpaceView(props: SpaceViewProps) {
 
   /* ---------- Barra de atajos ---------- */
   let shortcuts: Shortcut[];
-  if (front) shortcuts = [{ keys: 'ESPACIO', label: 'Volver al costado' }];
+  if (front) shortcuts = [{ keys: 'ESPACIO', label: 'Volver al costado' }, { keys: 'E', label: 'Exportar' }, { keys: 'I', label: 'Generar con DALL·E' }];
   else if (breakdown) shortcuts = BREAKDOWN_SHORTCUTS;
   else if (naming) shortcuts = [{ keys: '⏎', label: 'Crear patrón' }, { keys: 'ESC', label: 'Cancelar' }];
   else if (auditPattern) shortcuts = [{ keys: '←→', label: 'Referencia' }, { keys: 'X', label: 'No es evidencia' }, { keys: '⏎', label: 'Auditado' }, { keys: 'ESC', label: 'Cerrar' }];
@@ -291,7 +299,12 @@ export function SpaceView(props: SpaceViewProps) {
         />
 
         {front && (
-          <div className="pointer-events-none absolute right-5 top-4 z-10 font-mono text-[11px] font-medium text-ink-2">03 GIRAR · VISTA DE FRENTE</div>
+          <>
+            <div className="pointer-events-none absolute right-5 top-4 z-10 font-mono text-[11px] font-medium text-ink-2">03 GIRAR · VISTA DE FRENTE</div>
+            <div className="absolute right-5 top-14 z-10">
+              <ExportBar ref={exportRef} project={project} onGenerate={props.onOpenGenerate} onNotice={props.onNotice} />
+            </div>
+          </>
         )}
 
         {/* 01 · Armar: la frase de intención (estado vacío completo o rótulo compacto). */}

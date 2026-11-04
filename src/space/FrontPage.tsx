@@ -36,6 +36,7 @@ export function FrontPage({ project }: { project: Project }) {
 
   return (
     <div
+      id="front-page"
       className="grid h-full w-full gap-[14px] overflow-hidden bg-bone p-4 text-void"
       style={{ gridTemplateColumns: 'minmax(0,1fr) 190px', gridTemplateRows: 'auto minmax(0,1fr)' }}
     >
@@ -115,8 +116,8 @@ export function FrontPage({ project }: { project: Project }) {
               <span className="type-label text-[10px] tracking-[0.06em] text-accent">03 ACENTO</span>
               <Dot on={!p.audited} />
             </span>
-            <span className="type-name text-[16px] leading-[0.95]">{p.name}</span>
-            <span className="text-[11px] leading-[1.35]">{oneLine(p)}</span>
+            <span className="type-name line-clamp-3 text-[16px] leading-[0.95]">{p.name}</span>
+            <span className="line-clamp-2 text-[11px] leading-[1.35]">{oneLine(p)}</span>
           </div>
         ))}
         {accent.fragments.map(f => (

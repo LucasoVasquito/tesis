@@ -11,6 +11,7 @@ import { downloadProjectMarkdown, exportProjectAsJSON, exportVisualSystemAsJSON,
 import { filesToReferences, makeFeedback, makeLog, mergeInducedPatterns, migrateProject, uid, withLog } from './utils/project';
 import type { ActionResult } from './space/actions';
 import { buildRevealBody, mergeRevealed, needsReveal } from './space/reveal';
+import { stackPayload, stackSystem } from './utils/stackExport';
 import { PART_CARD_W, PartDraft, PartProposal, cropImage, nextPartIds, partKindInfo, placeParts, wholeReferences } from './utils/parts';
 import { createGroup, dropOnto, addToGroup, freeSpotNear, groupOf, refRect, withoutRefs } from './utils/groups';
 import { GroupDrop } from './components/canvas/ReferenceCanvas';
@@ -134,6 +135,8 @@ export default function App() {
   const moment: Moment = stackView === 'front' ? 'girar' : sideMoment;
   const setMoment = (m: Moment) =>
     updateProject(p => (m === 'girar' ? { ...p, view: 'front' } : { ...p, view: 'side', moment: m }));
+  /** Generación con DALL·E abierta desde Girar (la pila leída como sistema). */
+  const [generateOpen, setGenerateOpen] = useState(false);
   const toggleView = () => updateProject(p => ({ ...p, view: (p.view ?? 'side') === 'front' ? 'side' : 'front' }));
 
   const [stage, setStage] = useState<VisitableStage>(() => initialStage(project));
@@ -1641,7 +1644,7 @@ export default function App() {
           <SpaceView
             key={project.id}
             project={project}
-            enabled={!overlay && !patternEditor && !isUploadOpen && !lightboxRef && !deleteRequest && !isLogOpen}
+            enabled={!overlay && !patternEditor && !isUploadOpen && !lightboxRef && !deleteRequest && !isLogOpen && !generateOpen}
             notice={toast ? { text: toast.message } : null}
             apply={applyStack}
             onAddFiles={handleAddFiles}
@@ -1656,7 +1659,37 @@ export default function App() {
             onCancelReveal={() => revealAbort.current?.abort()}
             view={stackView}
             onToggleView={toggleView}
+            onOpenGenerate={() => setGenerateOpen(true)}
+            onNotice={text => showToast({ message: text })}
           />
+        )}
+        {!mapOpen && !legacy && generateOpen && (
+          <div className="absolute inset-0 z-40 flex flex-col bg-void">
+            <div className="flex h-11 shrink-0 items-center justify-between border-b border-line px-4">
+              <button type="button" className="type-label text-[12px] text-ink-2 hover:text-ink" onClick={() => setGenerateOpen(false)}>
+                ← VOLVER A LA PÁGINA
+              </button>
+              <span className="font-mono text-[11px] text-ink-2">VERIFICACIÓN EXTERNA · el prompt sigue el orden de las láminas</span>
+            </div>
+            <div className="min-h-0 flex-1">
+              <SystemApplicationView
+                project={project}
+                system={stackSystem(project)}
+                systems={[stackSystem(project)]}
+                onSelectSystem={() => {}}
+                onOpenGuidelines={() => setGenerateOpen(false)}
+                onOpenLightbox={setLightboxRef}
+                onNewPattern={() => openNewPattern()}
+                onEditPattern={openEditPattern}
+                session={project.applications?.stack}
+                onSaveSession={session => {
+                  const pid = project.id;
+                  updateProject(x => ({ ...x, applications: { ...(x.applications ?? {}), stack: session } }), pid);
+                }}
+                extraBody={{ stack: stackPayload(project) }}
+              />
+            </div>
+          </div>
         )}
         {!mapOpen && legacy && stage !== 'application' && (
         <div key={`${project.id}-${stage}${guidelinesSystem ? '-g' : ''}`} className="stage-enter h-full print:h-auto">

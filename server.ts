@@ -1361,6 +1361,29 @@ How to write the image prompt (in English, before calling the tool):
 - Spell every word exactly as given. Keep text short.
 After the image, reply with two or three short sentences in Spanish explaining which decisions of the system you prioritized and why.`;
 
+/**
+ * Pila de láminas: el prompt va en orden de lámina. El núcleo primero y con más peso,
+ * el soporte después y el acento al final, como un detalle menor.
+ */
+function stackSection(stack: any[]): string {
+  if (!Array.isArray(stack) || !stack.length) return "";
+  const by = (l: number) => stack.filter((x: any) => Number(x?.layer) === l);
+  const block = (l: number, title: string, max: number) => {
+    const items = by(l).slice(0, max);
+    return items.length
+      ? [`## ${title}`, ...items.map((x: any) => `- ${String(x.name || "").slice(0, 120)}${x.rule ? `: ${String(x.rule).slice(0, l === 1 ? 600 : l === 2 ? 220 : 120)}` : ""}`)].join("\n")
+      : "";
+  };
+  return [
+    `\n# Visual hierarchy (follow this order of weight)`,
+    block(1, "1 · CORE — defines the piece. It must dominate: the largest share of the image and the first thing you see.", 4),
+    block(2, "2 · SUPPORT — accompanies the core. Present, but secondary.", 6),
+    block(3, "3 · ACCENT — a minor detail only: small, used once, never as background.", 4),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function buildBrief(b: any, piece: PieceSpec): string {
   const s = b.system || {};
   const project = b.project || {};
@@ -1404,6 +1427,8 @@ function buildBrief(b: any, piece: PieceSpec): string {
 # Brand`,
     `${project.name || ""}${project.objective ? ` — ${project.objective}` : ""}`,
     project.description ? `Context: ${project.description}` : "",
+    // La jerarquía de la pila va antes que todo lo demás del sistema: es lo que más pesa.
+    stackSection(b.stack),
     `
 # Visual system "${s.name}" (how it should look)`,
     s.description || "",
