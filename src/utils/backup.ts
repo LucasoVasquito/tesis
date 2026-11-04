@@ -49,7 +49,7 @@ export function downloadBackup(backup: ProjectBackup) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${slug(backup.project.name)}_respaldo_${date}.emergent.json`;
+  a.download = `${slug(backup.project.name)}_respaldo_${date}.tesis.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -69,7 +69,7 @@ export async function restoreBackup(text: string, existingIds: string[]): Promis
   }
   const raw = data?.format === 'emergent-backup' ? data.project : data;
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.references) || !('objective' in raw)) {
-    throw new Error('El archivo no tiene la estructura de un proyecto de Emergent.');
+    throw new Error('El archivo no tiene la estructura de un proyecto de Tesis.');
   }
   const project = migrateProject(raw);
   if (existingIds.includes(project.id)) {

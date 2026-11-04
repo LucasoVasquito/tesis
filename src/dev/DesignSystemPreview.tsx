@@ -72,7 +72,7 @@ export default function DesignSystemPreview() {
     <div className="h-full overflow-auto">
       <div className="mx-auto flex max-w-[1240px] flex-col gap-[72px] px-4 pb-[120px] pt-12 md:px-10">
         <header className="flex flex-col gap-3 border-b border-line pb-10">
-          <span className="font-mono text-xs text-ink-2">EMERGENT · Sistema visual · verificación</span>
+          <span className="font-mono text-xs text-ink-2">TESIS · Identidad 1c · verificación</span>
           <h1 className="m-0 text-4xl font-medium leading-[1.1] tracking-[-0.02em]">Componentes base</h1>
           <p className="m-0 max-w-[640px] font-serif text-lg text-ink-2">
             La interfaz es neutra para que las referencias sean protagonistas.

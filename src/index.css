@@ -1,40 +1,55 @@
 @import "tailwindcss" source(".");
 
 /* ========================================================
-   EMERGENT · Sistema visual v0.1
-   Tokens: ver design_handoff_emergent_rework/README.md
+   TESIS · Identidad visual 1c "Gráfica"
+   Wipeout / The Designers Republic: color plano, tipografía dura,
+   láminas como señales. Sin brillos, desenfoques ni glassmorphism.
+   Referencia: design_handoff_emergent_rework/Tesis Identidad Visual.dc.html
    ======================================================== */
 
 @theme {
-  /* Superficies */
-  --color-bg: #0B0B0D;
-  --color-surface: #111114;
-  --color-raised: #17171B;
-  --color-line: rgba(255, 255, 255, 0.07);
-  --color-line-mid: rgba(255, 255, 255, 0.1);
-  --color-line-strong: rgba(255, 255, 255, 0.14);
+  /* Paleta 1c (valores exactos del documento de identidad) */
+  --color-void: oklch(0.17 0.012 265);   /* vacío: fondo */
+  --color-bone: #F2EFE8;                 /* hueso: soporte, texto, barra de atajos */
+  --color-core: oklch(0.7 0.19 45);      /* naranja: lámina 01 · núcleo */
+  --color-accent: oklch(0.62 0.2 262);   /* azul: lámina 03 · acento y revelado */
+
+  /* Láminas: cada una es una señal de color */
+  --color-layer-1: oklch(0.7 0.19 45);
+  --color-layer-2: #F2EFE8;
+  --color-layer-3: oklch(0.62 0.2 262);
+
+  /* Superficies (derivadas del vacío) */
+  --color-bg: oklch(0.17 0.012 265);
+  --color-surface: oklch(0.205 0.012 265);
+  --color-raised: oklch(0.24 0.012 265);
+  --color-line: rgba(242, 239, 232, 0.1);
+  --color-line-mid: rgba(242, 239, 232, 0.18);
+  --color-line-strong: rgba(242, 239, 232, 0.32);
 
   /* Tinta */
-  --color-ink: #EDEDEF;
-  --color-ink-2: #A1A1AA;
-  --color-ink-3: #6B6B73; /* solo para elementos deshabilitados o decorativos */
+  --color-ink: #F2EFE8;
+  --color-ink-2: rgba(242, 239, 232, 0.75);
+  --color-ink-3: rgba(242, 239, 232, 0.5); /* solo para elementos deshabilitados o decorativos */
 
-  /* Estados de decisión: misma luz y croma, cambia el tono */
-  --color-pending: oklch(0.74 0.09 80);
-  --color-confirmed: oklch(0.74 0.09 155);
-  --color-discarded: oklch(0.74 0.09 25);
-  /* Señal: todo lo que viene de la IA y todo lo que se puede rastrear (reemplaza al azul de evidencia) */
-  --color-signal: oklch(0.74 0.19 350);
-  --color-pending-ink: oklch(0.84 0.08 80);
-  --color-confirmed-ink: oklch(0.84 0.08 155);
-  --color-discarded-ink: oklch(0.84 0.08 25);
-  --color-signal-ink: oklch(0.86 0.12 350);
-  --color-error-ink: oklch(0.82 0.08 25);
+  /* Estados de decisión (heredados; se van con la auditoría por etapas) */
+  --color-pending: oklch(0.8 0.12 85);
+  --color-confirmed: oklch(0.78 0.11 155);
+  --color-discarded: oklch(0.7 0.16 25);
+  /* Señal: lo que viene de la IA y lo que se puede rastrear → azul acento */
+  --color-signal: oklch(0.62 0.2 262);
+  --color-pending-ink: oklch(0.88 0.08 85);
+  --color-confirmed-ink: oklch(0.88 0.08 155);
+  --color-discarded-ink: oklch(0.85 0.08 25);
+  --color-signal-ink: oklch(0.82 0.1 262);
+  --color-error-ink: oklch(0.85 0.08 25);
 
-  /* Tipografía */
-  --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Tipografía: Archivo (eje de ancho variable) + Geist Mono para datos y evidencia */
+  --font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Archivo", "Arial Narrow", sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --font-serif: "Newsreader", Georgia, serif;
+  /* El texto de lectura también es Archivo 400 (1c no usa serif) */
+  --font-serif: "Archivo", system-ui, sans-serif;
   /* Display condensada genérica para los especímenes de reglas tipográficas (no es tipografía de interfaz) */
   --font-specimen: "Anton", "Arial Narrow", Impact, sans-serif;
 
@@ -43,17 +58,18 @@
   --text-15: 15px;
   --text-15--line-height: 1.45;
 
-  /* Forma */
-  --radius-ctrl: 6px;
-  --radius-card: 10px;
-  --radius-tag: 4px;
+  /* Forma: cantos vivos */
+  --radius-ctrl: 0px;
+  --radius-card: 0px;
+  --radius-tag: 0px;
 
-  /* Elevación */
-  --shadow-float: 0 12px 32px -8px rgba(0, 0, 0, 0.6);
-  --shadow-card: 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  /* Elevación: sin sombras difusas; los flotantes se separan con un filete */
+  --shadow-float: 0 0 0 1px rgba(242, 239, 232, 0.32);
+  --shadow-card: none;
 
-  /* Movimiento */
+  /* Movimiento: desaceleración al final, sin rebotes */
   --ease-emergent: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-camera: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* ---------- Base ---------- */
@@ -70,18 +86,20 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 14px;
+    font-weight: 400;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     overflow: hidden;
   }
 
   ::selection {
-    background: rgba(237, 237, 239, 0.18);
+    background: var(--color-core);
+    color: var(--color-void);
   }
 
   /* Foco visible global en todo lo interactivo */
   :focus-visible {
-    outline: 2px solid var(--color-ink);
+    outline: 2px solid var(--color-core);
     outline-offset: 3px;
   }
 
@@ -117,13 +135,13 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 999px;
+    background: rgba(242, 239, 232, 0.16);
+    border-radius: 0;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(242, 239, 232, 0.3);
   }
 }
 
@@ -139,7 +157,10 @@
     padding: 0 14px;
     border-radius: var(--radius-ctrl);
     border: 1px solid transparent;
-    font: 500 13px/1 var(--font-sans);
+    font: 800 13px/1 var(--font-sans);
+    font-stretch: 75%;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
     white-space: nowrap;
     user-select: none;
     transition:
@@ -160,21 +181,21 @@
   }
 
   .btn-primary {
-    background: var(--color-ink);
-    color: var(--color-bg);
+    background: var(--color-bone);
+    color: var(--color-void);
   }
   .btn-primary:hover:not(:disabled) {
-    background: #ffffff;
+    background: var(--color-core);
   }
 
   .btn-secondary {
-    background: var(--color-surface);
+    background: transparent;
     color: var(--color-ink);
-    border-color: var(--color-line-strong);
+    border: 2px solid var(--color-bone);
   }
   .btn-secondary:hover:not(:disabled) {
-    background: var(--color-raised);
-    border-color: rgba(255, 255, 255, 0.22);
+    background: var(--color-bone);
+    color: var(--color-void);
   }
 
   .btn-ghost {
@@ -185,7 +206,7 @@
   .btn-ghost:hover:not(:disabled),
   .btn-ghost[aria-expanded="true"],
   .btn-ghost[aria-pressed="true"] {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(242, 239, 232, 0.08);
     color: var(--color-ink);
   }
 
@@ -195,12 +216,12 @@
   }
   /* Acciones de IA: tinte de señal */
   .btn-signal {
-    background: color-mix(in oklab, var(--color-signal) 10%, transparent);
-    border-color: color-mix(in oklab, var(--color-signal) 40%, transparent);
-    color: var(--color-signal-ink);
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-bone);
   }
   .btn-signal:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--color-signal) 18%, transparent);
+    background: color-mix(in oklab, var(--color-accent) 85%, white);
   }
   .btn-confirm {
     background: color-mix(in oklab, var(--color-confirmed) 8%, transparent);
@@ -301,8 +322,8 @@
   }
   .field-input:focus,
   .field-input:focus-visible {
-    border-color: rgba(255, 255, 255, 0.4);
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+    border-color: var(--color-bone);
+    box-shadow: 0 0 0 1px var(--color-bone);
     outline: none;
   }
   .field-input[aria-invalid="true"] {
@@ -315,7 +336,7 @@
   /* Lienzo: retícula de puntos */
   .dot-grid {
     background-color: var(--color-bg);
-    background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-image: radial-gradient(rgba(242, 239, 232, 0.07) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 
@@ -327,7 +348,90 @@
     border-radius: 50%;
     flex-shrink: 0;
     background: var(--dot, var(--color-ink-3));
-    box-shadow: 0 0 6px var(--dot, transparent);
+  }
+}
+
+/* ---------- Identidad 1c: tipografía y señales ---------- */
+@layer components {
+  /* Nombres y titulares: Archivo 900, 62%, mayúsculas */
+  .type-name {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-stretch: 62%;
+    text-transform: uppercase;
+    line-height: 0.9;
+  }
+  /* Rótulos: Archivo 800, 75%, .04em */
+  .type-label {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-stretch: 75%;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  /* Datos y evidencia */
+  .type-data {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Rótulo de lámina: bloque de color plano ("01 NÚCLEO") */
+  .layer-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    font: 800 12px/1.2 var(--font-display);
+    font-stretch: 75%;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    background: var(--layer-color, var(--color-bone));
+    color: var(--layer-ink, var(--color-void));
+  }
+  .layer-1 {
+    --layer-color: var(--color-layer-1);
+    --layer-ink: var(--color-void);
+  }
+  .layer-2 {
+    --layer-color: var(--color-layer-2);
+    --layer-ink: var(--color-void);
+  }
+  .layer-3 {
+    --layer-color: var(--color-layer-3);
+    --layer-ink: var(--color-bone);
+  }
+  /* Franja horizontal del color de la lámina (el núcleo lleva más masa) */
+  .layer-rule {
+    height: 2px;
+    background: var(--layer-color, var(--color-bone));
+  }
+  .layer-1 .layer-rule,
+  .layer-rule.layer-1 {
+    height: 4px;
+  }
+
+  /* Barra de atajos: bloque hueso fijo abajo, texto vacío, Archivo 800 */
+  .shortcut-bar {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    height: 36px;
+    padding: 0 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    background: var(--color-bone);
+    color: var(--color-void);
+    font: 800 12px/1 var(--font-display);
+    font-stretch: 75%;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .shortcut-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .shortcut-bar kbd {
+    font: inherit;
   }
 }
 

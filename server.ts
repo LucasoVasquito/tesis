@@ -1678,7 +1678,7 @@ async function setupVite() {
   });
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Emergent App] Server running on http://0.0.0.0:${PORT}`);
+    console.log(`[Tesis] Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

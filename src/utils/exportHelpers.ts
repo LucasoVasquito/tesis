@@ -71,7 +71,7 @@ export function parseVisualSystemJSON(jsonText: string): VisualSystemExportData 
 
 /* ---------- Proyecto (.json) ---------- */
 export function exportProjectAsJSON(project: Project) {
-  downloadText(JSON.stringify(project, null, 2), `${slug(project.name)}_emergent.json`, 'application/json');
+  downloadText(JSON.stringify(project, null, 2), `${slug(project.name)}_tesis.json`, 'application/json');
 }
 
 /* ---------- Markdown ---------- */
@@ -127,7 +127,7 @@ ${rules || '_Sin reglas redactadas._'}
 ${pats || '_Sin patrones asignados._'}
 
 ---
-*Lineamientos generados con Emergent. Cada pilar y regla indica los patrones que lo sostienen; cada color, su referencia o patrón de origen.*
+*Lineamientos generados con Tesis. Cada pilar y regla indica los patrones que lo sostienen; cada color, su referencia o patrón de origen.*
 `;
 }
 
@@ -141,7 +141,7 @@ export function generateSystemMarkdown(project: Project): string {
   let md = `# ${project.name || 'Proyecto sin nombre'}\n\n`;
   md += `**Objetivo:** ${project.objective}\n\n`;
   if (project.description) md += `**Contexto:** ${project.description}\n\n`;
-  md += `*Dossier generado con Emergent (${new Date().toLocaleDateString('es-AR')})*\n\n---\n\n`;
+  md += `*Dossier generado con Tesis (${new Date().toLocaleDateString('es-AR')})*\n\n---\n\n`;
 
   md += `## 1. Corpus (${project.references.length} referencias)\n\n`;
   project.references.forEach(r => {

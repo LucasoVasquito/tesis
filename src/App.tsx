@@ -17,6 +17,8 @@ import { MIN_REFERENCES, STAGE_LABEL, canEnter, initialStage, isBriefComplete, r
 import { Button } from './components/ui';
 import { TopBar } from './components/shell/TopBar';
 import { ActionBar, Toast } from './components/shell/ActionBar';
+import { ShortcutBar } from './components/shell/ShortcutBar';
+import { STAGE_SHORTCUTS } from './utils/shortcuts';
 import { CorpusView } from './components/canvas/CanvasArea';
 import { UploadModal } from './components/UploadModal';
 import { LightboxModal } from './components/LightboxModal';
@@ -1100,7 +1102,7 @@ export default function App() {
   const handleImportSystemFile = async (file: File) => {
     const data = parseVisualSystemJSON(await file.text());
     if (!data) {
-      showToast({ message: 'El archivo no tiene la estructura de un sistema exportado por Emergent', tone: 'discarded' }, 5000);
+      showToast({ message: 'El archivo no tiene la estructura de un sistema exportado por Tesis', tone: 'discarded' }, 5000);
       return;
     }
     const sysId = uid('sys');
@@ -1585,6 +1587,7 @@ export default function App() {
       </main>
 
       <ActionBar status={status} notice={notice} toast={toast} onDismissToast={dismissToast} secondary={secondary} primary={primary} />
+      <ShortcutBar items={STAGE_SHORTCUTS[stage]} />
 
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} />
       <LightboxModal reference={lightboxRef} onClose={() => setLightboxRef(null)} />
