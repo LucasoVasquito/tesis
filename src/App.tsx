@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GroupHypothesis, LogItem, LogKind, Pattern, Project, RefGroup, Rule, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
+import { GroupHypothesis, LogItem, LogKind, Moment, Pattern, Project, RefGroup, Rule, Reference, ReferenceBreakdown, VisitableStage, VisualSystem } from './types';
 import { evidenceReferences, inferPalette } from './utils/palette';
 import { normalizeRules } from './utils/rules';
 import { createEmptyProject } from './data/emptyProject';
@@ -20,6 +20,7 @@ import { ActionBar, Toast } from './components/shell/ActionBar';
 import { ShortcutBar } from './components/shell/ShortcutBar';
 import { STAGE_SHORTCUTS } from './utils/shortcuts';
 import { CorpusView } from './components/canvas/CanvasArea';
+import { SpaceView } from './space/SpaceView';
 import { UploadModal } from './components/UploadModal';
 import { LightboxModal } from './components/LightboxModal';
 import { AboutView } from './components/AboutView';
@@ -108,6 +109,25 @@ export default function App() {
   }, [projectsList, activeProjectId]);
 
   /* ========== UI ========== */
+  /** Vista por etapas anterior (convive con la pila hasta la limpieza). */
+  const [legacy, setLegacy] = useState(() => {
+    try {
+      return localStorage.getItem('tesis_legacy_view') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleLegacy = () =>
+    setLegacy(v => {
+      try {
+        localStorage.setItem('tesis_legacy_view', v ? '0' : '1');
+      } catch {
+        /* sin almacenamiento: solo dura la sesión */
+      }
+      return !v;
+    });
+  const moment: Moment = project.moment ?? 'armar';
+  const setMoment = (m: Moment) => updateProject(p => ({ ...p, moment: m }));
 
   const [stage, setStage] = useState<VisitableStage>(() => initialStage(project));
   const [view, setView] = useState<CorpusView>('canvas');
@@ -1448,6 +1468,10 @@ export default function App() {
         isMapOpen={mapOpen}
         onOpenAbout={() => setOverlay({ kind: 'about' })}
         isLogOpen={isLogOpen}
+        moment={moment}
+        onSelectMoment={setMoment}
+        legacy={legacy}
+        onToggleLegacy={toggleLegacy}
       />
 
       <p className="sr-only" aria-live="polite">
@@ -1455,7 +1479,15 @@ export default function App() {
       </p>
       <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
         {mapOpen && <TraceMap project={project} onBack={() => setMapOpen(false)} />}
-        {!mapOpen && stage !== 'application' && (
+        {!mapOpen && !legacy && (
+          <SpaceView
+            key={project.id}
+            project={project}
+            enabled={!overlay && !patternEditor && !isUploadOpen && !lightboxRef && !deleteRequest}
+            notice={toast ? { text: toast.message } : null}
+          />
+        )}
+        {!mapOpen && legacy && stage !== 'application' && (
         <div key={`${project.id}-${stage}${guidelinesSystem ? '-g' : ''}`} className="stage-enter h-full print:h-auto">
         {stage === 'brief' && (
           <BriefStage
@@ -1571,7 +1603,7 @@ export default function App() {
           .map(id => project.systems.find(x => x.id === id))
           .filter(Boolean)
           .map(sys => (
-            <div key={`${project.id}-${sys!.id}`} hidden={mapOpen || !(stage === 'application' && applySystemId === sys!.id)} className="stage-enter h-full">
+            <div key={`${project.id}-${sys!.id}`} hidden={mapOpen || !legacy || !(stage === 'application' && applySystemId === sys!.id)} className="stage-enter h-full">
               <SystemApplicationView
                 project={project}
                 system={sys!}
@@ -1592,8 +1624,12 @@ export default function App() {
           ))}
       </main>
 
-      <ActionBar status={status} notice={notice} toast={toast} onDismissToast={dismissToast} secondary={secondary} primary={primary} />
-      <ShortcutBar items={STAGE_SHORTCUTS[stage]} />
+      {legacy && (
+        <>
+          <ActionBar status={status} notice={notice} toast={toast} onDismissToast={dismissToast} secondary={secondary} primary={primary} />
+          <ShortcutBar items={STAGE_SHORTCUTS[stage]} />
+        </>
+      )}
 
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} />
       <LightboxModal reference={lightboxRef} onClose={() => setLightboxRef(null)} />

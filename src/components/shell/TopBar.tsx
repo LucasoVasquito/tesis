@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, CircleHelp, ScrollText, Waypoints } from 'lucide-react';
-import { Project } from '../../types';
+import { Moment, Project } from '../../types';
 import { IconButton, StageRail, StageRailCompact, StageRailItem } from '../ui';
 
 interface TopBarProps {
@@ -22,6 +22,38 @@ interface TopBarProps {
   isMapOpen: boolean;
   onOpenAbout: () => void;
   isLogOpen: boolean;
+  /** Momento actual (vista espacial). Si no se pasa, se muestra el riel de etapas (vista anterior). */
+  moment?: Moment;
+  onSelectMoment?: (m: Moment) => void;
+  legacy: boolean;
+  onToggleLegacy: () => void;
+}
+
+const MOMENTS: { id: Moment; num: string; label: string }[] = [
+  { id: 'armar', num: '01', label: 'ARMAR' },
+  { id: 'revelar', num: '02', label: 'REVELAR' },
+  { id: 'girar', num: '03', label: 'GIRAR' },
+];
+
+/** Indicador de momento: 01 ARMAR · 02 REVELAR · 03 GIRAR. No es un riel de etapas: se puede ir y volver. */
+function MomentIndicator({ current, onSelect }: { current: Moment; onSelect?: (m: Moment) => void }) {
+  return (
+    <nav aria-label="Momento" className="flex items-center gap-2 font-mono text-[11px] font-medium">
+      {MOMENTS.map((m, i) => (
+        <React.Fragment key={m.id}>
+          {i > 0 && <span aria-hidden="true" className="text-ink-3">·</span>}
+          <button
+            type="button"
+            aria-current={m.id === current ? 'step' : undefined}
+            onClick={() => onSelect?.(m.id)}
+            className={`px-1 py-1 transition-colors duration-120 ${m.id === current ? 'text-ink underline decoration-core decoration-2 underline-offset-[6px]' : 'text-ink-3 hover:text-ink'}`}
+          >
+            {m.num} {m.label}
+          </button>
+        </React.Fragment>
+      ))}
+    </nav>
+  );
 }
 
 const MenuLabel = ({ children }: { children: React.ReactNode }) => (
@@ -120,6 +152,9 @@ export function TopBar(props: TopBarProps) {
             className="absolute left-0 top-full z-50 mt-2 max-h-[70vh] w-[min(300px,calc(100vw-24px))] overflow-y-auto rounded-card border border-line-mid bg-raised p-1 shadow-float"
           >
             <MenuItem onSelect={run(props.onEditBrief)}>Editar brief</MenuItem>
+            <MenuItem onSelect={run(props.onToggleLegacy)} current={props.legacy} hint="hasta la limpieza">
+              Vista por etapas (anterior)
+            </MenuItem>
             <MenuItem onSelect={run(props.onNewProject)}>Nuevo proyecto</MenuItem>
             <MenuLabel>Mis proyectos</MenuLabel>
             {projects.map(p => (
@@ -158,10 +193,16 @@ export function TopBar(props: TopBarProps) {
         />
       </div>
 
-      {/* Etapas */}
+      {/* Momento (vista espacial) o etapas (vista anterior) */}
       <div className="flex min-w-0 flex-1 justify-center lg:px-6 xl:px-10">
-        <StageRail stages={rail} onSelect={props.onSelectStage} />
-        <StageRailCompact stages={rail} onSelect={props.onSelectStage} />
+        {props.legacy || !props.moment ? (
+          <>
+            <StageRail stages={rail} onSelect={props.onSelectStage} />
+            <StageRailCompact stages={rail} onSelect={props.onSelectStage} />
+          </>
+        ) : (
+          <MomentIndicator current={props.moment} onSelect={props.onSelectMoment} />
+        )}
       </div>
 
       {/* Global */}
