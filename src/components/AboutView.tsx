@@ -2,9 +2,9 @@ import React from 'react';
 import { FullView } from './shell/FullView';
 
 const STEPS: [string, string, string][] = [
-  ['01', 'Armar', 'Una frase de intención y las imágenes del corpus. El diseñador desglosa referencias en fragmentos, los lleva a tres láminas (núcleo, soporte, acento) y agrupa lo que define un patrón. Es su hipótesis, pero espacial.'],
-  ['02', 'Revelar', 'La IA busca los patrones del diseñador en todo el corpus y les suma evidencia. Revela lo que se repite y nadie marcó, y el espejo muestra dónde la lámina elegida contradice la evidencia. Auditar es abrir esa evidencia.'],
-  ['03', 'Girar', 'La misma pila, de frente: el núcleo titula, el soporte desarrolla y el acento anota. La lámina pondera los lineamientos, la paleta y el prompt de DALL·E.'],
+  ['01', 'Subir', 'Una frase de intención y las referencias. La IA redacta el brief y, al analizar, arma las piezas del sistema y las ubica en tres hojas: Núcleo, Soporte y Acento.'],
+  ['02', 'Ordenar', 'La IA propone primero y el diseñador corrige: confirma, sube, baja o saca cada pieza. Al elegir una, se iluminan las referencias de donde sale. La IA solo avisa: nunca decide.'],
+  ['03', 'Sistema', 'Las tres hojas, de frente, como una página: el Núcleo titula, el Soporte desarrolla y el Acento anota. La hoja pondera los lineamientos, la paleta y el pedido a DALL·E.'],
 ];
 
 /** Marco conceptual de la tesis (antes ThesisConceptModal). */
@@ -14,7 +14,7 @@ export function AboutView({ onBack }: { onBack: () => void }) {
       <article className="mx-auto flex max-w-[640px] flex-col gap-12 px-4 py-12 lg:py-[72px]">
         <header className="flex flex-col gap-4">
           <span className="font-mono text-xs text-ink-2">Marco conceptual</span>
-          <h2 className="m-0 text-4xl font-medium leading-[1.1] tracking-[-0.02em] text-ink">Patrones emergentes, auditables</h2>
+          <h2 className="m-0 text-4xl font-medium leading-[1.1] tracking-[-0.02em] text-ink">Patrones emergentes, verificables</h2>
           <p className="m-0 font-serif text-lg leading-normal text-ink-2">
             Durante la construcción de una identidad visual, el diseñador acumula referencias y, de manera no necesariamente consciente, empieza a repetir
             recursos, relaciones cromáticas, estructuras compositivas y gestos tipográficos.

@@ -145,6 +145,18 @@ export function SplitDialog({
   onClose: () => void;
 }) {
   const piece = project.patterns.find(x => x.id === pieceId);
+  // ⏎ confirma la separación cuando la propuesta está lista.
+  useEffect(() => {
+    if (!parts?.length) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        onConfirm(parts);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [parts, onConfirm]);
   if (!piece) return null;
   return (
     <Dialog title={`Separar «${piece.name}»`} onClose={onClose}>

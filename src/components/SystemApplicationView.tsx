@@ -403,7 +403,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
     <FullView
       embedded
       title={system.name}
-      meta="03 · Girar · verificación externa, no forma parte del sistema"
+      meta="03 · Sistema · verificación externa, no forma parte del sistema"
       actions={
         <>
           {systems.length > 1 && (
@@ -648,7 +648,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                   {sendsRefs && (
                     <details className="rounded-ctrl border border-line">
                       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-13 text-ink [&::-webkit-details-marker]:hidden">
-                        <span>Elegir referencias del corpus</span>
+                        <span>Elegir referencias</span>
                         <span className="font-mono text-xs text-ink-2">
                           {evidenceRefs.length}/{MAX_REFS} · {refOverride ? 'a mano' : 'automático'}
                         </span>
@@ -692,7 +692,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                   )}
                   {mode === 'system' && (
                     <div className="flex flex-col gap-2">
-                      <span className="text-13 text-ink-2">Patrones del sistema · {patterns.length}</span>
+                      <span className="text-13 text-ink-2">Piezas del sistema · {patterns.length}</span>
                       {patterns.length > 0 && (
                         <ul className="m-0 flex list-none flex-col gap-1 p-0">
                           {patterns.map(p => (
@@ -714,7 +714,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
                   {mode === 'system' && leftOutPatterns.length > 0 && (
                     <div className="flex flex-col gap-1">
                       <span className="text-13 text-ink-2">Ideas que el sistema dejó afuera</span>
-                      <p className="m-0 text-xs text-ink-2">Patrones del corpus que no entraron al sistema. Los que marques se suman al pedido como prioridad tuya.</p>
+                      <p className="m-0 text-xs text-ink-2">Piezas que no entraron al sistema. Las que marques se suman al pedido como prioridad tuya.</p>
                       {leftOutPatterns.map(p => (
                         <label key={p.id} className="flex cursor-pointer items-start gap-2 text-13 text-ink">
                           <input

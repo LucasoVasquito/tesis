@@ -109,7 +109,7 @@ export function PatternEditor({ title, meta, initial, references, assignTo, save
             </span>
             <input type="search" className="field-input max-w-[200px]" placeholder="Filtrar por ID o nombre" aria-label="Filtrar referencias" value={query} onChange={e => setQuery(e.target.value)} />
           </div>
-          {missing.length > 0 && <p className="m-0 text-xs text-ink-2">Ya no están en el corpus: {missing.join(', ')}. Se quitan al guardar.</p>}
+          {missing.length > 0 && <p className="m-0 text-xs text-ink-2">Ya no están en tus referencias: {missing.join(', ')}. Se quitan al guardar.</p>}
           <ul className="m-0 grid max-h-[320px] list-none grid-cols-4 gap-2 overflow-y-auto p-0 sm:grid-cols-5">
             {visible.map(r => {
               const on = draft.evidence.includes(r.id);
