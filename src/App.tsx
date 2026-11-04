@@ -884,6 +884,12 @@ export default function App() {
       designerGroup: draft.designerGroup,
       trend: 'new',
       assignedSystemId: assign && editor.assignTo ? editor.assignTo.id : null,
+      // Lo marcó el diseñador: no es revelado y nace auditado. La lámina la elige él.
+      layer: null,
+      aiSuggestedLayer: null,
+      audited: true,
+      revealed: false,
+      fragmentIds: [],
     };
     updateProject(p => ({
       ...p,

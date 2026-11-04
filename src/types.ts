@@ -104,6 +104,70 @@ export interface Pattern {
   origin?: 'ai' | 'designer';
   /** El diseñador editó la evidencia a mano: una reinducción no la pisa. */
   evidenceLocked?: boolean;
+
+  /* ---------- Pila de láminas ---------- */
+  /** Fragmentos que lo definen (grupo armado con G). */
+  fragmentIds?: string[];
+  /** Lámina que eligió el diseñador. null = sin lámina (p. ej. revelado sin ubicar). */
+  layer?: Layer | null;
+  /** Lámina que propone la IA según la evidencia. Se guarda siempre: el espejo compara las dos. */
+  aiSuggestedLayer?: Layer | null;
+  /** El diseñador abrió y revisó sus evidencias (A). Sin auditar: punto gris y marca al exportar. */
+  audited?: boolean;
+  /** Lo encontró la IA sin que el diseñador lo marcara ("NO LO MARCASTE"). */
+  revealed?: boolean;
+  /** Todavía es solo un grupo (G), sin nombre de patrón (P). */
+  isGroup?: boolean;
+}
+
+/* ---------- Pila de láminas ---------- */
+
+/** 1 · Núcleo (adelante), 2 · Soporte (al medio), 3 · Acento (atrás). */
+export type Layer = 1 | 2 | 3;
+
+/** Los tres momentos del flujo (reemplazan a las 5 etapas). */
+export type Moment = 'armar' | 'revelar' | 'girar';
+
+/** Costado: láminas separadas en profundidad. Frente: la Síntesis, como página editorial. */
+export type StackView = 'side' | 'front';
+
+export type FragmentType =
+  | 'texture'
+  | 'typography'
+  | 'color'
+  | 'shape'
+  | 'logo'
+  | 'mascot'
+  | 'illustration'
+  | 'photo'
+  | 'graphic'
+  | 'other';
+
+/**
+ * Recorte de una referencia del corpus. No guarda imagen propia: se dibuja recortando
+ * la referencia de origen (así no se duplican datos en localStorage).
+ */
+export interface Fragment {
+  id: string;
+  /** Imagen de origen. */
+  refId: string;
+  /** Recorte dentro de la imagen de origen, normalizado 0..1. */
+  crop: CropBox;
+  type: FragmentType;
+  /** Nombre corto ("Textura kraft"). */
+  label: string;
+  description?: string;
+  /** Lámina que eligió el diseñador. null = todavía en el corpus. */
+  layer: Layer | null;
+  /** Lámina que propuso la IA al desglosar. */
+  aiSuggestedLayer?: Layer | null;
+  /** Posición continua dentro de la lámina (se imanta a la lámina al soltar). */
+  z: number;
+  /** Grupo o patrón al que pertenece (ID de Pattern). */
+  groupId?: string;
+  /** 'ai': lo propuso el desglose; 'designer': lo marcó o corrigió el diseñador. */
+  origin: 'ai' | 'designer';
+  createdAt: string;
 }
 
 /** Hipótesis de la IA sobre qué comparte un grupo. No es un patrón hasta que la inducción la sostiene. */
@@ -287,6 +351,20 @@ export interface Project {
   lastBackupAt?: string;
   /** Etapa 06: todo lo generado para cada sistema (las imágenes viven en IndexedDB). */
   applications?: Record<string, ApplicationSession>;
+
+  /* ---------- Pila de láminas ---------- */
+  /** Versión del esquema (2 = pila de láminas). */
+  schema?: number;
+  /** Frase de intención ("Hamburguesería cruda, de barrio"). */
+  intent?: string;
+  /** Brief redactado por la IA a partir de la intención; el diseñador lo edita. */
+  brief?: string;
+  /** Recortes de las referencias (desglose D). Las referencias son el corpus (`references`). */
+  fragments?: Fragment[];
+  /** Costado (ordenar) o frente (Síntesis). */
+  view?: StackView;
+  /** Último momento visitado. */
+  moment?: Moment;
 }
 
 /* ---------- Etapa 06 · Aplicación ---------- */

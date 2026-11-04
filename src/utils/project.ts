@@ -1,5 +1,9 @@
 import { normalizeSystemRules } from './rules';
-import { FeedbackItem, LogItem, LogKind, Pattern, Project, Reference } from '../types';
+import { FeedbackItem, Fragment, LogItem, LogKind, Pattern, Project, Reference } from '../types';
+import { fragmentTypeFromPart, isLayer } from './layers';
+
+/** Esquema actual: 2 = pila de láminas (fragmentos, láminas, revelados y auditoría). */
+export const SCHEMA = 2;
 
 let seq = 0;
 /** ID único y ordenable por tiempo. */
@@ -27,7 +31,81 @@ export function migrateProject(raw: any): Project {
     applications: raw?.applications && typeof raw.applications === 'object' ? raw.applications : {},
   };
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';
-  return p;
+  return migrateToStack(p, raw);
+}
+
+/**
+ * Pasa un proyecto a la pila de láminas.
+ * - Las partes recortadas (referencias con parentId) pasan a ser fragmentos de su imagen de origen.
+ *   Las partes se conservan como referencias hasta la limpieza final, para no romper la vista vieja.
+ * - Los patrones confirmados entran a la pila sin lámina: el diseñador nunca eligió una.
+ *   Mientras la IA no proponga una lámina, la sugerencia sale de la evidencia (suggestedLayer).
+ *   ⏎ acepta la sugerencia. Cuentan como auditados.
+ * - Los pendientes de la IA llegan como revelados ("NO LO MARCASTE"), sin lámina ni auditoría.
+ * - La frase de intención sale del nombre; el brief junta objetivo y descripción.
+ */
+export function migrateToStack(p: Project, raw: any): Project {
+
+  let fragments: Fragment[] = Array.isArray(raw?.fragments) ? raw.fragments.filter((f: any) => f?.id && f?.refId && f?.crop) : [];
+  const fresh = (raw?.schema ?? 0) < SCHEMA;
+
+  if (fresh) {
+    const known = new Set(fragments.map(f => f.id));
+    p.references
+      .filter(r => r.parentId && r.crop && !known.has(`frag_${r.id}`))
+      .forEach(r =>
+        fragments.push({
+          id: `frag_${r.id}`,
+          refId: r.parentId!,
+          crop: r.crop!,
+          type: fragmentTypeFromPart(r.partKind),
+          label: r.name,
+          description: r.notes,
+          layer: null,
+          z: 0,
+          origin: 'designer',
+          createdAt: r.createdAt,
+        }),
+      );
+  }
+
+  const patterns: Pattern[] = p.patterns.map(pt => {
+    const base: Pattern = {
+      ...pt,
+      layer: isLayer(pt.layer) ? pt.layer : null,
+      aiSuggestedLayer: isLayer(pt.aiSuggestedLayer) ? pt.aiSuggestedLayer : null,
+      audited: typeof pt.audited === 'boolean' ? pt.audited : pt.status === 'confirmed' || pt.origin === 'designer',
+      revealed: typeof pt.revealed === 'boolean' ? pt.revealed : pt.origin !== 'designer' && pt.status === 'detected' && !pt.designerGroup,
+      fragmentIds: Array.isArray(pt.fragmentIds) ? pt.fragmentIds : [],
+    };
+    if (fresh && pt.status !== 'discarded') {
+      // Las partes que eran evidencia del patrón pasan a ser sus fragmentos.
+      const partFrags = pt.evidence.filter(id => p.references.some(r => r.id === id && r.parentId)).map(id => `frag_${id}`);
+      base.fragmentIds = [...new Set([...(base.fragmentIds ?? []), ...partFrags.filter(id => fragments.some(f => f.id === id))])];
+    }
+    return base;
+  });
+
+  if (fresh) {
+    // Cada fragmento queda en el primer patrón que lo reclama.
+    fragments = fragments.map(f => {
+      if (f.groupId) return f;
+      const owner = patterns.find(pt => pt.fragmentIds?.includes(f.id));
+      return owner ? { ...f, groupId: owner.id } : f;
+    });
+  }
+
+  return {
+    ...p,
+    schema: SCHEMA,
+    // La intención es una frase: el nombre del proyecto; el objetivo y la descripción pasan al brief.
+    intent: typeof raw?.intent === 'string' ? raw.intent : p.name,
+    brief: typeof raw?.brief === 'string' ? raw.brief : [p.objective, p.description].filter(x => x.trim()).join('\n\n'),
+    fragments: fragments.map(f => ({ ...f, layer: isLayer(f.layer) ? f.layer : null, z: Number.isFinite(f.z) ? f.z : 0 })),
+    patterns,
+    view: raw?.view === 'front' ? 'front' : 'side',
+    moment: raw?.moment === 'revelar' || raw?.moment === 'girar' ? raw.moment : 'armar',
+  };
 }
 
 export function makeLog(kind: LogKind, targetId: string, label: string, reason?: string, feedbackId?: string): LogItem {
@@ -163,12 +241,35 @@ export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { me
   const merged: Pattern[] = detected.map((d: any) => {
     const c = confirmed.find(x => sameAs(x, d));
     // Lo escrito o ajustado a mano por el diseñador manda sobre lo que diga la IA.
-    if (c?.origin === 'designer') return { ...c, trend: 'stable' as const };
-    if (c) return { ...d, id: c.id, status: 'confirmed' as const, assignedSystemId: c.assignedSystemId, designerNotes: c.designerNotes, trend: 'strengthened' as const, ...(c.evidenceLocked ? { evidence: c.evidence, evidenceLocked: true } : {}) };
+    // La lámina sugerida por la IA se actualiza; lo decidido por el diseñador (lámina, auditoría, fragmentos) se conserva.
+    const aiLayer = isLayer(d?.suggestedLayer) ? d.suggestedLayer : undefined;
+    const keep = (c: Pattern) => ({
+      layer: c.layer ?? null,
+      aiSuggestedLayer: aiLayer ?? c.aiSuggestedLayer ?? null,
+      audited: c.audited,
+      revealed: c.revealed,
+      fragmentIds: c.fragmentIds,
+      isGroup: c.isGroup,
+    });
+    if (c?.origin === 'designer') return { ...c, trend: 'stable' as const, aiSuggestedLayer: aiLayer ?? c.aiSuggestedLayer ?? null };
+    if (c) return { ...d, ...keep(c), id: c.id, status: 'confirmed' as const, origin: c.origin, assignedSystemId: c.assignedSystemId, designerNotes: c.designerNotes, trend: 'strengthened' as const, ...(c.evidenceLocked ? { evidence: c.evidence, evidenceLocked: true } : {}) };
     const x = discarded.find(y => sameAs(y, d));
-    if (x) return { ...d, id: x.id, status: 'discarded' as const, discardReason: x.discardReason, designerNotes: x.designerNotes, trend: 'stable' as const };
+    if (x) return { ...d, ...keep(x), id: x.id, status: 'discarded' as const, discardReason: x.discardReason, designerNotes: x.designerNotes, trend: 'stable' as const };
     newCount++;
-    return { ...d, evidence: Array.isArray(d.evidence) ? d.evidence : [], relatedObservations: Array.isArray(d.relatedObservations) ? d.relatedObservations : [], status: 'detected' as const, trend: d.trend || 'new' };
+    return {
+      ...d,
+      evidence: Array.isArray(d.evidence) ? d.evidence : [],
+      relatedObservations: Array.isArray(d.relatedObservations) ? d.relatedObservations : [],
+      status: 'detected' as const,
+      trend: d.trend || 'new',
+      origin: 'ai' as const,
+      layer: null,
+      aiSuggestedLayer: aiLayer ?? null,
+      audited: false,
+      // Si responde a un grupo del diseñador, no es un revelado: él ya lo había marcado.
+      revealed: !d.designerGroupId,
+      fragmentIds: [],
+    };
   });
   confirmed.forEach(c => !merged.some(m => m.id === c.id) && merged.unshift(c.origin === 'designer' ? c : { ...c, trend: 'weakened' }));
   discarded.forEach(d => !merged.some(m => m.id === d.id) && merged.push(d));

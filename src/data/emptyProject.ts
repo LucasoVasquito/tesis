@@ -1,6 +1,7 @@
 import { Project } from '../types';
+import { SCHEMA } from '../utils/project';
 
-/** Proyecto vacío: nombre y objetivo en blanco para que arranque en la Etapa 1 (Brief). */
+/** Proyecto vacío: arranca en 01 · Armar, con la frase de intención en blanco. */
 export function createEmptyProject(): Project {
   return {
     id: `proj_${Date.now()}`,
@@ -15,5 +16,11 @@ export function createEmptyProject(): Project {
     references: [],
     suggestedSystems: [],
     log: [],
+    schema: SCHEMA,
+    intent: '',
+    brief: '',
+    fragments: [],
+    view: 'side',
+    moment: 'armar',
   };
 }
