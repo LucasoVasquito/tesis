@@ -3,7 +3,7 @@ import { ImagePlus } from 'lucide-react';
 import { Reference } from '../types';
 import { Button, TextInput } from './ui';
 import { Modal } from './shell/Modal';
-import { gridPosition, nextReferenceIds } from '../utils/project';
+import { nextReferenceIds } from '../utils/project';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -85,9 +85,6 @@ export function UploadModal({ isOpen, onClose, existing, onAddFiles, onAddRefere
         id,
         name: name.trim() || `Referencia web ${id.replace('ref_', '')}`,
         image: v,
-        position: gridPosition(existing.length),
-        width: 260,
-        height: 340,
         createdAt: new Date().toISOString(),
         tags: tagList.length ? tagList : ['Web'],
         notes: notes.trim() || undefined,
@@ -105,9 +102,6 @@ export function UploadModal({ isOpen, onClose, existing, onAddFiles, onAddRefere
         id: ids[i],
         name: it.name,
         image: it.url,
-        position: gridPosition(existing.length + i),
-        width: 260,
-        height: 340,
         createdAt: new Date().toISOString(),
         tags: it.tags,
         notes: it.notes,

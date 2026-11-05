@@ -51,7 +51,7 @@ export function stackPalette(p: Project, max = 6): StackPaletteColor[] {
 
 const pct = (n?: number) => `${Math.round((n ?? 0) * 100)}%`;
 /** Las sugerencias de la IA que el diseñador todavía no confirmó van marcadas. */
-const unaudited = (x: Pattern) => (x.layerConfirmed ? '' : ' [AGENTE · SUGERENCIA]');
+const unaudited = (x: Pattern) => (x.confirmed ? '' : ' [AGENTE · SUGERENCIA]');
 
 /* ---------- DALL·E ---------- */
 

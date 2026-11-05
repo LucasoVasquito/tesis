@@ -278,10 +278,10 @@ Todos los demás patrones que devuelvas son hallazgos tuyos que el diseñador NO
                 : "";
             const previousContext = `${stackContext}
 HISTORIAL DE DECISIONES PREVIAS DEL DISEÑADOR:
-- Patrones ya confirmados por el diseñador: ${JSON.stringify(confirmedPatterns.filter((p) => p.origin !== 'designer').map((p) => ({ id: p.id, name: p.name, category: p.category, assignedSystem: p.assignedSystemId })))}
-${confirmedPatterns.some((p) => p.origin === 'designer') ? `
+- Patrones ya confirmados por el diseñador: ${JSON.stringify(confirmedPatterns.filter((p) => p.origin !== 'user').map((p) => ({ id: p.id, name: p.name, category: p.category, assignedSystem: p.assignedSystemId })))}
+${confirmedPatterns.some((p) => p.origin === 'user') ? `
 PATRONES PROPIOS DEL DISEÑADOR (los escribió él; son criterio suyo, no hipótesis):
-${confirmedPatterns.filter((p) => p.origin === 'designer').map((p) => `- [${p.id}] "${p.name}" (${p.category}): ${p.description || 'sin descripción'} · referencias: ${(p.evidence || []).join(', ')}${p.designerGroup?.id ? ` · viene del grupo ${p.designerGroup.id}` : ''}${p.relatedObservations?.length ? ` · rasgos: ${p.relatedObservations.join('; ')}` : ''}`).join('\n')}
+${confirmedPatterns.filter((p) => p.origin === 'user').map((p) => `- [${p.id}] "${p.name}" (${p.category}): ${p.description || 'sin descripción'} · referencias: ${(p.evidence || []).join(', ')}${p.designerGroup?.id ? ` · viene del grupo ${p.designerGroup.id}` : ''}${p.relatedObservations?.length ? ` · rasgos: ${p.relatedObservations.join('; ')}` : ''}`).join('\n')}
 Reglas para estos patrones:
 - No los dupliques ni los reescribas: ya están confirmados y se conservan tal cual.
 - Usalos para entender qué le importa al diseñador: buscá otras dimensiones del corpus que no cubren, o variantes formales que los complementen.
@@ -1016,10 +1016,10 @@ app.post("/api/synthesize-system", async (req, res) => {
         const { system, patterns = [], references = [], projectName = "", projectObjective = "", projectDescription = "", } = req.body;
         const sysName = system?.name || projectName || "Sistema Visual";
         const patternSummary = [...(patterns || [])]
-            .sort((x, y) => Number(y.origin === "designer") - Number(x.origin === "designer"))
+            .sort((x, y) => Number(y.origin === "user") - Number(x.origin === "user"))
             .map((p) => {
             const bits = [
-                `- [${p.id}] ${p.name} [Categoría: ${p.category}]${p.origin === "designer" ? " [ESCRITO POR EL DISEÑADOR · PRIORIDAD ALTA]" : ""}: ${p.description || "sin descripción"}`,
+                `- [${p.id}] ${p.name} [Categoría: ${p.category}]${p.origin === "user" ? " [ESCRITO POR EL DISEÑADOR · PRIORIDAD ALTA]" : ""}: ${p.description || "sin descripción"}`,
             ];
             if (p.relatedObservations?.length)
                 bits.push(`    Rasgos observables: ${p.relatedObservations.join("; ")}`);
@@ -1809,7 +1809,7 @@ async function setupVite() {
         }
     });
     app.listen(PORT, "0.0.0.0", () => {
-        console.log(`[Tesis] Server running on http://0.0.0.0:${PORT}`);
+        console.log(`[Camaleón] Server running on http://0.0.0.0:${PORT}`);
     });
 }
 setupVite();

@@ -62,7 +62,7 @@ interface ExportBarProps {
 export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function ExportBar({ project, onGenerate, onNotice, paletteMissing, paletteBusy, onCompletePalette }, ref) {
   const [busy, setBusy] = useState(false);
   const name = fileSlug(project.name || project.intent || '');
-  const unaudited = project.patterns.filter(x => x.status !== 'discarded' && !x.isGroup && x.layer != null && !x.layerConfirmed).length;
+  const unaudited = project.patterns.filter(x => x.status !== 'discarded' && !x.isGroup && x.layer != null && !x.confirmed).length;
 
   const exportGuidelines = () => {
     downloadText(stackGuidelinesMarkdown(project), `${name}_lineamientos.md`, 'text/markdown');

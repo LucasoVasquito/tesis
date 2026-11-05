@@ -3,15 +3,43 @@ import { FeedbackItem, Fragment, LogItem, LogKind, Pattern, Project, Reference }
 import { fragmentTypeFromPart, isLayer } from './layers';
 import { rankLayers } from '../pieces/model';
 
-/** Esquema actual: 2 = pila de láminas; 3 = sin partes como referencias; 4 = piezas (sugerencia / confirmada). */
-export const SCHEMA = 4;
+/** Esquema actual: 2 = pila de láminas; 3 = sin partes como referencias; 4 = piezas (sugerencia / confirmada); 5 = moodboard en capas (origen USUARIO / AGENTE). */
+export const SCHEMA = 5;
 
 let seq = 0;
 /** ID único y ordenable por tiempo. */
 export const uid = (prefix: string) => `${prefix}_${Date.now().toString(36)}${(seq++ % 1296).toString(36).padStart(2, '0')}`;
 
+/**
+ * Esquema 5: el origen pasa a USUARIO / AGENTE y la ubicación se llama `confirmed`.
+ * Lo que estaba ubicado conserva su estado: lo que escribió el diseñador queda como 'user';
+ * lo demás, como 'agent', con `confirmed` según su estado actual. Es idempotente.
+ */
+function renameLegacyKeys(raw: any): any {
+  const origin = (o: unknown): 'agent' | 'user' => (o === 'designer' || o === 'user' ? 'user' : 'agent');
+  const patterns = Array.isArray(raw?.patterns)
+    ? raw.patterns.map((x: any) => {
+        const { layerConfirmed, aiSuggestedLayer, ...rest } = x ?? {};
+        return {
+          ...rest,
+          origin: origin(x?.origin),
+          confirmed: typeof x?.confirmed === 'boolean' ? x.confirmed : layerConfirmed,
+          agentSuggestedLayer: x?.agentSuggestedLayer ?? aiSuggestedLayer,
+        };
+      })
+    : raw?.patterns;
+  const fragments = Array.isArray(raw?.fragments)
+    ? raw.fragments.map((f: any) => {
+        const { aiSuggestedLayer, ...rest } = f ?? {};
+        return { ...rest, origin: origin(f?.origin), agentSuggestedLayer: f?.agentSuggestedLayer ?? aiSuggestedLayer };
+      })
+    : raw?.fragments;
+  return { ...raw, patterns, fragments };
+}
+
 /** Normaliza un proyecto guardado (versiones anteriores o datos incompletos). */
-export function migrateProject(raw: any): Project {
+export function migrateProject(input: any): Project {
+  const raw = renameLegacyKeys(input);
   const p: Project = {
     id: raw?.id || uid('proj'),
     name: typeof raw?.name === 'string' ? raw.name : '',
@@ -48,7 +76,7 @@ export function migrateProject(raw: any): Project {
 export function migrateToStack(p: Project, raw: any): Project {
 
   let fragments: Fragment[] = Array.isArray(raw?.fragments) ? raw.fragments.filter((f: any) => f?.id && f?.refId && f?.crop) : [];
-  const fresh = (raw?.schema ?? 0) < SCHEMA;
+  const fresh = (raw?.schema ?? 0) < 4;
 
   if (fresh) {
     const known = new Set(fragments.map(f => f.id));
@@ -64,7 +92,7 @@ export function migrateToStack(p: Project, raw: any): Project {
           description: r.notes,
           layer: null,
           z: 0,
-          origin: 'designer',
+          origin: 'user',
           createdAt: r.createdAt,
         }),
       );
@@ -74,9 +102,9 @@ export function migrateToStack(p: Project, raw: any): Project {
     const base: Pattern = {
       ...pt,
       layer: isLayer(pt.layer) ? pt.layer : null,
-      aiSuggestedLayer: isLayer(pt.aiSuggestedLayer) ? pt.aiSuggestedLayer : null,
-      audited: typeof pt.audited === 'boolean' ? pt.audited : pt.status === 'confirmed' || pt.origin === 'designer',
-      revealed: typeof pt.revealed === 'boolean' ? pt.revealed : pt.origin !== 'designer' && pt.status === 'detected' && !pt.designerGroup,
+      agentSuggestedLayer: isLayer(pt.agentSuggestedLayer) ? pt.agentSuggestedLayer : null,
+      audited: typeof pt.audited === 'boolean' ? pt.audited : pt.status === 'confirmed' || pt.origin === 'user',
+      revealed: typeof pt.revealed === 'boolean' ? pt.revealed : pt.origin !== 'user' && pt.status === 'detected' && !pt.designerGroup,
       fragmentIds: Array.isArray(pt.fragmentIds) ? pt.fragmentIds : [],
     };
     if (fresh && pt.status !== 'discarded') {
@@ -147,15 +175,6 @@ export function nextReferenceIds(existing: Reference[], count: number): string[]
   return ids;
 }
 
-const CARD_W = 260;
-const GAP_X = 300;
-const GAP_Y = 420;
-
-/** Posición libre en una grilla para la referencia número `index` del corpus. */
-export function gridPosition(index: number, origin = { x: 80, y: 80 }) {
-  return { x: origin.x + (index % 4) * GAP_X, y: origin.y + Math.floor(index / 4) * GAP_Y };
-}
-
 const readAsDataURL = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -216,11 +235,6 @@ export async function filesToReferences(
       id: ids[i],
       name: isGeneric ? `Referencia ${ids[i].replace('ref_', '')}` : base,
       image: urls[i],
-      position: opts.at
-        ? { x: Math.round(opts.at.x - CARD_W / 2 + (i % 3) * 40), y: Math.round(opts.at.y - 160 + Math.floor(i / 3) * 40 + (i % 3) * 16) }
-        : gridPosition(existing.length + i),
-      width: CARD_W,
-      height: 340,
       aspectRatio: ratios[i] || undefined,
       createdAt: new Date().toISOString(),
       tags: opts.tags,
@@ -255,13 +269,13 @@ export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { me
     const aiLayer = isLayer(d?.suggestedLayer) ? d.suggestedLayer : undefined;
     const keep = (c: Pattern) => ({
       layer: c.layer ?? null,
-      aiSuggestedLayer: aiLayer ?? c.aiSuggestedLayer ?? null,
+      agentSuggestedLayer: aiLayer ?? c.agentSuggestedLayer ?? null,
       audited: c.audited,
       revealed: c.revealed,
       fragmentIds: c.fragmentIds,
       isGroup: c.isGroup,
     });
-    if (c?.origin === 'designer') return { ...c, trend: 'stable' as const, aiSuggestedLayer: aiLayer ?? c.aiSuggestedLayer ?? null };
+    if (c?.origin === 'user') return { ...c, trend: 'stable' as const, agentSuggestedLayer: aiLayer ?? c.agentSuggestedLayer ?? null };
     if (c) return { ...d, ...keep(c), id: c.id, status: 'confirmed' as const, origin: c.origin, assignedSystemId: c.assignedSystemId, designerNotes: c.designerNotes, trend: 'strengthened' as const, ...(c.evidenceLocked ? { evidence: c.evidence, evidenceLocked: true } : {}) };
     const x = discarded.find(y => sameAs(y, d));
     if (x) return { ...d, ...keep(x), id: x.id, status: 'discarded' as const, discardReason: x.discardReason, designerNotes: x.designerNotes, trend: 'stable' as const };
@@ -272,16 +286,16 @@ export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { me
       relatedObservations: Array.isArray(d.relatedObservations) ? d.relatedObservations : [],
       status: 'detected' as const,
       trend: d.trend || 'new',
-      origin: 'ai' as const,
+      origin: 'agent' as const,
       layer: null,
-      aiSuggestedLayer: aiLayer ?? null,
+      agentSuggestedLayer: aiLayer ?? null,
       audited: false,
       // Si responde a un grupo del diseñador, no es un revelado: él ya lo había marcado.
       revealed: !d.designerGroupId,
       fragmentIds: [],
     };
   });
-  confirmed.forEach(c => !merged.some(m => m.id === c.id) && merged.unshift(c.origin === 'designer' ? c : { ...c, trend: 'weakened' }));
+  confirmed.forEach(c => !merged.some(m => m.id === c.id) && merged.unshift(c.origin === 'user' ? c : { ...c, trend: 'weakened' }));
   discarded.forEach(d => !merged.some(m => m.id === d.id) && merged.push(d));
   return { merged, newCount };
 }
@@ -316,7 +330,7 @@ export function migrateToPieces(p: Project, raw: any): Project {
       cover: x.cover ?? (own[0] ? { refId: own[0].refId, crop: own[0].crop } : undefined),
       evidence: [...new Set([...x.evidence, ...own.map(f => f.refId)])],
       // Antes, ubicar en una lámina era una decisión del diseñador.
-      layerConfirmed: x.layerConfirmed ?? (placed && (x.origin === 'designer' || x.status === 'confirmed')),
+      confirmed: x.confirmed ?? (placed && (x.origin === 'user' || x.status === 'confirmed')),
       status: x.status === 'discarded' ? 'discarded' : x.status,
     };
   });
@@ -338,10 +352,10 @@ export function migrateToPieces(p: Project, raw: any): Project {
         confidence: 1,
         status: isLayer(f.layer) ? 'confirmed' : 'detected',
         relatedObservations: [],
-        origin: f.origin === 'designer' ? 'designer' : 'ai',
+        origin: f.origin === 'user' ? 'user' : 'agent',
         layer: isLayer(f.layer) ? f.layer : null,
-        aiSuggestedLayer: isLayer(f.aiSuggestedLayer) ? f.aiSuggestedLayer : null,
-        layerConfirmed: isLayer(f.layer),
+        agentSuggestedLayer: isLayer(f.agentSuggestedLayer) ? f.agentSuggestedLayer : null,
+        confirmed: isLayer(f.layer),
         audited: true,
         revealed: false,
         cover: { refId: f.refId, crop: f.crop },
@@ -352,7 +366,7 @@ export function migrateToPieces(p: Project, raw: any): Project {
   const draft: Project = { ...p, patterns };
   const ranks = rankLayers(draft);
   patterns = patterns.map(x =>
-    x.status === 'discarded' || isLayer(x.layer) ? x : { ...x, layer: isLayer(x.aiSuggestedLayer) ? x.aiSuggestedLayer : ranks.get(x.id) ?? 3, layerConfirmed: false },
+    x.status === 'discarded' || isLayer(x.layer) ? x : { ...x, layer: isLayer(x.agentSuggestedLayer) ? x.agentSuggestedLayer : ranks.get(x.id) ?? 3, confirmed: false },
   );
 
   // Los fragmentos ya son piezas (o la imagen de una): no se usan más.

@@ -56,7 +56,6 @@ export interface Reference {
   id: string; // e.g. "ref_01"
   name: string;
   image: string; // Data URL or Web URL
-  position: { x: number; y: number };
   width?: number;
   height?: number;
   aspectRatio?: number;
@@ -71,6 +70,38 @@ export interface Reference {
   crop?: CropBox;
   /** Qué es la parte (tipografía, mascota...). */
   partKind?: PartKind;
+
+  /* ---------- Moodboard en capas ---------- */
+  /** Capa donde está ubicada. null/undefined = todavía en el panel de referencias. */
+  layer?: Layer | null;
+  /** Quién la ubicó: el usuario (arrastre, 1/2/3) o el agente (sugerencia). */
+  origin?: 'agent' | 'user';
+  /** El usuario confirmó la ubicación del agente. */
+  confirmed?: boolean;
+  /** Posición libre dentro de la capa. */
+  position?: LayerPosition;
+  /** Capa que propuso el agente, aunque la ubicación sea del usuario. */
+  agentSuggestedLayer?: Layer | null;
+}
+
+/** Posición y tamaño dentro de una capa, normalizados 0..1 respecto de la capa. */
+export interface LayerPosition {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Patrón: un grupo con nombre de piezas o referencias, dentro de una capa. */
+export interface PatternGroup {
+  id: string;
+  name: string;
+  /** IDs de las piezas o referencias que lo forman. */
+  memberIds: string[];
+  layer: Layer | null;
+  origin: 'agent' | 'user';
+  /** Referencias que lo sostienen (unión de la evidencia de sus miembros). */
+  evidence: string[];
 }
 
 export interface CropBox {
@@ -100,8 +131,8 @@ export interface Pattern {
   designerNotes?: string;
   /** Si el patrón responde a un grupo armado por el diseñador: cuál (copia del nombre al inducir). */
   designerGroup?: { id: string; name: string; verdict?: 'supports' | 'refines' | 'contradicts' };
-  /** 'designer': lo escribió el diseñador (nace confirmado y la IA no lo reescribe). */
-  origin?: 'ai' | 'designer';
+  /** 'user': lo ubicó o escribió el usuario (nace confirmado y el agente no lo reescribe); 'agent': lo propuso el agente. */
+  origin?: 'agent' | 'user';
   /** El diseñador editó la evidencia a mano: una reinducción no la pisa. */
   evidenceLocked?: boolean;
 
@@ -110,8 +141,10 @@ export interface Pattern {
   fragmentIds?: string[];
   /** Lámina que eligió el diseñador. null = sin lámina (p. ej. revelado sin ubicar). */
   layer?: Layer | null;
+  /** Posición libre dentro de la capa. */
+  position?: LayerPosition;
   /** Lámina que propone la IA según la evidencia. Se guarda siempre: el espejo compara las dos. */
-  aiSuggestedLayer?: Layer | null;
+  agentSuggestedLayer?: Layer | null;
   /** El diseñador abrió y revisó sus evidencias (A). Sin auditar: punto gris y marca al exportar. */
   audited?: boolean;
   /** Lo encontró la IA sin que el diseñador lo marcara ("NO LO MARCASTE"). */
@@ -124,7 +157,7 @@ export interface Pattern {
    * La hoja (layer) la confirmó el diseñador. false = sugerencia de la IA (borde punteado).
    * Fuera del sistema = status 'discarded' (recuperable).
    */
-  layerConfirmed?: boolean;
+  confirmed?: boolean;
 }
 
 /* ---------- Pila de láminas ---------- */
@@ -168,13 +201,13 @@ export interface Fragment {
   /** Lámina que eligió el diseñador. null = todavía en el corpus. */
   layer: Layer | null;
   /** Lámina que propuso la IA al desglosar. */
-  aiSuggestedLayer?: Layer | null;
+  agentSuggestedLayer?: Layer | null;
   /** Posición continua dentro de la lámina (se imanta a la lámina al soltar). */
   z: number;
   /** Grupo o patrón al que pertenece (ID de Pattern). */
   groupId?: string;
-  /** 'ai': lo propuso el desglose; 'designer': lo marcó o corrigió el diseñador. */
-  origin: 'ai' | 'designer';
+  /** 'agent': lo propuso el desglose; 'user': lo marcó o corrigió el usuario. */
+  origin: 'agent' | 'user';
   createdAt: string;
 }
 
@@ -374,6 +407,10 @@ export interface Project {
   view?: StackView;
   /** Pantalla en la que quedó (01 SUBIR · 02 ORDENAR · 03 SISTEMA). */
   moment?: Moment;
+  /** Patrones armados dentro de las capas (con G, por el usuario, o por el agente). */
+  patternGroups?: PatternGroup[];
+  /** Colores de capa calculados con la paleta del proyecto (color camaleón): Núcleo, Soporte, Acento. */
+  layerColors?: [string, string, string];
   /** Proyecto de ejemplo (muestra el cartel "EMPEZAR EL MÍO"). */
   example?: boolean;
 }

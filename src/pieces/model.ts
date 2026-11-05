@@ -34,14 +34,33 @@ export const sheetLabel = (l: Layer) => `CAPA ${l} · ${SHEET_NAME[l].toUpperCas
 export const livePieces = (p: Project) => p.patterns.filter(x => x.status !== 'discarded' && !x.isGroup);
 /** Fuera del sistema: recuperables. */
 export const outPieces = (p: Project) => p.patterns.filter(x => x.status === 'discarded' && !x.isGroup);
-export const isSuggestion = (x: Pattern) => isLayer(x.layer) && !x.layerConfirmed;
+export const isSuggestion = (x: Pattern) => isLayer(x.layer) && !x.confirmed;
 export const unplacedPieces = (p: Project) => livePieces(p).filter(x => !isLayer(x.layer));
 
-/** Piezas de una hoja: las de más evidencia primero. */
+/* ---------- Peso: el usuario sobre el agente ---------- */
+
+/** Peso de la capa: Núcleo 3, Soporte 2, Acento 1. */
+export const LAYER_WEIGHT: Record<Layer, number> = { 1: 3, 2: 2, 3: 1 };
+
+/** Peso del origen: USUARIO 2 · AGENTE confirmado 1.5 · AGENTE sin confirmar (sugerencia) 1. */
+export function originWeight(x: { origin?: 'agent' | 'user'; confirmed?: boolean }): number {
+  if (x.origin === 'user') return 2;
+  return x.confirmed ? 1.5 : 1;
+}
+
+/** peso = pesoCapa × pesoOrigen. Sin capa no pesa. */
+export function pieceWeight(x: { layer?: Layer | null; origin?: 'agent' | 'user'; confirmed?: boolean }): number {
+  return isLayer(x.layer) ? LAYER_WEIGHT[x.layer] * originWeight(x) : 0;
+}
+
+/** Por peso (lo del usuario primero) y, a igual peso, por evidencia. */
+export const byWeight = (p: Project) => (a: Pattern, b: Pattern) => pieceWeight(b) - pieceWeight(a) || evidenceCount(b, p) - evidenceCount(a, p);
+
+/** Piezas de una capa, ordenadas por peso: lo del usuario primero. */
 export function piecesIn(p: Project, l: Layer): Pattern[] {
   return livePieces(p)
     .filter(x => x.layer === l)
-    .sort((a, b) => evidenceCount(b, p) - evidenceCount(a, p));
+    .sort(byWeight(p));
 }
 
 /** "14 de 39 referencias" */
@@ -64,7 +83,7 @@ export function rankLayers(p: Project): Map<string, Layer> {
 }
 
 /** Hoja que propone la IA (o, si no propuso, la evidencia). */
-export const proposedLayer = (x: Pattern, p: Project, ranks = rankLayers(p)): Layer => (isLayer(x.aiSuggestedLayer) ? x.aiSuggestedLayer : ranks.get(x.id) ?? 3);
+export const proposedLayer = (x: Pattern, p: Project, ranks = rankLayers(p)): Layer => (isLayer(x.agentSuggestedLayer) ? x.agentSuggestedLayer : ranks.get(x.id) ?? 3);
 
 /* ---------- Acciones ---------- */
 
@@ -77,8 +96,8 @@ export function confirm(p: Project, ids: string[]): ActionResult {
   const log: LogLine[] = [];
   for (const id of ids) {
     const x = find(project, id);
-    if (!x || !isLayer(x.layer) || x.layerConfirmed) continue;
-    project = touch(project, id, y => ({ ...y, layerConfirmed: true, status: 'confirmed' }));
+    if (!x || !isLayer(x.layer) || x.confirmed) continue;
+    project = touch(project, id, y => ({ ...y, confirmed: true, status: 'confirmed' }));
     log.push({ kind: 'confirm', targetId: id, label: `${x.name} confirmada en ${SHEET_NAME[x.layer]}` });
   }
   return { project, log, message: log.length === 1 ? log[0].label : log.length ? `${log.length} piezas confirmadas` : undefined };
@@ -93,7 +112,7 @@ export function place(p: Project, id: string, l: Layer): ActionResult {
   if (!x) return { project: p, log: [] };
   const from = isLayer(x.layer) ? SHEET_NAME[x.layer] : 'sin capa';
   return {
-    project: touch(p, id, y => ({ ...y, layer: l, layerConfirmed: true, status: 'confirmed' })),
+    project: touch(p, id, y => ({ ...y, layer: l, confirmed: true, status: 'confirmed' })),
     log: [{ kind: 'layer', targetId: id, label: `${x.name} → ${SHEET_NAME[l]}`, reason: x.layer === l ? undefined : `Estaba en ${from}` }],
     message: `${x.name} → ${SHEET_NAME[l]}`,
   };
@@ -126,7 +145,7 @@ export function restore(p: Project, id: string): ActionResult {
   if (!x) return { project: p, log: [] };
   const l = isLayer(x.layer) ? x.layer : proposedLayer(x, p);
   return {
-    project: touch(p, id, y => ({ ...y, status: 'detected', layer: l, layerConfirmed: false })),
+    project: touch(p, id, y => ({ ...y, status: 'detected', layer: l, confirmed: false })),
     log: [{ kind: 'restore', targetId: id, label: `${x.name} vuelve al sistema` }],
     message: `${x.name} vuelve a ${SHEET_NAME[l]} como sugerencia`,
   };
@@ -191,7 +210,7 @@ export function applySplit(p: Project, id: string, parts: SplitPart[]): ActionRe
     description: part.description ?? x.description,
     evidence: part.evidence,
     cover: part.cover,
-    layerConfirmed: false,
+    confirmed: false,
     status: 'detected',
     evidenceLocked: false,
   }));
@@ -239,15 +258,15 @@ export function mergeAnalysis(p: Project, detected: any[]): { project: Project; 
     const cover = coverFrom(d, known);
     const prev = byId.get(String(d?.id)) ?? byName.get(String(d?.name || '').toLowerCase());
     if (prev && !updates.has(prev.id)) {
-      const ev = prev.evidenceLocked ? prev.evidence : prev.origin === 'designer' ? [...new Set([...prev.evidence, ...evidence])] : evidence.length ? evidence : prev.evidence;
+      const ev = prev.evidenceLocked ? prev.evidence : prev.origin === 'user' ? [...new Set([...prev.evidence, ...evidence])] : evidence.length ? evidence : prev.evidence;
       updates.set(prev.id, {
         ...prev,
-        description: prev.origin === 'designer' ? prev.description : d?.description || prev.description,
+        description: prev.origin === 'user' ? prev.description : d?.description || prev.description,
         evidence: ev,
-        aiSuggestedLayer: aiLayer ?? prev.aiSuggestedLayer ?? null,
+        agentSuggestedLayer: aiLayer ?? prev.agentSuggestedLayer ?? null,
         cover: prev.cover ?? cover,
         // Una sugerencia sin confirmar sigue a la IA; lo confirmado no se toca.
-        layer: prev.layerConfirmed ? prev.layer : aiLayer ?? prev.layer ?? null,
+        layer: prev.confirmed ? prev.layer : aiLayer ?? prev.layer ?? null,
         systemHypothesis: prev.systemHypothesis || d?.systemHypothesis,
       });
       continue;
@@ -268,10 +287,10 @@ export function mergeAnalysis(p: Project, detected: any[]): { project: Project; 
       relatedObservations: Array.isArray(d?.relatedObservations) ? d.relatedObservations : [],
       systemHypothesis: d?.systemHypothesis,
       trend: 'new',
-      origin: 'ai',
+      origin: 'agent',
       layer: aiLayer,
-      aiSuggestedLayer: aiLayer,
-      layerConfirmed: false,
+      agentSuggestedLayer: aiLayer,
+      confirmed: false,
       audited: false,
       revealed: true,
       cover,
@@ -287,7 +306,7 @@ export function mergeAnalysis(p: Project, detected: any[]): { project: Project; 
   };
   // Lo que la IA no ubicó se ubica por evidencia, siempre como sugerencia.
   const ranks = rankLayers(project);
-  project = { ...project, patterns: project.patterns.map(x => (x.status !== 'discarded' && !x.isGroup && !isLayer(x.layer) ? { ...x, layer: ranks.get(x.id) ?? 3, layerConfirmed: false } : x)) };
+  project = { ...project, patterns: project.patterns.map(x => (x.status !== 'discarded' && !x.isGroup && !isLayer(x.layer) ? { ...x, layer: ranks.get(x.id) ?? 3, confirmed: false } : x)) };
   return { project, added, updated: updates.size };
 }
 
@@ -312,7 +331,7 @@ export function notices(p: Project, selectedId: string | null): Notice[] {
   const out: Notice[] = [];
   const live = livePieces(p);
   const contradiction = (x: Pattern): Notice | null => {
-    if (!isLayer(x.layer) || !x.layerConfirmed) return null;
+    if (!isLayer(x.layer) || !x.confirmed) return null;
     const ev = proposedLayer(x, p, ranks);
     if (ev === x.layer) return null;
     return {

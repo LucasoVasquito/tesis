@@ -21,7 +21,7 @@ export async function buildAnalysisBody(p: Project, onProgress: (done: number, t
   onProgress(refs.length, refs.length);
 
   // Las piezas del diseñador se mandan como definición (con su recorte): la IA las busca en todas las referencias.
-  const own = livePieces(p).filter(x => x.origin === 'designer');
+  const own = livePieces(p).filter(x => x.origin === 'user');
   const stackPatterns = await Promise.all(
     own.map(async x => {
       const ref = x.cover ? p.references.find(r => r.id === x.cover!.refId) : undefined;
@@ -44,7 +44,7 @@ export async function buildAnalysisBody(p: Project, onProgress: (done: number, t
     objective: p.objective,
     description: p.brief || p.description,
     previousPatterns: p.patterns,
-    confirmedPatterns: p.patterns.filter(x => x.layerConfirmed && !ownIds.has(x.id)),
+    confirmedPatterns: p.patterns.filter(x => x.confirmed && !ownIds.has(x.id)),
     discardedPatterns: p.patterns.filter(x => x.status === 'discarded'),
     feedback: p.feedback,
     designerGroups: [],

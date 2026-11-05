@@ -971,7 +971,7 @@ export function SystemApplicationView({ project, system, systems, onSelectSystem
         )}
       </div>
       <LightboxModal
-        reference={zoomPiece ? { id: zoomPiece.id, name: `${pieceInfoOf(zoomPiece.pieceType).label} · ${zoomPiece.mode === 'direct' ? 'directo' : 'sistema'}`, image: zoomPiece.imageUrl, position: { x: 0, y: 0 }, createdAt: '' } : null}
+        reference={zoomPiece ? { id: zoomPiece.id, name: `${pieceInfoOf(zoomPiece.pieceType).label} · ${zoomPiece.mode === 'direct' ? 'directo' : 'sistema'}`, image: zoomPiece.imageUrl, createdAt: '' } : null}
         onClose={() => setZoomId(null)}
       />
     </FullView>

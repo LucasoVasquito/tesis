@@ -52,7 +52,7 @@ export const evidenceLabel = (pattern: Pattern, p: Project) => `${evidenceCount(
 
 /** Lámina sugerida: la que propuso la IA o, si no hay, la que marca la evidencia. */
 export const suggestedLayer = (pattern: Pattern, p: Project): Layer | null =>
-  pattern.aiSuggestedLayer ?? evidenceLayer(evidenceCount(pattern, p), corpusRefs(p).length);
+  pattern.agentSuggestedLayer ?? evidenceLayer(evidenceCount(pattern, p), corpusRefs(p).length);
 
 /** Patrones que viven en la pila (los descartados quedan afuera). */
 export const stackPatterns = (p: Project) => p.patterns.filter(x => x.status !== 'discarded');
