@@ -2,12 +2,12 @@ import React from 'react';
 import { FullView } from './shell/FullView';
 
 const STEPS: [string, string, string][] = [
-  ['01', 'Moodboard', 'Una frase de intención y las referencias. El agente redacta el brief y, al analizar, arma las piezas del sistema y las ubica en tres capas: Núcleo, Soporte y Acento.'],
-  ['02', 'Ordenar', 'El agente propone primero y el diseñador corrige: confirma, sube, baja o saca cada pieza. Al elegir una, se iluminan las referencias de donde sale. El agente solo avisa: nunca decide.'],
-  ['03', 'Sistema', 'Las tres capas, de frente, como una página: el Núcleo titula, el Soporte desarrolla y el Acento anota. La capa pondera los lineamientos, la paleta y el pedido a DALL·E.'],
+  ['01', 'Moodboard', 'Tres capas apiladas y un panel de referencias. El usuario ubica; el agente analiza, extrae las piezas y completa lo que quedó sin ubicar, siempre como sugerencia. Nunca mueve lo del usuario: solo avisa.'],
+  ['02', 'Sistema', 'Las tres capas como una página editorial: el Núcleo titula, el Soporte desarrolla y el Acento anota. El peso (capa × origen) ordena los lineamientos, la paleta y el pedido.'],
+  ['03', 'Probar', 'El sistema aplicado a una pieza concreta. La receta dice qué parte se usa, por capa y por peso; el agente revisa si lo generado respeta cada pieza del Núcleo.'],
 ];
 
-/** Marco conceptual de la tesis (antes ThesisConceptModal). */
+/** Marco conceptual de la tesis. */
 export function AboutView({ onBack }: { onBack: () => void }) {
   return (
     <FullView title="Acerca del método" meta="Diseño Multimedial · UNLP · Interacción humano–agente" onBack={onBack}>

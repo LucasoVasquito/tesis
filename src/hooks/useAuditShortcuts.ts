@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * Sistema único de atajos de Tesis. Cada vista declara un mapa tecla → acción;
+ * Sistema único de atajos de Camaleón. Cada vista declara un mapa tecla → acción;
  * las guardas son comunes: no actúan mientras se escribe, con un diálogo abierto
  * ni con Ctrl / ⌘ / Alt.
  *

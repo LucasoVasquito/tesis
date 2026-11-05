@@ -5,7 +5,7 @@ import { fullRule, layerContents, oneLine, shortRule, stackOrder } from './layer
 
 /**
  * Consecuencias de la lámina: la lámina no es decorativa, cambia el resultado.
- * - DALL·E: el prompt va en orden de lámina; el núcleo pesa más, el acento es un detalle.
+ * - Prompt: va en orden de capa; el núcleo pesa más, el acento es un detalle.
  * - Lineamientos: núcleo = regla completa con ejemplos, soporte = regla corta, acento = una línea.
  * - Paleta: sale del corpus; orden y proporción siguen la lámina de los patrones de color.
  */
@@ -53,7 +53,7 @@ const pct = (n?: number) => `${Math.round((n ?? 0) * 100)}%`;
 /** Las sugerencias de la IA que el diseñador todavía no confirmó van marcadas. */
 const unaudited = (x: Pattern) => (x.confirmed ? '' : ' [AGENTE · SUGERENCIA]');
 
-/* ---------- DALL·E ---------- */
+/* ---------- Prompt ---------- */
 
 /** Pila en el formato que recibe el servidor para armar el prompt. */
 export const stackPayload = (p: Project) =>
@@ -64,7 +64,7 @@ export const stackPayload = (p: Project) =>
     audited: !!pattern.audited,
   }));
 
-/** Prompt de DALL·E en orden de lámina. `piece` es lo que se pide ("afiche", "packaging"…). */
+/** Prompt (descargable desde 02 SISTEMA) en orden de capa. `piece` es lo que se pide ("afiche", "packaging"…). */
 export function buildStackPrompt(p: Project, piece = '[describí la pieza: afiche, packaging, post…]'): string {
   const by = (l: Layer) => stackPayload(p).filter(x => x.layer === l);
   const block = (l: Layer, title: string) => {
