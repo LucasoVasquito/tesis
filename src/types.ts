@@ -143,6 +143,8 @@ export interface Pattern {
   layer?: Layer | null;
   /** Posición libre dentro de la capa. */
   position?: LayerPosition;
+  /** Orden dentro de su capa, de izquierda a derecha: lo primero es lo más importante. Lo fija el usuario al arrastrar. */
+  rank?: number;
   /** Lámina que propone la IA según la evidencia. Se guarda siempre: el espejo compara las dos. */
   agentSuggestedLayer?: Layer | null;
   /** El diseñador abrió y revisó sus evidencias (A). Sin auditar: punto gris y marca al exportar. */

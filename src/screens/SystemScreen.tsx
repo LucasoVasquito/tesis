@@ -86,7 +86,7 @@ export function SystemScreen(props: SystemScreenProps) {
                 {lead ? (
                   <>
                     <div {...hoverProps(lead)} className="flex flex-col gap-5 outline-none">
-                      <PieceImage piece={lead} project={project} className="aspect-[4/3] w-full" style={suggestion(lead) ? { opacity: 0.85 } : undefined} />
+                      <PieceImage piece={lead} project={project} className="aspect-[16/9] max-h-[300px] w-full" style={suggestion(lead) ? { opacity: 0.85 } : undefined} />
                       <div className="flex flex-col gap-3">
                         <span className="flex items-center gap-2">
                           <Origin piece={lead} suggestion={suggestion(lead)} />

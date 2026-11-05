@@ -54,8 +54,9 @@ export function pieceWeight(x: { layer?: Layer | null; origin?: 'agent' | 'user'
   return isLayer(x.layer) ? LAYER_WEIGHT[x.layer] * originWeight(x) : 0;
 }
 
-/** Por peso (lo del usuario primero) y, a igual peso, por evidencia. */
-export const byWeight = (p: Project) => (a: Pattern, b: Pattern) => pieceWeight(b) - pieceWeight(a) || evidenceCount(b, p) - evidenceCount(a, p);
+/** Por peso (lo del usuario primero) y, a igual peso, por evidencia. Si el usuario ordenó a mano (rank), manda ese orden. */
+export const byWeight = (p: Project) => (a: Pattern, b: Pattern) =>
+  (a.rank !== undefined && b.rank !== undefined ? a.rank - b.rank : 0) || pieceWeight(b) - pieceWeight(a) || evidenceCount(b, p) - evidenceCount(a, p);
 
 /** Piezas de una capa, ordenadas por peso: lo del usuario primero. */
 export function piecesIn(p: Project, l: Layer): Pattern[] {
@@ -517,5 +518,63 @@ export function moveGroup(p: Project, id: string, l: Layer): ActionResult {
     project,
     log: [{ kind: 'layer', targetId: id, label: `Patrón «${g.name}» → ${SHEET_NAME[l]}`, reason: `Estaba en ${g.layer ? SHEET_NAME[g.layer] : 'sin capa'}` }],
     message: `Patrón «${g.name}» → ${SHEET_NAME[l]}`,
+  };
+}
+
+/* ---------- Prioridad dentro de la capa y desglose ---------- */
+
+/**
+ * Arrastrar una pieza a otro lugar de su capa: de izquierda a derecha, de más a menos importante.
+ * `beforeId` null = al final. Es una decisión del usuario: la pieza pasa a ser suya (pesa más).
+ */
+export function reorderPiece(p: Project, id: string, beforeId: string | null): ActionResult {
+  const x = find(p, id);
+  if (!x || !isLayer(x.layer)) return { project: p, log: [] };
+  const order = piecesIn(p, x.layer).map(y => y.id).filter(i => i !== id);
+  const at = beforeId ? order.indexOf(beforeId) : -1;
+  order.splice(at === -1 ? order.length : at, 0, id);
+  const rank = new Map(order.map((i, n) => [i, n]));
+  const same = piecesIn(p, x.layer).map(y => y.id).join() === order.join();
+  if (same) return { project: p, log: [] };
+  return {
+    project: {
+      ...p,
+      patterns: p.patterns.map(y => (rank.has(y.id) ? { ...y, rank: rank.get(y.id), ...(y.id === id ? { origin: 'user' as const, confirmed: true, status: 'confirmed' as const } : {}) } : y)),
+    },
+    log: [{ kind: 'layer', targetId: id, label: `${x.name}: prioridad ${rank.get(id)! + 1} en ${SHEET_NAME[x.layer]}` }],
+    message: `${x.name} → lugar ${rank.get(id)! + 1} en ${SHEET_NAME[x.layer]}`,
+  };
+}
+
+/** Desglosar una referencia: las partes que propone el agente pasan a ser piezas del usuario en su misma capa. */
+export function addPiecesFromRef(p: Project, refId: string, parts: SplitPart[]): ActionResult {
+  const r = findRef(p, refId);
+  if (!r || !isLayer(r.layer) || !parts.length) return { project: p, log: [] };
+  const used = new Set(p.patterns.map(y => y.id));
+  const fresh: Pattern[] = parts.map((part, i) => {
+    let id = `pat_d_${refId}_${i + 1}`;
+    for (let k = 1; used.has(id); k++) id = `pat_d_${refId}_${i + 1}_${k}`;
+    used.add(id);
+    return {
+      id,
+      name: part.name,
+      category: 'composition',
+      description: part.description ?? '',
+      evidence: [...new Set([refId, ...part.evidence])],
+      confidence: 1,
+      status: 'confirmed',
+      relatedObservations: [],
+      origin: 'user',
+      layer: r.layer as Layer,
+      confirmed: true,
+      audited: true,
+      revealed: false,
+      cover: part.cover ?? { refId },
+    };
+  });
+  return {
+    project: { ...p, patterns: [...p.patterns, ...fresh] },
+    log: [{ kind: 'pattern_add', targetId: refId, label: `Desglose de ${r.name}`, reason: fresh.map(x => x.name).join(' · ') }],
+    message: `${r.name} desglosada en ${fresh.length} piezas`,
   };
 }

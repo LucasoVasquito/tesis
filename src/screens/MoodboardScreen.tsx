@@ -31,6 +31,8 @@ import {
   placeRef,
   refsIn,
   rename,
+  reorderPiece,
+  addPiecesFromRef,
   renameGroup,
   restore,
   returnRef,
@@ -103,6 +105,17 @@ function slotOf(l: Layer, active: Layer): 0 | 1 | 2 {
   return others[0] === l ? 1 : 2;
 }
 
+/** Qué hay bajo el puntero al soltar: el panel, el borde de otra capa que asoma, o la capa activa (no cambia nada). */
+type DropTarget = { kind: 'panel' } | { kind: 'layer'; layer: Layer } | null;
+function dropTargetAt(x: number, y: number): DropTarget {
+  for (const el of document.elementsFromPoint(x, y) as HTMLElement[]) {
+    if (el.dataset?.panel === 'true') return { kind: 'panel' };
+    if (el.dataset?.layerActive === 'true') return null;
+    if (el.dataset?.layerDrop) return { kind: 'layer', layer: Number(el.dataset.layerDrop) as Layer };
+  }
+  return null;
+}
+
 const REF_MIME = 'text/camaleon-ref';
 
 /** Cualquier ancestro (hasta la escena) que pueda desplazarse en esa dirección: la rueda lo usa en vez de cambiar de capa. */
@@ -148,6 +161,13 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
   const [detailOpen, setDetailOpen] = useState(true);
   const [dragOver, setDragOver] = useState(false);
   const [dropLayer, setDropLayer] = useState<Layer | null>(null);
+  /** Mientras se arrastra una referencia, el panel avisa que ahí vuelve. */
+  const [panelHint, setPanelHint] = useState(false);
+  /** Referencia que el agente está desglosando. */
+  const [splittingRef, setSplittingRef] = useState<string | null>(null);
+  /** Pieza que se está arrastrando para cambiar su prioridad y dónde caería. */
+  const [pieceDrag, setPieceDrag] = useState<string | null>(null);
+  const [pieceDrop, setPieceDrop] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
   const wheel = useRef({ acc: 0, lock: 0 });
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -422,7 +442,60 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
     if (v !== project.intent) props.onSubmitIntent(v);
   };
 
-  const pieceCardProps = (x: Pattern) => ({
+  /** Desglosar una referencia: el agente propone sus partes y pasan a ser piezas tuyas, en la misma capa. */
+  const desglosar = async (r: Reference) => {
+    if (splittingRef) return;
+    setSplittingRef(r.id);
+    try {
+      const stand: Pattern = { id: r.id, name: r.name, category: 'composition', description: '', evidence: [r.id], confidence: 1, status: 'detected', relatedObservations: [] };
+      const parts = await props.split(stand);
+      apply(p => addPiecesFromRef(p, r.id, parts));
+    } catch (err: any) {
+      apply(p => ({ project: p, log: [], message: err?.message || 'No se pudo desglosar la referencia' }));
+    } finally {
+      setSplittingRef(null);
+    }
+  };
+
+  /** Soltar una pieza sobre otra: a la izquierda de ella (más importante) o a su derecha. */
+  const dropPiece = (targetId: string, side: 'left' | 'right', order: Pattern[]) => {
+    const id = pieceDrag;
+    setPieceDrag(null);
+    setPieceDrop(null);
+    if (!id || id === targetId) return;
+    const ids = order.map(x => x.id).filter(i => i !== id);
+    const at = ids.indexOf(targetId);
+    const before = side === 'left' ? targetId : ids[at + 1] ?? null;
+    apply(p => reorderPiece(p, id, before));
+  };
+
+  const pieceCardProps = (x: Pattern, order: Pattern[] = []) => ({
+    drag: {
+      draggable: true,
+      mark: pieceDrop?.id === x.id ? pieceDrop.side : null,
+      onDragStart: (e: React.DragEvent) => {
+        e.dataTransfer.setData('text/camaleon-piece', x.id);
+        e.dataTransfer.effectAllowed = 'move';
+        setPieceDrag(x.id);
+      },
+      onDragEnd: () => {
+        setPieceDrag(null);
+        setPieceDrop(null);
+      },
+      onDragOver: (e: React.DragEvent) => {
+        if (!pieceDrag || pieceDrag === x.id) return;
+        e.preventDefault();
+        const r = e.currentTarget.getBoundingClientRect();
+        const side = e.clientX < r.left + r.width / 2 ? 'left' : 'right';
+        setPieceDrop(d => (d?.id === x.id && d.side === side ? d : { id: x.id, side }));
+      },
+      onDrop: (e: React.DragEvent) => {
+        if (!pieceDrag) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dropPiece(x.id, pieceDrop?.id === x.id ? pieceDrop.side : 'left', order);
+      },
+    },
     piece: x,
     project,
     layer,
@@ -479,6 +552,11 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
           className="relative min-w-0 flex-[1.35] overflow-hidden border-r border-dashed"
           style={{ borderColor: 'color-mix(in oklab, var(--layer-color) 40%, transparent)', background: dropLayer === l && active ? 'color-mix(in oklab, var(--layer-color) 8%, transparent)' : undefined }}
         >
+          {active && lFree.length > 0 && (
+            <span className="pointer-events-none absolute bottom-1 left-2 z-10 bg-void/80 px-1 text-[11px] text-ink-3">
+              Arrastrá para mover · esquina para agrandar · ⇧ + clic para elegir varias y G para agruparlas · soltar sobre el panel la devuelve
+            </span>
+          )}
           {lFree.length === 0 && (
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 p-6 text-center">
               <span className="type-label text-[12px] text-ink-3">TU ESPACIO</span>
@@ -499,6 +577,10 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
                 onCommit={pos => apply(p => setRefPosition(p, r.id, pos))}
                 onReturn={() => apply(p => returnRef(p, r.id))}
                 onToLayer={to => sendTo([r.id], to)}
+                onTarget={t => setDropLayer(t?.kind === 'layer' ? t.layer : null)}
+                onPanelHint={setPanelHint}
+                onSplit={() => desglosar(r)}
+                splitting={splittingRef === r.id}
               />
             ) : (
               <FreeRef key={r.id} reference={r} selected={false} lit={null} canvasRef={canvasRef} inert />
@@ -541,7 +623,7 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
           ))}
           {lLoose.length > 0 && (
             <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
-              {lLoose.map(x => (active ? <PieceCard key={x.id} {...pieceCardProps(x)} /> : <PieceThumb key={x.id} piece={x} project={project} />))}
+              {lLoose.map(x => (active ? <PieceCard key={x.id} {...pieceCardProps(x, lLoose)} /> : <PieceThumb key={x.id} piece={x} project={project} />))}
             </div>
           )}
           {lAgent.length > 0 && (
@@ -640,6 +722,7 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
                 aria-label={sheetLabel(l)}
                 aria-hidden={!active}
                 data-layer-drop={active ? undefined : l}
+                data-layer-active={active ? 'true' : undefined}
                 className={`scene-layer ${info.className} absolute`}
                 style={{
                   top: ACTIVE_INSET.top,
@@ -763,6 +846,7 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
           aria-label="Panel de referencias"
           data-panel="true"
           className="flex w-[320px] shrink-0 flex-col border-l border-line"
+          style={panelHint ? { boxShadow: 'inset 0 0 0 3px var(--color-bone)' } : undefined}
           onDragOver={e => hasRefDrag(e) && e.preventDefault()}
           onDrop={dropOnPanel}
         >
@@ -980,6 +1064,10 @@ function FreeRef(props: {
   onCommit?: (pos: LayerPosition) => void;
   onReturn?: () => void;
   onToLayer?: (l: Layer) => void;
+  onTarget?: (t: DropTarget) => void;
+  onPanelHint?: (on: boolean) => void;
+  onSplit?: () => void;
+  splitting?: boolean;
 }) {
   const { reference: r, selected } = props;
   const base = r.position ?? DEFAULT_POS;
@@ -1002,6 +1090,11 @@ function FreeRef(props: {
     if (!d.moved && Math.hypot(dx, dy) < 4) return;
     d.moved = true;
     if (d.mode === 'move') {
+      const t = dropTargetAt(e.clientX, e.clientY);
+      props.onTarget?.(t);
+      props.onPanelHint?.(t?.kind === 'panel');
+    }
+    if (d.mode === 'move') {
       setLive({ ...d.pos, x: Math.min(1 - d.pos.w, Math.max(0, d.pos.x + dx / rect.width)), y: Math.min(1 - d.pos.h, Math.max(0, d.pos.y + dy / rect.height)) });
     } else {
       setLive({
@@ -1023,10 +1116,11 @@ function FreeRef(props: {
     }
     if (d.mode === 'move') {
       // Soltada sobre el panel vuelve a él; sobre el borde o rótulo de otra capa, se muda a esa capa.
-      const hit = document.elementsFromPoint(e.clientX, e.clientY);
-      if (hit.some(el => (el as HTMLElement).dataset?.panel === 'true')) return props.onReturn?.();
-      const other = hit.map(el => (el as HTMLElement).dataset?.layerDrop).find(Boolean);
-      if (other) return props.onToLayer?.(Number(other) as Layer);
+      props.onTarget?.(null);
+      props.onPanelHint?.(false);
+      const t = dropTargetAt(e.clientX, e.clientY);
+      if (t?.kind === 'panel') return props.onReturn?.();
+      if (t?.kind === 'layer') return props.onToLayer?.(t.layer);
     }
     if (final) props.onCommit?.(final);
   };
@@ -1073,6 +1167,20 @@ function FreeRef(props: {
             className="type-label absolute right-0 top-0 bg-void/85 px-[6px] py-[1px] text-[12px] text-ink opacity-0 focus:opacity-100 group-hover:opacity-100"
           >
             X
+          </button>
+          <button
+            type="button"
+            aria-label={`Desglosar ${r.name}`}
+            title="El agente propone sus partes y las vuelve piezas"
+            disabled={props.splitting}
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => {
+              e.stopPropagation();
+              props.onSplit?.();
+            }}
+            className="type-label absolute left-0 top-0 bg-void/85 px-[6px] py-[1px] text-[10px] text-ink opacity-0 focus:opacity-100 group-hover:opacity-100"
+          >
+            {props.splitting ? 'DESGLOSANDO…' : 'DESGLOSAR'}
           </button>
           <span
             aria-hidden="true"
@@ -1263,6 +1371,14 @@ function OutSheet({ project, onRestore, onClose }: { project: Project; onRestore
 type MenuAction = 'merge' | 'split' | 'rename' | 'crop';
 
 interface PieceCardProps {
+  drag?: {
+    draggable: boolean;
+    mark: 'left' | 'right' | null;
+    onDragStart: (e: React.DragEvent) => void;
+    onDragEnd: () => void;
+    onDragOver: (e: React.DragEvent) => void;
+    onDrop: (e: React.DragEvent) => void;
+  };
   piece: Pattern;
   project: Project;
   layer: Layer;
@@ -1302,7 +1418,14 @@ function PieceCard(props: PieceCardProps) {
         }
       }}
       className="group relative flex flex-col gap-1 p-2 text-left outline-none"
+      draggable={props.drag?.draggable}
+      onDragStart={props.drag?.onDragStart}
+      onDragEnd={props.drag?.onDragEnd}
+      onDragOver={props.drag?.onDragOver}
+      onDrop={props.drag?.onDrop}
+      title={props.drag ? 'Arrastrá a izquierda o derecha para cambiar su prioridad' : undefined}
       style={{
+        boxShadow: props.drag?.mark === 'left' ? '-6px 0 0 0 var(--color-bone)' : props.drag?.mark === 'right' ? '6px 0 0 0 var(--color-bone)' : undefined,
         // USUARIO: borde lleno. AGENTE · SUGERENCIA: borde fino punteado.
         border: `${user ? 3 : suggestion ? 1 : 2}px ${suggestion ? 'dashed' : 'solid'} ${suggestion ? 'color-mix(in oklab, var(--layer-color) 75%, transparent)' : 'var(--layer-color)'}`,
         outline: selected ? '3px solid var(--color-bone)' : undefined,
