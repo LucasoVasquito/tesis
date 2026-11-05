@@ -20,7 +20,7 @@ export function AboutView({ onBack }: { onBack: () => void }) {
             recursos, relaciones cromáticas, estructuras compositivas y gestos tipográficos.
           </p>
           <p className="m-0 font-serif text-lg leading-normal text-ink-2">
-            Esos patrones existen dentro del conjunto de referencias sin haber sido formulados. Camaleón busca hacerlos <em>visibles</em> y{' '}
+            Esos patrones existen dentro del conjunto de referencias sin haber sido formulados. Camaleon Corpus busca hacerlos <em>visibles</em> y{' '}
             <em>auditables</em> durante el proceso creativo.
           </p>
         </header>

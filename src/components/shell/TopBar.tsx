@@ -121,7 +121,7 @@ export function TopBar(props: TopBarProps) {
     <header className="no-print flex h-14 shrink-0 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-3 lg:gap-6 lg:px-4">
       {/* Proyecto */}
       <div className="relative flex min-w-0 shrink-0 items-center gap-3 lg:w-[240px]" ref={wrapRef}>
-        <span className="type-name hidden text-[22px] tracking-[0.02em] text-ink sm:inline">CAMALEÓN</span>
+        <span className="type-name hidden text-[22px] tracking-[0.02em] text-ink sm:inline">CAMALEON CORPUS</span>
         <span aria-hidden="true" className="hidden h-4 w-px bg-line-mid sm:inline-block" />
         <button
           ref={buttonRef}

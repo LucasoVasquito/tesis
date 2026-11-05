@@ -77,7 +77,7 @@ export function SystemScreen(props: SystemScreenProps) {
               {/* Encabezado */}
               <header className="col-span-12 flex flex-wrap items-baseline justify-between gap-3">
                 <span className="type-name text-[22px] text-ink-2">{title}</span>
-                <span className="type-label text-[11px] tracking-[0.1em] text-ink-3">SISTEMA VISUAL · CAMALEÓN</span>
+                <span className="type-label text-[11px] tracking-[0.1em] text-ink-3">SISTEMA VISUAL · CAMALEON CORPUS</span>
               </header>
 
               {/* Capa 1 · Núcleo (columnas 1 a 8) */}

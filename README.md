@@ -1,6 +1,6 @@
-# Camaleón
+# Camaleon Corpus
 
-Camaleón es una tesis de Diseño Multimedial (UNLP). La app convierte un conjunto de imágenes de referencia en un sistema visual verificable. **El usuario ubica; el agente analiza y completa.** Lo que ubica el usuario pesa más que lo que ubica el agente, y el agente nunca lo mueve: solo avisa. Lo que ubica el agente es una *sugerencia* hasta que el usuario la confirma.
+Camaleon Corpus es una tesis de Diseño Multimedial (UNLP). La app convierte un conjunto de imágenes de referencia en un sistema visual verificable. **El usuario ubica; el agente analiza y completa.** Lo que ubica el usuario pesa más que lo que ubica el agente, y el agente nunca lo mueve: solo avisa. Lo que ubica el agente es una *sugerencia* hasta que el usuario la confirma.
 
 ## Configuración
 
@@ -81,7 +81,7 @@ El pedido sigue siempre este orden: tipo de pieza y formato → Núcleo (obligat
 
 ## Identidad visual (dirección 1c «Gráfica»)
 
-Color plano, tipografía dura y capas como señales: vacío `oklch(0.17 0.012 265)`, hueso `#F2EFE8`. La marca se escribe CAMALEÓN, en Archivo 900 condensada; Geist Mono para datos. Respeta `prefers-reduced-motion` (entre capas, un fundido de 150 ms). Referencia: `design_handoff_emergent_rework/Tesis Identidad Visual.dc.html`.
+Color plano, tipografía dura y capas como señales: vacío `oklch(0.17 0.012 265)`, hueso `#F2EFE8`. La marca se escribe CAMALEON CORPUS, en Archivo 900 condensada; Geist Mono para datos. Respeta `prefers-reduced-motion` (entre capas, un fundido de 150 ms). Referencia: `design_handoff_emergent_rework/Tesis Identidad Visual.dc.html`.
 
 ## Estructura
 

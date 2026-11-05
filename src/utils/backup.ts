@@ -69,7 +69,7 @@ export async function restoreBackup(text: string, existingIds: string[]): Promis
   }
   const raw = data?.format === 'emergent-backup' ? data.project : data;
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.references) || !('objective' in raw)) {
-    throw new Error('El archivo no tiene la estructura de un proyecto de Camaleón.');
+    throw new Error('El archivo no tiene la estructura de un proyecto de Camaleon Corpus.');
   }
   const project = migrateProject(raw);
   if (existingIds.includes(project.id)) {

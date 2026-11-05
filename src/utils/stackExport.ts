@@ -135,7 +135,7 @@ export function stackGuidelinesMarkdown(p: Project): string {
 
   const out = p.patterns.filter(x => x.status === 'discarded' && !x.isGroup);
   if (out.length) lines.push(`## Fuera del sistema`, '', ...out.map(x => `- ${x.name}`), '');
-  lines.push(`---`, `*Generado con Camaleón · ${new Date().toLocaleDateString('es-AR')}*`);
+  lines.push(`---`, `*Generado con Camaleon Corpus · ${new Date().toLocaleDateString('es-AR')}*`);
   return lines.join('\n');
 }
 
