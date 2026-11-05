@@ -533,6 +533,11 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
           className="relative min-w-0 flex-[1.35] overflow-hidden border-r border-dashed"
           style={{ borderColor: 'color-mix(in oklab, var(--layer-color) 40%, transparent)', background: dropLayer === l && active ? 'color-mix(in oklab, var(--layer-color) 8%, transparent)' : undefined }}
         >
+          {active && selected.filter(id => lFree.some(r => r.id === id)).length > 1 && (
+            <button type="button" onClick={e => { e.stopPropagation(); makeGroup(); }} className="type-label absolute bottom-7 right-3 z-20 bg-bone px-3 py-2 text-[12px] text-void hover:bg-core">
+              AGRUPAR {selected.filter(id => lFree.some(r => r.id === id)).length} EN UN PATRÓN [G]
+            </button>
+          )}
           {active && lFree.length > 0 && (
             <span className="pointer-events-none absolute bottom-1 left-2 z-10 bg-void/80 px-1 text-[11px] text-ink-3">
               Arrastrá para mover · esquina para agrandar · ⇧ + clic para elegir varias y G para agruparlas · soltar sobre el panel la devuelve
@@ -1115,6 +1120,11 @@ function FreeRef(props: {
       onPointerDown={e => start(e, 'move')}
       onPointerMove={moveTo}
       onPointerUp={end}
+      onPointerCancel={() => {
+        drag.current = null;
+        setLive(null);
+      }}
+      onDragStart={e => e.preventDefault()}
       onClick={e => e.stopPropagation()}
       onKeyDown={e => e.key === 'Enter' && props.onSelect?.(false)}
       className="group absolute touch-none select-none outline-none"
@@ -1132,7 +1142,7 @@ function FreeRef(props: {
         background: 'var(--color-void)',
       }}
     >
-      <Crop image={r.image} fit="cover" alt={r.name} className="size-full" />
+      <Crop image={r.image} fit="cover" alt={r.name} className="pointer-events-none size-full" />
       <span className="type-label pointer-events-none absolute bottom-0 left-0 bg-bone px-1 text-[10px] text-void">USUARIO</span>
       {!props.inert && (
         <>
