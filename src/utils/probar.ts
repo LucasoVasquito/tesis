@@ -33,6 +33,8 @@ export const pieceTypeInfo = (t: PieceType) => PIECE_TYPES.find(p => p.id === t)
 
 /** Como máximo 3 a 5 decisiones en total, para no saturar el pedido. */
 export const MAX_DECISIONS = 5;
+/** Del Núcleo entran como máximo las 3 piezas de más peso: así quedan lugares para Soporte y Acento. */
+export const MAX_CORE = 3;
 /** Imágenes de referencia del Núcleo que se mandan al modelo de imagen. */
 export const MAX_CORE_IMAGES = 3;
 
@@ -80,12 +82,12 @@ export interface Selection {
 /** Lo que entra al pedido: Núcleo, Soporte marcado y Acento marcado, por capa y por peso, hasta el límite. */
 export function selectDecisions(r: Recipe, on: (id: string) => boolean): Selection {
   const all = [
-    ...r.core.map(x => ({ x, layer: 1 as Layer })),
+    ...r.core.slice(0, MAX_CORE).map(x => ({ x, layer: 1 as Layer })),
     ...r.support.filter(x => on(x.id)).map(x => ({ x, layer: 2 as Layer })),
     ...r.accent.filter(x => on(x.id)).slice(0, 1).map(x => ({ x, layer: 3 as Layer })),
   ];
   const kept = all.slice(0, MAX_DECISIONS);
-  const omitted = all.slice(MAX_DECISIONS).map(a => a.x);
+  const omitted = [...r.core.slice(MAX_CORE), ...all.slice(MAX_DECISIONS).map(a => a.x)];
   return {
     core: kept.filter(a => a.layer === 1).map(a => a.x),
     support: kept.filter(a => a.layer === 2).map(a => a.x),

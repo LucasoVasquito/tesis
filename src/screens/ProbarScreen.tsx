@@ -11,6 +11,7 @@ import { fullRule } from '../utils/layerRules';
 import { sheetLabel } from '../pieces/model';
 import {
   MAX_CORE_IMAGES,
+  MAX_CORE,
   MAX_DECISIONS,
   PIECE_TYPES,
   PromptInput,
@@ -301,7 +302,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
         <span className="type-name text-[20px] leading-[0.95]">{x.name}</span>
         <span className="flex items-center gap-2">
           <OriginTag piece={x} />
-          {state === 'out' && <span className="font-mono text-[10px] text-ink-2">FUERA DEL PEDIDO · LÍMITE {MAX_DECISIONS}</span>}
+          {state === 'out' && <span className="font-mono text-[10px] text-ink-2">{layer === 1 ? `FUERA DEL PEDIDO · DEL NÚCLEO ENTRAN LAS ${MAX_CORE} DE MÁS PESO` : `FUERA DEL PEDIDO · LÍMITE ${MAX_DECISIONS}`}</span>}
         </span>
       </div>
       {control}
@@ -420,7 +421,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
 
         {/* 2 · La receta */}
         <section aria-label="La receta" className="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-line p-5">
-          <ColHead n="02" title="LA RECETA" hint={limitNote ? `Ya hay ${MAX_DECISIONS} decisiones, el máximo: desmarcá una para sumar otra.` : direct ? 'El modo directo no usa el sistema: solo el pedido, el texto y la paleta.' : `Qué parte del sistema se usa, por capa y por peso. ${decisions} de ${MAX_DECISIONS} decisiones.`} />
+          <div className="sticky top-0 z-10 -mx-5 -mt-5 bg-void px-5 pb-3 pt-5"><ColHead n="02" title="LA RECETA" hint={limitNote ? `Ya hay ${MAX_DECISIONS} decisiones, el máximo: desmarcá una para sumar otra.` : direct ? 'El modo directo no usa el sistema: solo el pedido, el texto y la paleta.' : `Qué parte del sistema se usa, por capa y por peso. ${decisions} de ${MAX_DECISIONS} decisiones.`} /></div>
           <div className="flex flex-col gap-6" style={{ opacity: direct ? 0.4 : 1, pointerEvents: direct ? 'none' : undefined }}>
             {layerBlock(
               1,
