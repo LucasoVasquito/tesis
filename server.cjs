@@ -1668,6 +1668,65 @@ Return, in Spanish unless stated:
         return res.status(500).json({ error: "No se pudo auditar la pieza.", details: error?.message });
     }
 });
+// ==========================================
+// 4b. ¿La pieza generada respeta cada pieza del Núcleo? (Gemini con visión)
+// ==========================================
+app.post("/api/check-core", async (req, res) => {
+    dotenv_1.default.config({ override: true });
+    try {
+        const { imageUrl, core = [], pieceLabel = "pieza" } = req.body || {};
+        if (!imageUrl)
+            return res.status(400).json({ error: "Se requiere la imagen de la pieza." });
+        const items = (Array.isArray(core) ? core : []).slice(0, 8).filter((c) => c?.id && c?.name);
+        if (!items.length)
+            return res.json({ success: true, data: { checks: [] } });
+        const img = await resolveImagePart(imageUrl, "pieza");
+        if (!img)
+            return res.status(400).json({ error: "No se pudo leer la imagen de la pieza." });
+        const prompt = `You are a strict art director checking a generated ${String(pieceLabel).slice(0, 40)} against the CORE of a visual system. For each core element below, say whether the image respects it (visible and applied as described). Judge only what is visible. Be concrete.
+
+Core elements:
+${items.map((c) => `- [${String(c.id)}] ${String(c.name).slice(0, 120)}${c.rule ? `: ${String(c.rule).slice(0, 400)}` : ""}`).join("\n")}
+
+Return one entry per element: { id, respected: true | false, note: one short sentence in Spanish pointing to what you see }.`;
+        const ai = getGeminiClient();
+        const response = await generateContentWithRetry(ai, {
+            model: "gemini-3.5-flash",
+            contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: img.mimeType, data: img.data } }] }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: genai_1.Type.OBJECT,
+                    properties: {
+                        checks: {
+                            type: genai_1.Type.ARRAY,
+                            items: {
+                                type: genai_1.Type.OBJECT,
+                                properties: { id: { type: genai_1.Type.STRING }, respected: { type: genai_1.Type.BOOLEAN }, note: { type: genai_1.Type.STRING } },
+                                required: ["id", "respected", "note"],
+                            },
+                        },
+                    },
+                    required: ["checks"],
+                },
+            },
+        });
+        const parsed = parseModelJsonResponse(response.text || "{}");
+        const known = new Set(items.map((c) => String(c.id)));
+        return res.json({
+            success: true,
+            data: {
+                checks: (Array.isArray(parsed.checks) ? parsed.checks : [])
+                    .filter((c) => known.has(String(c?.id)))
+                    .map((c) => ({ id: String(c.id), respected: !!c.respected, note: String(c.note || "") })),
+            },
+        });
+    }
+    catch (error) {
+        console.error("Error en /api/check-core:", error);
+        return res.status(500).json({ error: "No se pudo evaluar la pieza.", details: error?.message });
+    }
+});
 app.post("/api/generate-application", async (req, res) => {
     dotenv_1.default.config({ override: true });
     const b = req.body || {};
@@ -1721,12 +1780,18 @@ app.post("/api/generate-application", async (req, res) => {
             });
         }
         // ---------- Variantes nuevas ----------
-        const brief = buildBrief(b, piece);
+        // 03 PROBAR arma el pedido completo (receta por capas) y lo manda tal cual; si no viene, se arma acá como antes.
+        const clientPrompt = typeof b.finalPrompt === "string" && b.finalPrompt.trim() ? b.finalPrompt.trim().slice(0, 8000) : "";
+        const brief = clientPrompt ? `${clientPrompt}
+
+# Deliverable
+${piece.spec}` : buildBrief(b, piece);
         const direct = b.mode === "direct";
         // En fotos y en el modo directo no se adjuntan las referencias gráficas: empujan el resultado hacia la ilustración.
         const refImages = [];
-        if (!direct && piece.mode === "graphic") {
-            for (const r of (b.references || []).slice(0, 8)) {
+        // Con el pedido de 03 PROBAR, las imágenes de las piezas del Núcleo (como máximo 3) van siempre como referencia visual.
+        if (!direct && (piece.mode === "graphic" || clientPrompt)) {
+            for (const r of (b.references || []).slice(0, clientPrompt ? 3 : 8)) {
                 const url = r?.image ? await toDataUrl(r.image, r.id) : null;
                 if (url)
                     refImages.push({ id: r.id, url });

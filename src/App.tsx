@@ -11,18 +11,15 @@ import { filesToReferences, makeFeedback, makeLog, migrateProject, withLog } fro
 import { corpusRefs } from './utils/layers';
 import { stackOrder } from './utils/layerRules';
 import { applyLayerColors, computeLayerColors } from './utils/camaleon';
-import { stackPayload, stackSystem } from './utils/stackExport';
 import { useShortcuts } from './hooks/useAuditShortcuts';
 
 import { Button, Tone } from './components/ui';
 import { TopBar } from './components/shell/TopBar';
 import { UploadModal } from './components/UploadModal';
-import { LightboxModal } from './components/LightboxModal';
 import { AboutView } from './components/AboutView';
-import { SystemApplicationView } from './components/SystemApplicationView';
+import { ProbarScreen } from './screens/ProbarScreen';
 import { LogDrawer } from './components/LogDrawer';
 import { Modal } from './components/shell/Modal';
-import { PatternDraft, PatternEditor, draftFromPattern, emptyDraft } from './components/PatternEditor';
 
 import { ActionResult, MIN_REFS, livePieces, mergeAnalysis } from './pieces/model';
 import { buildAnalysisBody, friendlyError, requestSplit } from './pieces/analyze';
@@ -154,17 +151,12 @@ function Workspace({ boot }: { boot: Boot }) {
 
   /* ========== UI ========== */
   const [overlay, setOverlay] = useState<Overlay>(null);
-  /** 03 PROBAR: aplicar el sistema a una pieza concreta. */
-  const generateOpen = screen === 'probar';
-  const setGenerateOpen = (open: boolean) => setScreen(open ? 'probar' : 'sistema');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<null | 'current' | 'all'>(null);
-  const [lightboxRef, setLightboxRef] = useState<Reference | null>(null);
   /** Pedido de abrir el brief desde el menú del proyecto (cambia el número). */
   const [briefRequest, setBriefRequest] = useState(0);
-  const [patternEditor, setPatternEditor] = useState<null | { patternId?: string; draft: PatternDraft; title: string; meta: string }>(null);
-  /** Guía de 3 carteles: la primera vez que se llega a 02 ORDENAR, o desde AYUDA. */
+  /** Guía de 3 carteles: la primera vez que se llega a 01 MOODBOARD con piezas, o desde AYUDA. */
   const [guideOpen, setGuideOpen] = useState(false);
   useEffect(() => {
     if (screen === 'moodboard' && livePieces(project).length && !guideDone()) setGuideOpen(true);
@@ -474,49 +466,7 @@ function Workspace({ boot }: { boot: Boot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorSig, project.id, analysis.status]);
 
-  /* ---------- Piezas escritas a mano (desde la generación con DALL·E) ---------- */
-  const openNewPattern = () => setPatternEditor({ draft: emptyDraft(), title: 'Nueva pieza', meta: 'La escribís vos (USUARIO) · entra en Acento' });
-  const openEditPattern = (pattern: Pattern) => setPatternEditor({ patternId: pattern.id, draft: draftFromPattern(pattern), title: `Editar · ${pattern.name}`, meta: 'Texto y referencias' });
-  const handleSavePattern = (draft: PatternDraft) => {
-    const editor = patternEditor;
-    setPatternEditor(null);
-    if (!editor) return;
-    const known = new Set(projectRef.current.references.map(r => r.id));
-    const evidence = draft.evidence.filter(id => known.has(id));
-    const observations = draft.observations.split('\n').map(s => s.trim()).filter(Boolean);
-    if (editor.patternId) {
-      const id = editor.patternId;
-      updateProject(p => ({ ...p, patterns: p.patterns.map(x => (x.id === id ? { ...x, name: draft.name, category: draft.category, description: draft.description, relatedObservations: observations, evidence, evidenceLocked: true } : x)) }));
-      addLog('pattern_edit', id, `Pieza editada · ${draft.name}`);
-      return;
-    }
-    const used = projectRef.current.patterns.map(x => Number(/^pat_u(\d+)$/.exec(x.id)?.[1] ?? 0));
-    const id = `pat_u${String(Math.max(0, ...used) + 1).padStart(2, '0')}`;
-    const piece: Pattern = {
-      id,
-      name: draft.name,
-      category: draft.category,
-      description: draft.description,
-      evidence,
-      confidence: 1,
-      status: 'detected',
-      relatedObservations: observations,
-      origin: 'user',
-      evidenceLocked: true,
-      layer: 3,
-      agentSuggestedLayer: null,
-      confirmed: false,
-      audited: true,
-      revealed: false,
-    };
-    updateProject(p => ({ ...p, patterns: [...p.patterns, piece] }));
-    addLog('pattern_add', id, `Pieza propia · ${draft.name}`);
-    showToast({ message: `Pieza nueva · ${draft.name} · está en Acento` });
-  };
-
-  useShortcuts(generateOpen && !patternEditor && !lightboxRef, { escape: () => setGenerateOpen(false) });
-
-  const enabled = !overlay && !patternEditor && !isUploadOpen && !lightboxRef && !deleteRequest && !isLogOpen && !generateOpen && !guideOpen;
+  const enabled = !overlay && !isUploadOpen && !deleteRequest && !isLogOpen && !guideOpen;
   const toastText = toast?.message ?? null;
 
   return (
@@ -573,65 +523,37 @@ function Workspace({ boot }: { boot: Boot }) {
             split={piece => requestSplit(projectRef.current, piece)}
           />
         )}
-        {(screen === 'sistema' || screen === 'probar') && (
+        {screen === 'sistema' && (
           <SystemScreen
             key={project.id}
             project={project}
             enabled={enabled}
             toast={toastText}
             onBack={() => setScreen('moodboard')}
-            onGenerate={() => setGenerateOpen(true)}
+            onGenerate={() => setScreen('probar')}
             onNotice={text => showToast({ message: text })}
             paletteMissing={paletteMissing.length}
             paletteBusy={paletteBusy}
             onCompletePalette={handleCompletePalette}
           />
         )}
-        {generateOpen && (
-          <div className="absolute inset-0 z-40 flex flex-col bg-void">
-            <div className="flex h-11 shrink-0 items-center justify-between border-b border-line px-4">
-              <button type="button" className="type-label text-[12px] text-ink-2 hover:text-ink" onClick={() => setGenerateOpen(false)}>
-                ← VOLVER AL SISTEMA · ESC
-              </button>
-              <span className="font-mono text-[11px] text-ink-2">el pedido sigue el orden de las capas</span>
-            </div>
-            <div className="min-h-0 flex-1">
-              <SystemApplicationView
-                project={project}
-                system={stackSystem(project)}
-                systems={[stackSystem(project)]}
-                onSelectSystem={() => {}}
-                onOpenGuidelines={() => setGenerateOpen(false)}
-                onOpenLightbox={setLightboxRef}
-                onNewPattern={openNewPattern}
-                onEditPattern={openEditPattern}
-                session={project.applications?.stack}
-                onSaveSession={session => {
-                  const pid = project.id;
-                  updateProject(x => ({ ...x, applications: { ...(x.applications ?? {}), stack: session } }), pid);
-                }}
-                extraBody={{ stack: stackPayload(project) }}
-              />
-            </div>
-          </div>
+        {screen === 'probar' && (
+          <ProbarScreen
+            key={project.id}
+            project={project}
+            enabled={enabled}
+            session={project.applications?.stack}
+            onSaveSession={session => {
+              const pid = project.id;
+              updateProject(x => ({ ...x, applications: { ...(x.applications ?? {}), stack: session } }), pid);
+            }}
+            onBack={() => setScreen('sistema')}
+          />
         )}
       </main>
 
       {guideOpen && <Guide onClose={() => setGuideOpen(false)} />}
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} />
-      <LightboxModal reference={lightboxRef} onClose={() => setLightboxRef(null)} />
-      {patternEditor && (
-        <PatternEditor
-          title={patternEditor.title}
-          meta={patternEditor.meta}
-          initial={patternEditor.draft}
-          references={project.references}
-          saveLabel={patternEditor.patternId ? 'Guardar cambios' : 'Crear pieza'}
-          onSave={handleSavePattern}
-          onClose={() => setPatternEditor(null)}
-        />
-      )}
-
       <Modal open={!!deleteRequest} title={deleteRequest === 'all' ? 'Eliminar todos los proyectos' : 'Eliminar proyecto'} meta="No se puede deshacer" width={440} onClose={() => setDeleteRequest(null)}>
         <div className="flex flex-col gap-4 p-5">
           <p className="m-0 text-13 text-ink">

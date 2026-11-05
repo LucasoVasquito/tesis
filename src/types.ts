@@ -472,11 +472,20 @@ export interface PieceAudit {
   at: string;
 }
 
+/** Lo que el agente vio en una pieza generada sobre una pieza del Núcleo: ✓ respetada / ✕ no respetada. */
+export interface CoreCheck {
+  id: string;
+  respected: boolean;
+  note: string;
+}
+
 export interface ApplicationSession {
   rounds: GenerationRound[];
   /** Pieza aprobada por tipo. */
   approved: Partial<Record<PieceType, string>>;
   audits: Record<string, PieceAudit>;
+  /** Control de respeto del Núcleo, por pieza generada. */
+  coreChecks?: Record<string, CoreCheck[]>;
   requests: Partial<Record<PieceType, string>>;
   brandText?: string;
 }

@@ -1,5 +1,6 @@
 import { Fragment, Layer, Pattern, Project } from '../types';
 import { isLayer } from './layers';
+import { pieceWeight } from '../pieces/model';
 
 /**
  * Lo que dice cada lámina. La lámina no es decorativa: define cuánto pesa un patrón en el resultado.
@@ -29,7 +30,8 @@ export function layerContents(p: Project, l: Layer): { patterns: Pattern[]; frag
   const liveIds = new Set(live.map(x => x.id));
   const claimed = new Set(live.flatMap(x => x.fragmentIds ?? []));
   return {
-    patterns: live.filter(x => x.layer === l),
+    // El peso define el orden: lo del usuario primero.
+    patterns: live.filter(x => x.layer === l).sort((a, b) => pieceWeight(b) - pieceWeight(a)),
     fragments: (p.fragments ?? []).filter(f => isLayer(f.layer) && f.layer === l && !claimed.has(f.id) && !(f.groupId && liveIds.has(f.groupId))),
   };
 }
