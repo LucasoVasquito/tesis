@@ -120,13 +120,13 @@ export function TopBar(props: TopBarProps) {
   return (
     <header className="no-print flex h-14 shrink-0 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-3 lg:gap-6 lg:px-4">
       {/* Proyecto */}
-      <div className="relative flex min-w-0 shrink-0 items-center gap-3 lg:w-[240px]" ref={wrapRef}>
-        <span className="type-name hidden text-[22px] tracking-[0.02em] text-ink sm:inline">CAMALEON CORPUS</span>
+      <div className="relative flex min-w-0 flex-1 basis-0 items-center gap-3" ref={wrapRef}>
+        <span className="type-name hidden shrink-0 whitespace-nowrap text-[22px] tracking-[0.02em] text-ink sm:inline">CAMALEON CORPUS</span>
         <span aria-hidden="true" className="hidden h-4 w-px bg-line-mid sm:inline-block" />
         <button
           ref={buttonRef}
           type="button"
-          className="btn btn-ghost min-w-0 max-w-[28vw] px-2 text-ink sm:max-w-[200px] lg:max-w-full"
+          className="btn btn-ghost min-w-0 max-w-full px-2 text-ink"
           aria-haspopup="menu"
           aria-expanded={open}
           aria-controls={menuId}
@@ -187,12 +187,12 @@ export function TopBar(props: TopBarProps) {
       </div>
 
       {/* Pantalla: 01 SUBIR · 02 ORDENAR · 03 SISTEMA */}
-      <div className="flex min-w-0 flex-1 justify-center lg:px-6 xl:px-10">
+      <div className="flex shrink-0 justify-center">
         <MomentIndicator current={props.moment} onSelect={props.onSelectMoment} />
       </div>
 
       {/* Ayuda */}
-      <div className="flex shrink-0 items-center lg:w-[240px] lg:justify-end">
+      <div className="flex min-w-0 flex-1 basis-0 items-center justify-end">
         <button type="button" onClick={props.onOpenHelp} className="type-label px-3 py-2 text-[13px] text-ink-2 hover:text-ink">
           ? AYUDA
         </button>
