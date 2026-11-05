@@ -289,7 +289,7 @@ function Workspace({ boot }: { boot: Boot }) {
   /* ========== 01 · SUBIR ========== */
   const [briefBusy, setBriefBusy] = useState(false);
   const [briefError, setBriefError] = useState<string | null>(null);
-  /** La IA redacta el brief a partir de la frase. Queda como borrador editable. */
+  /** El agente redacta el brief a partir de la frase. Queda como borrador editable. */
   const handleSubmitIntent = async (intent: string) => {
     const projectId = projectRef.current.id;
     updateProject(p => ({ ...p, intent, name: p.name.trim() ? p.name : intent, objective: p.objective.trim() ? p.objective : intent }), projectId);
@@ -308,7 +308,7 @@ function Workspace({ boot }: { boot: Boot }) {
       if (!res.ok || !result.success) throw new Error(result.details || result.error || 'No se pudo redactar el brief');
       const d = result.data;
       updateProject(p => ({ ...p, name: p.name.trim() && p.name !== intent ? p.name : d.name || intent, objective: d.objective || p.objective, description: d.brief || p.description, brief: d.brief || p.brief }), projectId);
-      addLog('brief', 'brief', 'Brief redactado por la IA', 'Borrador: el diseñador lo puede editar', { projectId });
+      addLog('brief', 'brief', 'Brief redactado por el agente', 'Borrador: el diseñador lo puede editar', { projectId });
     } catch (err: any) {
       const raw = String(err?.message || err);
       setBriefError(`El brief queda para después: ${friendlyError(err instanceof TypeError ? 'failed to fetch' : raw).replace('No se pudo analizar. ', '')}`);
@@ -380,14 +380,14 @@ function Workspace({ boot }: { boot: Boot }) {
       } catch {
         throw serverError(text, res.status);
       }
-      if (!res.ok || !result.success) throw Object.assign(new Error(result.error || result.details || 'La IA no respondió'), { detail: result.error || result.details });
+      if (!res.ok || !result.success) throw Object.assign(new Error(result.error || result.details || 'El agente no respondió'), { detail: result.error || result.details });
       const detected: any[] = result.data?.patterns ?? [];
       apply(cur => {
         const m = mergeAnalysis(cur, detected);
         return {
           project: { ...m.project, moment: 'ordenar' },
           log: [{ kind: 'induce', targetId: 'referencias', label: `Análisis · ${corpusRefs(cur).length} referencias`, reason: `${m.added} piezas nuevas · ${m.updated} actualizadas` }],
-          message: m.added ? `La IA ubicó ${m.added} piezas como sugerencias. Confirmá, subí o bajá.` : 'Análisis actualizado',
+          message: m.added ? `El agente ubicó ${m.added} piezas como sugerencias. Confirmá, subí o bajá.` : 'Análisis actualizado',
         };
       });
       setAnalysis({ status: 'idle' });
@@ -453,7 +453,7 @@ function Workspace({ boot }: { boot: Boot }) {
   };
 
   /* ---------- Piezas escritas a mano (desde la generación con DALL·E) ---------- */
-  const openNewPattern = () => setPatternEditor({ draft: emptyDraft(), title: 'Nueva pieza', meta: 'La escribís vos · entra como sugerencia en Acento' });
+  const openNewPattern = () => setPatternEditor({ draft: emptyDraft(), title: 'Nueva pieza', meta: 'La escribís vos (USUARIO) · entra como sugerencia en Acento' });
   const openEditPattern = (pattern: Pattern) => setPatternEditor({ patternId: pattern.id, draft: draftFromPattern(pattern), title: `Editar · ${pattern.name}`, meta: 'Texto y referencias' });
   const handleSavePattern = (draft: PatternDraft) => {
     const editor = patternEditor;
@@ -580,7 +580,7 @@ function Workspace({ boot }: { boot: Boot }) {
               <button type="button" className="type-label text-[12px] text-ink-2 hover:text-ink" onClick={() => setGenerateOpen(false)}>
                 ← VOLVER AL SISTEMA · ESC
               </button>
-              <span className="font-mono text-[11px] text-ink-2">el pedido sigue el orden de las hojas</span>
+              <span className="font-mono text-[11px] text-ink-2">el pedido sigue el orden de las capas</span>
             </div>
             <div className="min-h-0 flex-1">
               <SystemApplicationView
@@ -646,7 +646,7 @@ function Workspace({ boot }: { boot: Boot }) {
           const item = makeFeedback({ type: fb.type, comment: fb.comment });
           updateProject(p => ({ ...p, feedback: [...p.feedback, item] }));
           addLog('feedback', 'proyecto', fb.type === 'designer_rule' ? 'Regla del diseñador' : 'Ajuste', fb.comment, { feedbackId: item.id });
-          showToast({ message: 'Regla guardada · la IA la usa en el próximo análisis' });
+          showToast({ message: 'Regla guardada · el agente la usa en el próximo análisis' });
         }}
       />
 

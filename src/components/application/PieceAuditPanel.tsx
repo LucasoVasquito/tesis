@@ -68,7 +68,7 @@ export function PieceAuditPanel({ state, brandText, photo, onAudit, onFix, busy 
           { label: 'texto', state: 'current' },
           { label: 'reglas', state: 'todo' },
         ]}
-        note="La paleta se mide sin IA; el texto y las reglas los revisa Gemini."
+        note="La paleta se mide sin agente; el texto y las reglas los revisa Gemini."
         className="min-h-0"
       />
     );
@@ -174,7 +174,7 @@ export function PieceAuditPanel({ state, brandText, photo, onAudit, onFix, busy 
           Volver a verificar
         </Button>
       </div>
-      <p className="m-0 text-xs text-ink-2">La verificación es una lectura de la IA: vos decidís si la pieza sirve.</p>
+      <p className="m-0 text-xs text-ink-2">La verificación es una lectura del agente: vos decidís si la pieza sirve.</p>
     </section>
   );
 }

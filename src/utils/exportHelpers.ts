@@ -127,7 +127,7 @@ ${rules || '_Sin reglas redactadas._'}
 ${pats || '_Sin patrones asignados._'}
 
 ---
-*Lineamientos generados con Tesis. Cada pilar y regla indica los patrones que lo sostienen; cada color, su referencia o patrón de origen.*
+*Lineamientos generados con Camaleón. Cada pilar y regla indica los patrones que lo sostienen; cada color, su referencia o patrón de origen.*
 `;
 }
 
@@ -141,7 +141,7 @@ export function generateSystemMarkdown(project: Project): string {
   let md = `# ${project.name || 'Proyecto sin nombre'}\n\n`;
   md += `**Objetivo:** ${project.objective}\n\n`;
   if (project.description) md += `**Contexto:** ${project.description}\n\n`;
-  md += `*Dossier generado con Tesis (${new Date().toLocaleDateString('es-AR')})*\n\n---\n\n`;
+  md += `*Dossier generado con Camaleón (${new Date().toLocaleDateString('es-AR')})*\n\n---\n\n`;
 
   md += `## 1. Corpus (${project.references.length} referencias)\n\n`;
   project.references.forEach(r => {

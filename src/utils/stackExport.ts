@@ -51,7 +51,7 @@ export function stackPalette(p: Project, max = 6): StackPaletteColor[] {
 
 const pct = (n?: number) => `${Math.round((n ?? 0) * 100)}%`;
 /** Las sugerencias de la IA que el diseñador todavía no confirmó van marcadas. */
-const unaudited = (x: Pattern) => (x.layerConfirmed ? '' : ' [SUGERENCIA]');
+const unaudited = (x: Pattern) => (x.layerConfirmed ? '' : ' [AGENTE · SUGERENCIA]');
 
 /* ---------- DALL·E ---------- */
 
@@ -97,7 +97,7 @@ export function stackGuidelinesMarkdown(p: Project): string {
   lines.push(`# ${title}`, '');
   if (p.intent && p.intent !== title) lines.push(`> ${p.intent}`, '');
   if (p.brief) lines.push(p.brief, '');
-  lines.push(`Sistema visual en tres hojas. El Núcleo define, el Soporte acompaña y el Acento da carácter. Las piezas marcadas con [SUGERENCIA] las ubicó la IA y el diseñador todavía no las confirmó.`, '');
+  lines.push(`Sistema visual en tres capas. El Núcleo define, el Soporte acompaña y el Acento da carácter. Las piezas marcadas con [AGENTE · SUGERENCIA] las ubicó el agente y el diseñador todavía no las confirmó.`, '');
 
   const core = layerContents(p, 1);
   lines.push(`## 01 · Núcleo`, '');
@@ -135,7 +135,7 @@ export function stackGuidelinesMarkdown(p: Project): string {
 
   const out = p.patterns.filter(x => x.status === 'discarded' && !x.isGroup);
   if (out.length) lines.push(`## Fuera del sistema`, '', ...out.map(x => `- ${x.name}`), '');
-  lines.push(`---`, `*Generado con Tesis · ${new Date().toLocaleDateString('es-AR')}*`);
+  lines.push(`---`, `*Generado con Camaleón · ${new Date().toLocaleDateString('es-AR')}*`);
   return lines.join('\n');
 }
 

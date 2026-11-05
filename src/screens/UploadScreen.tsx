@@ -31,7 +31,7 @@ interface UploadScreenProps {
 
 /**
  * 01 · SUBIR. Una frase de intención y las referencias, en una grilla plana y legible.
- * El botón principal es ANALIZAR: la IA arma las piezas y las ubica en las hojas.
+ * El botón principal es ANALIZAR: el agente arma las piezas y las ubica en las hojas.
  */
 export function UploadScreen(props: UploadScreenProps) {
   const { project, analysis } = props;
@@ -87,7 +87,7 @@ export function UploadScreen(props: UploadScreenProps) {
 
   let status = '';
   if (analysis.status === 'preparing') status = `Preparando ${analysis.done} de ${analysis.total} referencias…`;
-  if (analysis.status === 'reading') status = `La IA está leyendo las ${analysis.total} referencias… (suele tardar 1 o 2 minutos)`;
+  if (analysis.status === 'reading') status = `El agente está leyendo las ${analysis.total} referencias… (suele tardar 1 o 2 minutos)`;
 
   return (
     <div
@@ -134,7 +134,7 @@ export function UploadScreen(props: UploadScreenProps) {
               />
               <span aria-hidden="true" className="h-[48px] w-[14px] shrink-0 bg-core" />
             </div>
-            <span className="text-[15px] text-ink-2">Una frase alcanza. La IA redacta el brief y lo podés editar después.</span>
+            <span className="text-[15px] text-ink-2">Una frase alcanza. El agente redacta el brief y lo podés editar después.</span>
             <div className="flex items-center gap-3">
               <button type="submit" disabled={!intent.trim()} className="type-label h-[44px] bg-core px-5 text-[15px] text-void hover:bg-bone disabled:bg-raised disabled:text-ink-3">
                 CONTINUAR <kbd className="font-mono text-[12px] opacity-70">[⏎]</kbd>
@@ -149,7 +149,7 @@ export function UploadScreen(props: UploadScreenProps) {
             </button>
             <div className="flex items-center gap-4">
               <button type="button" onClick={() => setBriefOpen(true)} className="type-label text-[12px] text-ink-2 underline decoration-line-strong underline-offset-4 hover:text-ink">
-                {props.briefBusy ? 'LA IA REDACTA EL BRIEF…' : 'VER BRIEF'}
+                {props.briefBusy ? 'EL AGENTE REDACTA EL BRIEF…' : 'VER BRIEF'}
               </button>
               {props.briefError && <span className="text-[13px] text-error-ink">{props.briefError}</span>}
             </div>

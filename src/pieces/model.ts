@@ -26,7 +26,7 @@ export interface ActionResult {
 export const MIN_REFS = 6;
 
 export const SHEET_NAME: Record<Layer, string> = { 1: 'Núcleo', 2: 'Soporte', 3: 'Acento' };
-export const sheetLabel = (l: Layer) => `${layerInfo(l).num} ${SHEET_NAME[l].toUpperCase()}`;
+export const sheetLabel = (l: Layer) => `CAPA ${l} · ${SHEET_NAME[l].toUpperCase()}`;
 
 /* ---------- Lectura ---------- */
 
@@ -91,7 +91,7 @@ export const confirmSheet = (p: Project, l: Layer) => confirm(p, piecesIn(p, l).
 export function place(p: Project, id: string, l: Layer): ActionResult {
   const x = find(p, id);
   if (!x) return { project: p, log: [] };
-  const from = isLayer(x.layer) ? SHEET_NAME[x.layer] : 'sin hoja';
+  const from = isLayer(x.layer) ? SHEET_NAME[x.layer] : 'sin capa';
   return {
     project: touch(p, id, y => ({ ...y, layer: l, layerConfirmed: true, status: 'confirmed' })),
     log: [{ kind: 'layer', targetId: id, label: `${x.name} → ${SHEET_NAME[l]}`, reason: x.layer === l ? undefined : `Estaba en ${from}` }],
@@ -172,7 +172,7 @@ export interface SplitPart {
   cover?: { refId: string; crop?: CropBox };
 }
 
-/** Separar: la pieza se reemplaza por las partes que propuso la IA (en la misma hoja, como sugerencias). */
+/** Separar: la pieza se reemplaza por las partes que propuso la IA (en la misma capa, como sugerencias). */
 export function applySplit(p: Project, id: string, parts: SplitPart[]): ActionResult {
   const x = find(p, id);
   if (!x || parts.length < 2) return { project: p, log: [] };
@@ -291,7 +291,7 @@ export function mergeAnalysis(p: Project, detected: any[]): { project: Project; 
   return { project, added, updated: updates.size };
 }
 
-/* ---------- La IA notó ---------- */
+/* ---------- El agente notó ---------- */
 
 export interface Notice {
   key: string;
@@ -304,7 +304,7 @@ export interface Notice {
 /**
  * Avisos de la IA (de a uno). Nunca bloquean: son información.
  * - Una pieza que el diseñador ubicó en contra de la evidencia.
- * - Una pieza repetida que quedó sin hoja.
+ * - Una pieza repetida que quedó sin capa.
  */
 export function notices(p: Project, selectedId: string | null): Notice[] {
   const ranks = rankLayers(p);
@@ -330,7 +330,7 @@ export function notices(p: Project, selectedId: string | null): Notice[] {
   for (const x of unplacedPieces(p).sort((a, b) => evidenceCount(b, p) - evidenceCount(a, p))) {
     const n = evidenceCount(x, p);
     if (n < 2) continue;
-    out.push({ key: `u:${x.id}`, pieceId: x.id, text: `«${x.name}» se repite en ${n} referencias y no tiene hoja.`, action: { label: 'UBICAR', layer: proposedLayer(x, p, ranks) } });
+    out.push({ key: `u:${x.id}`, pieceId: x.id, text: `«${x.name}» se repite en ${n} referencias y no tiene capa.`, action: { label: 'UBICAR', layer: proposedLayer(x, p, ranks) } });
   }
   for (const x of live) {
     if (x.id === sel?.id) continue;

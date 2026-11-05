@@ -2,15 +2,15 @@ import React from 'react';
 import { FullView } from './shell/FullView';
 
 const STEPS: [string, string, string][] = [
-  ['01', 'Subir', 'Una frase de intención y las referencias. La IA redacta el brief y, al analizar, arma las piezas del sistema y las ubica en tres hojas: Núcleo, Soporte y Acento.'],
-  ['02', 'Ordenar', 'La IA propone primero y el diseñador corrige: confirma, sube, baja o saca cada pieza. Al elegir una, se iluminan las referencias de donde sale. La IA solo avisa: nunca decide.'],
-  ['03', 'Sistema', 'Las tres hojas, de frente, como una página: el Núcleo titula, el Soporte desarrolla y el Acento anota. La hoja pondera los lineamientos, la paleta y el pedido a DALL·E.'],
+  ['01', 'Moodboard', 'Una frase de intención y las referencias. El agente redacta el brief y, al analizar, arma las piezas del sistema y las ubica en tres capas: Núcleo, Soporte y Acento.'],
+  ['02', 'Ordenar', 'El agente propone primero y el diseñador corrige: confirma, sube, baja o saca cada pieza. Al elegir una, se iluminan las referencias de donde sale. El agente solo avisa: nunca decide.'],
+  ['03', 'Sistema', 'Las tres capas, de frente, como una página: el Núcleo titula, el Soporte desarrolla y el Acento anota. La capa pondera los lineamientos, la paleta y el pedido a DALL·E.'],
 ];
 
 /** Marco conceptual de la tesis (antes ThesisConceptModal). */
 export function AboutView({ onBack }: { onBack: () => void }) {
   return (
-    <FullView title="Acerca del método" meta="Diseño Multimedial · UNLP · Interacción humano–IA" onBack={onBack}>
+    <FullView title="Acerca del método" meta="Diseño Multimedial · UNLP · Interacción humano–agente" onBack={onBack}>
       <article className="mx-auto flex max-w-[640px] flex-col gap-12 px-4 py-12 lg:py-[72px]">
         <header className="flex flex-col gap-4">
           <span className="font-mono text-xs text-ink-2">Marco conceptual</span>
@@ -20,18 +20,18 @@ export function AboutView({ onBack }: { onBack: () => void }) {
             recursos, relaciones cromáticas, estructuras compositivas y gestos tipográficos.
           </p>
           <p className="m-0 font-serif text-lg leading-normal text-ink-2">
-            Esos patrones existen dentro del conjunto de referencias sin haber sido formulados. Tesis busca hacerlos <em>visibles</em> y{' '}
+            Esos patrones existen dentro del conjunto de referencias sin haber sido formulados. Camaleón busca hacerlos <em>visibles</em> y{' '}
             <em>auditables</em> durante el proceso creativo.
           </p>
         </header>
 
         <section aria-labelledby="stance" className="flex flex-col gap-4">
           <h3 id="stance" className="m-0 text-2xl font-medium tracking-[-0.01em] text-ink">
-            Postura frente a la IA
+            Postura frente al agente
           </h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-5">
-              <span className="font-mono text-xs text-discarded-ink">La IA no</span>
+              <span className="font-mono text-xs text-discarded-ink">El agente no</span>
               <ul className="m-0 flex list-disc flex-col gap-1 pl-[18px] text-13 text-ink">
                 <li>reemplaza el criterio del diseñador;</li>
                 <li>decide cuál es la identidad “correcta”;</li>
@@ -70,7 +70,7 @@ export function AboutView({ onBack }: { onBack: () => void }) {
           </h3>
           <p className="m-0 font-serif text-lg leading-normal text-ink-2">
             La inducción no asume que todas las imágenes pertenecen al mismo sistema. En un mismo corpus pueden emerger a la vez, por ejemplo, una línea
-            editorial oscura y una urbana disruptiva. Las propuestas de la IA quedan como sugerencias: un sistema existe solo cuando el diseñador lo arma o lo adopta.
+            editorial oscura y una urbana disruptiva. Las propuestas del agente quedan como sugerencias: un sistema existe solo cuando el diseñador lo arma o lo adopta.
           </p>
         </section>
       </article>

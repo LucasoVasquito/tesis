@@ -69,11 +69,11 @@ export function BigButton({ k, label, onClick, disabled, hint }: { k?: string; l
   );
 }
 
-/** Franja "La IA notó": una sola línea, con acción opcional, que se puede cerrar. Nunca bloquea. */
+/** Franja "El agente notó": una sola línea, con acción opcional, que se puede cerrar. Nunca bloquea. */
 export function NoticeStrip({ notice, onAction, onDismiss }: { notice: Notice; onAction?: () => void; onDismiss: () => void }) {
   return (
     <div className="no-print flex min-h-[40px] shrink-0 items-center gap-3 border-t-2 border-accent bg-void px-5" role="status" aria-live="polite">
-      <span className="layer-tag layer-3 shrink-0">LA IA NOTÓ</span>
+      <span className="layer-tag layer-3 shrink-0">EL AGENTE NOTÓ</span>
       <span className="min-w-0 flex-1 truncate text-[14px]">{notice.text}</span>
       {notice.action && onAction && <KeyButton label={notice.action.label} tone="accent" onClick={onAction} />}
       <button type="button" aria-label="Cerrar aviso" onClick={onDismiss} className="type-label px-2 text-[14px] text-ink-2 hover:text-ink">
@@ -92,7 +92,7 @@ export function Toast({ text }: { text: string }) {
   );
 }
 
-/** Brief redactado por la IA: el diseñador lo edita. Se guarda al cerrar. */
+/** Brief redactado por el agente: el diseñador lo edita. Se guarda al cerrar. */
 export function BriefPanel({ brief, onSave, onClose }: { brief: string; onSave: (text: string) => void; onClose: () => void }) {
   const [value, setValue] = useState(brief);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -105,7 +105,7 @@ export function BriefPanel({ brief, onSave, onClose }: { brief: string; onSave: 
     <div className="absolute left-10 top-6 z-40 flex w-[min(520px,calc(100%-40px))] flex-col gap-3 border-2 border-bone bg-void p-4" role="dialog" aria-label="Brief">
       <div className="flex items-center justify-between">
         <span className="layer-tag">BRIEF</span>
-        <span className="font-mono text-[11px] text-ink-2">lo redactó la IA · editalo</span>
+        <span className="font-mono text-[11px] text-ink-2">lo redactó el agente · editalo</span>
       </div>
       <textarea
         ref={ref}

@@ -23,7 +23,7 @@ interface SystemScreenProps {
 
 /** Rótulo de sugerencia sobre la página: la pieza todavía no está confirmada. */
 const SugTag = ({ dark }: { dark?: boolean }) => (
-  <span className={`type-label border border-dashed px-1 text-[9px] ${dark ? 'border-void/60 text-void' : 'border-void/50 text-void/70'}`}>SUGERENCIA</span>
+  <span className={`type-label border border-dashed px-1 text-[9px] ${dark ? 'border-void/60 text-void' : 'border-void/50 text-void/70'}`}>AGENTE · SUGERENCIA</span>
 );
 
 /**

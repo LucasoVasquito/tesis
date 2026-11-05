@@ -12,8 +12,8 @@ export const guideDone = () => {
 };
 
 const STEPS: { text: string; where: string }[] = [
-  { text: 'Estas son tus hojas: adelante va lo más importante.', where: 'left-[230px] top-[120px]' },
-  { text: 'La IA ya ubicó las piezas. Confirmá, subí o bajá.', where: 'left-1/2 top-[45%] -translate-x-1/2' },
+  { text: 'Estas son tus capas: adelante va lo más importante.', where: 'left-[230px] top-[120px]' },
+  { text: 'El agente ya ubicó las piezas. Confirmá, subí o bajá.', where: 'left-1/2 top-[45%] -translate-x-1/2' },
   { text: 'Cuando estés listo, mirá tu sistema.', where: 'bottom-[90px] right-6' },
 ];
 

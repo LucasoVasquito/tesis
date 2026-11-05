@@ -1865,7 +1865,7 @@ async function setupVite() {
   });
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Tesis] Server running on http://0.0.0.0:${PORT}`);
+    console.log(`[Camaleón] Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

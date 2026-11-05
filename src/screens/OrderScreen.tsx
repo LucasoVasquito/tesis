@@ -56,7 +56,7 @@ function sheetStyle(d: number): React.CSSProperties {
 }
 
 /**
- * 02 · ORDENAR. La IA ya ubicó las piezas en las hojas como sugerencias (borde punteado).
+ * 02 · ORDENAR. El agente ya ubicó las piezas en las hojas como sugerencias (borde punteado).
  * El diseñador confirma, sube, baja o saca. Todo tiene un botón; el teclado acelera.
  */
 export function OrderScreen(props: OrderScreenProps) {
@@ -154,7 +154,7 @@ export function OrderScreen(props: OrderScreenProps) {
         { keys: 'ESPACIO', label: 'Ver sistema' },
       ]
     : [
-        { keys: 'W S', label: 'Cambiar de hoja' },
+        { keys: 'W S', label: 'Cambiar de capa' },
         { keys: '←→', label: 'Elegir pieza' },
         { keys: 'ESPACIO', label: 'Ver sistema' },
       ];
@@ -164,7 +164,7 @@ export function OrderScreen(props: OrderScreenProps) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-5 p-10 text-center">
         <span className="type-name text-[40px]">TODAVÍA NO HAY PIEZAS</span>
-        <span className="max-w-[480px] text-[16px] text-ink-2">Subí tus referencias y apretá ANALIZAR: la IA arma las piezas y las ubica en las tres hojas. Después las ordenás acá.</span>
+        <span className="max-w-[480px] text-[16px] text-ink-2">Subí tus referencias y apretá ANALIZAR: el agente arma las piezas y las ubica en las tres capas. Después las ordenás acá.</span>
         <BigButton label="IR A SUBIR" onClick={props.onGoUpload} />
       </div>
     );
@@ -174,7 +174,7 @@ export function OrderScreen(props: OrderScreenProps) {
     <div className="flex h-full flex-col">
       <div className="flex min-h-0 flex-1">
         {/* Pestañas de hojas */}
-        <nav aria-label="Hojas" className="flex w-[210px] shrink-0 flex-col gap-2 px-4 pt-6">
+        <nav aria-label="Capas" className="flex w-[210px] shrink-0 flex-col gap-2 px-4 pt-6">
           {([1, 2, 3] as Layer[]).map(l => {
             const on = tab === l;
             const n = piecesIn(project, l).length;
@@ -231,7 +231,7 @@ export function OrderScreen(props: OrderScreenProps) {
                 <section
                   key={l}
                   aria-hidden={d !== 0}
-                  aria-label={d === 0 ? `Hoja ${sheetLabel(l)}` : undefined}
+                  aria-label={d === 0 ? sheetLabel(l) : undefined}
                   className={`${info.className} absolute bottom-6 left-0 right-[80px] top-[54px] flex flex-col bg-void`}
                   style={{
                     ...sheetStyle(d),
@@ -251,7 +251,7 @@ export function OrderScreen(props: OrderScreenProps) {
                           setSelected([selected[0]]);
                         }} />}
                         {suggestions > 0 && (
-                          <KeyButton label={`Confirmar las ${suggestions} sugerencias de esta hoja`} tone="core" onClick={() => apply(p => confirmSheet(p, l))} />
+                          <KeyButton label={`Confirmar las ${suggestions} sugerencias de esta capa`} tone="core" onClick={() => apply(p => confirmSheet(p, l))} />
                         )}
                       </div>
                     )}
@@ -486,7 +486,7 @@ function PieceCard(props: PieceCardProps) {
         ) : (
           <span className="type-name line-clamp-2 text-[22px] leading-[0.95]">{piece.name}</span>
         )}
-        {suggestion && <span className="type-label shrink-0 border border-dashed border-ink-3 px-1 text-[10px] text-ink-2">SUGERENCIA</span>}
+        {suggestion && <span className="type-label shrink-0 border border-dashed border-ink-3 px-1 text-[10px] text-ink-2">AGENTE · SUGERENCIA</span>}
       </div>
       <span className="font-mono text-[12px] text-ink-2">{evidenceText(piece, project)}</span>
 
@@ -503,7 +503,7 @@ function PieceCard(props: PieceCardProps) {
           {(
             [
               ['merge', 'Unir con…'],
-              ['split', 'Separar (la IA propone)'],
+              ['split', 'Separar (el agente propone)'],
               ['rename', 'Renombrar'],
               ['crop', 'Recortar de nuevo'],
             ] as [MenuAction, string][]

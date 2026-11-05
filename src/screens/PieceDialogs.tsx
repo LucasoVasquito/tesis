@@ -50,7 +50,7 @@ export function MergeDialog({ project, pieceId, onMerge, onClose }: { project: P
             <PieceImage piece={x} project={project} className="aspect-[4/3] w-full" />
             <span className="type-name text-[17px] leading-[0.95]">{x.name}</span>
             <span className="font-mono text-[11px] text-ink-2">
-              {x.layer ? SHEET_NAME[x.layer] : 'sin hoja'} · {evidenceText(x, project)}
+              {x.layer ? SHEET_NAME[x.layer] : 'sin capa'} · {evidenceText(x, project)}
             </span>
           </button>
         ))}
@@ -162,13 +162,13 @@ export function SplitDialog({
     <Dialog title={`Separar «${piece.name}»`} onClose={onClose}>
       {parts === null && (
         <div className="flex items-center gap-3 text-[15px]">
-          <span className="spinner text-core" /> La IA está mirando las {piece.evidence.length} referencias de esta pieza…
+          <span className="spinner text-core" /> El agente está mirando las {piece.evidence.length} referencias de esta pieza…
         </div>
       )}
-      {error && <span className="text-[15px]">No se pudo separar. Revisá la conexión con la IA. ({error})</span>}
+      {error && <span className="text-[15px]">No se pudo separar. Revisá la conexión con el agente. ({error})</span>}
       {parts && parts.length > 0 && (
         <>
-          <span className="text-[14px] text-ink-2">La IA propone separarla así. Las partes quedan en la misma hoja, como sugerencias.</span>
+          <span className="text-[14px] text-ink-2">El agente propone separarla así. Las partes quedan en la misma capa, como sugerencias.</span>
           <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${parts.length}, minmax(0, 1fr))` }}>
             {parts.map((part, i) => (
               <div key={i} className="flex flex-col gap-2 border-2 border-dashed border-bone/60 p-2">

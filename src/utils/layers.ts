@@ -17,8 +17,8 @@ export const LAYERS: LayerInfo[] = [
 ];
 
 export const layerInfo = (l: Layer) => LAYERS[l - 1];
-/** "01 NÚCLEO" */
-export const layerTag = (l: Layer) => `${layerInfo(l).num} ${layerInfo(l).name.toUpperCase()}`;
+/** "CAPA 1 · NÚCLEO" */
+export const layerTag = (l: Layer) => `CAPA ${l} · ${layerInfo(l).name.toUpperCase()}`;
 export const isLayer = (v: unknown): v is Layer => v === 1 || v === 2 || v === 3;
 
 /** Referencias que forman el corpus (sin las partes recortadas de versiones anteriores). */

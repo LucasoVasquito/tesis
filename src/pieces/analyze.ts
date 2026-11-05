@@ -55,10 +55,10 @@ export async function buildAnalysisBody(p: Project, onProgress: (done: number, t
 /** Mensaje simple para un error de análisis; el detalle técnico va aparte. */
 export function friendlyError(raw: string): string {
   const m = raw.toLowerCase();
-  if (m.includes('gemini_api_key')) return 'Falta la clave de la IA (GEMINI_API_KEY) en el archivo .env del servidor.';
+  if (m.includes('gemini_api_key')) return 'Falta la clave del agente (GEMINI_API_KEY) en el archivo .env del servidor.';
   if (m.includes('failed to fetch') || m.includes('networkerror') || m.includes('npm run server')) return 'No se pudo conectar con el servidor. ¿Está abierto iniciar.bat?';
-  if (m.includes('quota') || m.includes('429')) return 'La IA está saturada o se acabó la cuota. Probá de nuevo en un rato.';
-  return 'No se pudo analizar. Revisá la conexión con la IA.';
+  if (m.includes('quota') || m.includes('429')) return 'El agente está saturado o se acabó la cuota. Probá de nuevo en un rato.';
+  return 'No se pudo analizar. Revisá la conexión con el agente.';
 }
 
 /** Pide a la IA cómo separar una pieza (solo propone). */
@@ -87,6 +87,6 @@ export async function requestSplit(p: Project, piece: Pattern): Promise<SplitPar
       cover: coverFrom(d, known),
     }))
     .filter((x: SplitPart) => x.evidence.length);
-  if (parts.length < 2) throw new Error('La IA no encontró una división clara para esta pieza.');
+  if (parts.length < 2) throw new Error('El agente no encontró una división clara para esta pieza.');
   return parts as SplitPart[];
 }
