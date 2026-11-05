@@ -27,7 +27,7 @@ Una escena con tres capas apiladas y, a la derecha, el panel de referencias.
 | **Capa 2 · Soporte** | lo que lo acompaña |
 | **Capa 3 · Acento** | detalles que aparecen poco y dan carácter |
 
-- **La capa activa** está de frente y es la única con interacción. Las otras dos asoman detrás, desplazadas y difuminadas, con su rótulo siempre nítido. A la derecha, las marcas 1 · 2 · 3 indican en qué capa estás. Se cambia con la rueda, **W / S**, un clic en el borde o el rótulo de una capa que asoma, o las marcas.
+- **La capa activa** está de frente y es la única con interacción. Las otras dos asoman detrás, desplazadas y difuminadas, con su rótulo siempre nítido. A la derecha, las marcas 1 · 2 · 3 indican en qué capa estás. Se cambia con **W / S**, un clic en el borde o el rótulo de una capa que asoma, o las marcas.
 - **El panel de referencias** recibe todo lo nuevo (arrastrar, ⌘V, *+ Imágenes* o *Por URL*). Una referencia se ubica arrastrándola a la capa activa, soltándola sobre otra capa, o con **1 / 2 / 3**. Para devolverla al panel: arrastrarla de vuelta o **X**. Lo que ubica el usuario lleva borde lleno y la etiqueta **USUARIO**; dentro de su capa se mueve y se agranda libremente.
 - **ANALIZAR REFERENCIAS [⏎]:** el agente analiza todas las referencias, extrae las piezas, las agrupa en patrones y ubica en capas lo que quedó en el panel. Nunca mueve lo que ubicó el usuario. Lo suyo lleva borde fino punteado y la etiqueta **AGENTE · SUGERENCIA**: el usuario lo confirma (⏎), lo mueve (↑ ↓) o lo saca (X).
 - **El agente notó:** una franja, de a un aviso, cuando algo contradice la evidencia (por ejemplo, ubicaste una pieza en Acento pero aparece en 18 de 39 referencias). Nunca bloquea.
@@ -68,7 +68,7 @@ El pedido sigue siempre este orden: tipo de pieza y formato → Núcleo (obligat
 
 | Tecla | Acción |
 |---|---|
-| Rueda · W / S | cambiar de capa |
+| W / S | cambiar de capa |
 | 1 / 2 / 3 | mandar a una capa lo elegido |
 | ← / → | elegir elemento |
 | ⏎ | confirmar sugerencia / analizar |

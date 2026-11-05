@@ -546,35 +546,30 @@ export function reorderPiece(p: Project, id: string, beforeId: string | null): A
   };
 }
 
-/** Desglosar una referencia: las partes que propone el agente pasan a ser piezas del usuario en su misma capa. */
-export function addPiecesFromRef(p: Project, refId: string, parts: SplitPart[]): ActionResult {
+/**
+ * Desglosar una referencia: cada parte (por ejemplo, solo el rostro de un personaje) pasa a ser una referencia suelta,
+ * en la misma capa y junto a la original, para que el usuario las junte como quiera y arme sus propios grupos y patrones.
+ */
+export function addRefParts(p: Project, refId: string, parts: { id: string; name: string; image: string; aspectRatio?: number }[]): ActionResult {
   const r = findRef(p, refId);
   if (!r || !isLayer(r.layer) || !parts.length) return { project: p, log: [] };
-  const used = new Set(p.patterns.map(y => y.id));
-  const fresh: Pattern[] = parts.map((part, i) => {
-    let id = `pat_d_${refId}_${i + 1}`;
-    for (let k = 1; used.has(id); k++) id = `pat_d_${refId}_${i + 1}_${k}`;
-    used.add(id);
-    return {
-      id,
-      name: part.name,
-      category: 'composition',
-      description: part.description ?? '',
-      evidence: [...new Set([refId, ...part.evidence])],
-      confidence: 1,
-      status: 'confirmed',
-      relatedObservations: [],
-      origin: 'user',
-      layer: r.layer as Layer,
-      confirmed: true,
-      audited: true,
-      revealed: false,
-      cover: part.cover ?? { refId },
-    };
-  });
+  const base = r.position ?? { x: 0.05, y: 0.1, w: 0.16, h: 0.24 };
+  const w = Math.min(0.16, base.w);
+  const h = Math.min(0.24, base.h);
+  const fresh: Reference[] = parts.map((part, i) => ({
+    id: part.id,
+    name: part.name,
+    image: part.image,
+    aspectRatio: part.aspectRatio,
+    createdAt: new Date().toISOString(),
+    layer: r.layer,
+    origin: 'user',
+    confirmed: true,
+    position: { x: Math.min(1 - w, Math.max(0, base.x + base.w + 0.02 + i * (w + 0.01))), y: Math.min(1 - h, base.y), w, h },
+  }));
   return {
-    project: { ...p, patterns: [...p.patterns, ...fresh] },
-    log: [{ kind: 'pattern_add', targetId: refId, label: `Desglose de ${r.name}`, reason: fresh.map(x => x.name).join(' · ') }],
-    message: `${r.name} desglosada en ${fresh.length} piezas`,
+    project: { ...p, references: [...p.references, ...fresh] },
+    log: [{ kind: 'layer', targetId: refId, label: `Desglose de ${r.name}`, reason: fresh.map(x => x.name).join(' · ') }],
+    message: `${r.name} desglosada en ${fresh.length} recortes: juntalos con ⇧ + clic y G`,
   };
 }

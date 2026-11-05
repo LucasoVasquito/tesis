@@ -12,7 +12,7 @@ export const guideDone = () => {
 };
 
 const STEPS: { text: string; where: string }[] = [
-  { text: 'Tres capas: la de adelante es la activa. Rueda o W / S para cambiar.', where: 'left-[40px] top-[180px]' },
+  { text: 'Tres capas: la de adelante es la activa. W / S o un clic en 1 · 2 · 3 para cambiar.', where: 'left-[40px] top-[180px]' },
   { text: 'Arrastrá referencias del panel a una capa. Lo que ubicás vos pesa más.', where: 'right-[340px] top-[200px]' },
   { text: 'Analizá: el agente ubica el resto como sugerencia. Después, mirá tu sistema.', where: 'bottom-[110px] right-6' },
 ];

@@ -32,7 +32,7 @@ import {
   refsIn,
   rename,
   reorderPiece,
-  addPiecesFromRef,
+  addRefParts,
   renameGroup,
   restore,
   returnRef,
@@ -44,6 +44,8 @@ import {
 } from '../pieces/model';
 import { BigButton, BriefPanel, KeyButton, NoticeStrip, PieceImage, Toast } from './common';
 import { CropDialog, MergeDialog, SplitDialog } from './PieceDialogs';
+import { cropImage } from '../utils/parts';
+import { nextReferenceIds } from '../utils/project';
 
 export type AnalysisState =
   | { status: 'idle' }
@@ -118,22 +120,6 @@ function dropTargetAt(x: number, y: number): DropTarget {
 
 const REF_MIME = 'text/camaleon-ref';
 
-/** Cualquier ancestro (hasta la escena) que pueda desplazarse en esa dirección: la rueda lo usa en vez de cambiar de capa. */
-function canScroll(target: EventTarget | null, dy: number, stop: HTMLElement | null): boolean {
-  let el = target as HTMLElement | null;
-  while (el && el !== stop) {
-    if (el.scrollHeight > el.clientHeight + 1) {
-      const overflow = getComputedStyle(el).overflowY;
-      if (overflow === 'auto' || overflow === 'scroll') {
-        if (dy > 0 && el.scrollTop + el.clientHeight < el.scrollHeight - 1) return true;
-        if (dy < 0 && el.scrollTop > 0) return true;
-      }
-    }
-    el = el.parentElement;
-  }
-  return false;
-}
-
 /* ---------- Etiquetas de origen ---------- */
 
 function OriginTag({ origin, confirmed }: { origin?: 'agent' | 'user'; confirmed?: boolean }) {
@@ -168,7 +154,6 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
   /** Pieza que se está arrastrando para cambiar su prioridad y dónde caería. */
   const [pieceDrag, setPieceDrag] = useState<string | null>(null);
   const [pieceDrop, setPieceDrop] = useState<{ id: string; side: 'left' | 'right' } | null>(null);
-  const wheel = useRef({ acc: 0, lock: 0 });
   const sceneRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -350,19 +335,6 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
     return () => window.removeEventListener('paste', onPaste);
   }, [props.enabled, props.onAddFiles]);
 
-  const onWheel = (e: React.WheelEvent) => {
-    if (canScroll(e.target, e.deltaY, sceneRef.current)) return;
-    const w = wheel.current;
-    const now = Date.now();
-    if (now < w.lock) return;
-    w.acc += e.deltaY;
-    if (Math.abs(w.acc) > 80) {
-      stepLayer(w.acc > 0 ? 1 : -1);
-      w.acc = 0;
-      w.lock = now + 450;
-    }
-  };
-
   /* ---------- Arrastre: del panel a una capa ---------- */
   const draggedRef = (e: React.DragEvent) => e.dataTransfer.getData(REF_MIME) || null;
   const hasRefDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes(REF_MIME);
@@ -429,7 +401,7 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
           { keys: 'ESPACIO', label: 'Ver sistema' },
         ]
       : [
-          { keys: 'RUEDA · W S', label: 'Cambiar de capa' },
+          { keys: 'W S', label: 'Cambiar de capa' },
           { keys: '←→', label: 'Elegir' },
           { keys: '⏎', label: 'Analizar' },
           { keys: 'ESPACIO', label: 'Ver sistema' },
@@ -448,8 +420,17 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
     setSplittingRef(r.id);
     try {
       const stand: Pattern = { id: r.id, name: r.name, category: 'composition', description: '', evidence: [r.id], confidence: 1, status: 'detected', relatedObservations: [] };
-      const parts = await props.split(stand);
-      apply(p => addPiecesFromRef(p, r.id, parts));
+      const parts = (await props.split(stand)).filter(x => x.cover?.refId === r.id && x.cover.crop);
+      if (!parts.length) throw new Error('El agente no encontró partes recortables en esta referencia.');
+      const crops = await cropImage(r.image, parts.map(x => x.cover!.crop!), 720);
+      const ids = nextReferenceIds(project.references, crops.length);
+      apply(p =>
+        addRefParts(
+          p,
+          r.id,
+          crops.map((c, i) => ({ id: ids[i], name: parts[i].name, image: c.image, aspectRatio: c.aspectRatio })),
+        ),
+      );
     } catch (err: any) {
       apply(p => ({ project: p, log: [], message: err?.message || 'No se pudo desglosar la referencia' }));
     } finally {
@@ -710,7 +691,7 @@ export function MoodboardScreen(props: MoodboardScreenProps) {
 
       <div className="flex min-h-0 flex-1">
         {/* Escena */}
-        <div ref={sceneRef} className="relative min-h-[420px] min-w-0 flex-1 overflow-hidden" onWheel={onWheel} aria-label="Capas">
+        <div ref={sceneRef} className="relative min-h-[420px] min-w-0 flex-1 overflow-hidden" aria-label="Capas">
           {([1, 2, 3] as Layer[]).map(l => {
             const info = layerInfo(l);
             const slot = slotOf(l, layer);
