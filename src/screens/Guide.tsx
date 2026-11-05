@@ -12,9 +12,9 @@ export const guideDone = () => {
 };
 
 const STEPS: { text: string; where: string }[] = [
-  { text: 'Estas son tus capas: adelante va lo más importante.', where: 'left-[230px] top-[120px]' },
-  { text: 'El agente ya ubicó las piezas. Confirmá, subí o bajá.', where: 'left-1/2 top-[45%] -translate-x-1/2' },
-  { text: 'Cuando estés listo, mirá tu sistema.', where: 'bottom-[90px] right-6' },
+  { text: 'Tres capas: la de adelante es la activa. Rueda o W / S para cambiar.', where: 'left-[40px] top-[180px]' },
+  { text: 'Arrastrá referencias del panel a una capa. Lo que ubicás vos pesa más.', where: 'right-[340px] top-[200px]' },
+  { text: 'Analizá: el agente ubica el resto como sugerencia. Después, mirá tu sistema.', where: 'bottom-[110px] right-6' },
 ];
 
 /** Guía de 3 carteles: solo la primera vez (o desde AYUDA), salteable. */

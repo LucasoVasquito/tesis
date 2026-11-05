@@ -166,8 +166,8 @@ export interface Pattern {
 export type Layer = 1 | 2 | 3;
 
 /** Los tres momentos del flujo (reemplazan a las 5 etapas). */
-/** Las tres pantallas: 01 SUBIR · 02 ORDENAR · 03 SISTEMA. */
-export type Moment = 'subir' | 'ordenar' | 'sistema';
+/** Las tres pantallas: 01 MOODBOARD · 02 SISTEMA · 03 PROBAR. */
+export type Moment = 'moodboard' | 'sistema' | 'probar';
 
 /** Costado: láminas separadas en profundidad. Frente: la Síntesis, como página editorial. */
 export type StackView = 'side' | 'front';
@@ -405,7 +405,7 @@ export interface Project {
   fragments?: Fragment[];
   /** Costado (ordenar) o frente (Síntesis). */
   view?: StackView;
-  /** Pantalla en la que quedó (01 SUBIR · 02 ORDENAR · 03 SISTEMA). */
+  /** Pantalla en la que quedó (01 MOODBOARD · 02 SISTEMA · 03 PROBAR). */
   moment?: Moment;
   /** Patrones armados dentro de las capas (con G, por el usuario, o por el agente). */
   patternGroups?: PatternGroup[];

@@ -23,12 +23,12 @@ interface TopBarProps {
 }
 
 const MOMENTS: { id: Moment; num: string; label: string }[] = [
-  { id: 'subir', num: '01', label: 'SUBIR' },
-  { id: 'ordenar', num: '02', label: 'ORDENAR' },
-  { id: 'sistema', num: '03', label: 'SISTEMA' },
+  { id: 'moodboard', num: '01', label: 'MOODBOARD' },
+  { id: 'sistema', num: '02', label: 'SISTEMA' },
+  { id: 'probar', num: '03', label: 'PROBAR' },
 ];
 
-/** Indicador de pantalla: 01 SUBIR · 02 ORDENAR · 03 SISTEMA. Se puede ir y volver. */
+/** Indicador de pantalla: 01 MOODBOARD · 02 SISTEMA · 03 PROBAR. Se puede ir y volver. */
 function MomentIndicator({ current, onSelect }: { current: Moment; onSelect?: (m: Moment) => void }) {
   return (
     <nav aria-label="Pantalla" className="flex items-center gap-3">

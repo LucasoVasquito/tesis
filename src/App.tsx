@@ -25,8 +25,7 @@ import { PatternDraft, PatternEditor, draftFromPattern, emptyDraft } from './com
 
 import { ActionResult, MIN_REFS, livePieces, mergeAnalysis } from './pieces/model';
 import { buildAnalysisBody, friendlyError, requestSplit } from './pieces/analyze';
-import { AnalysisState, UploadScreen } from './screens/UploadScreen';
-import { OrderScreen } from './screens/OrderScreen';
+import { AnalysisState, MoodboardScreen } from './screens/MoodboardScreen';
 import { SystemScreen } from './screens/SystemScreen';
 import { ExampleBanner, Guide, guideDone } from './screens/Guide';
 
@@ -90,7 +89,7 @@ export default function App() {
       }
       try {
         const { project } = await restoreBackup(await fetchExample(), []);
-        const example = { ...project, example: true, moment: 'ordenar' as Moment };
+        const example = { ...project, example: true, moment: 'moodboard' as Moment };
         setBoot({ projects: [example], activeId: example.id });
       } catch {
         const p = createEmptyProject();
@@ -149,13 +148,14 @@ function Workspace({ boot }: { boot: Boot }) {
   }, [projectsList, activeProjectId]);
 
   /* ========== Pantalla ========== */
-  const screen: Moment = project.moment ?? 'subir';
+  const screen: Moment = project.moment ?? 'moodboard';
   const setScreen = (m: Moment) => updateProject(p => ({ ...p, moment: m }));
 
   /* ========== UI ========== */
   const [overlay, setOverlay] = useState<Overlay>(null);
-  /** Generación con DALL·E abierta desde 03 SISTEMA. */
-  const [generateOpen, setGenerateOpen] = useState(false);
+  /** 03 PROBAR: aplicar el sistema a una pieza concreta. */
+  const generateOpen = screen === 'probar';
+  const setGenerateOpen = (open: boolean) => setScreen(open ? 'probar' : 'sistema');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<null | 'current' | 'all'>(null);
@@ -166,7 +166,7 @@ function Workspace({ boot }: { boot: Boot }) {
   /** Guía de 3 carteles: la primera vez que se llega a 02 ORDENAR, o desde AYUDA. */
   const [guideOpen, setGuideOpen] = useState(false);
   useEffect(() => {
-    if (screen === 'ordenar' && livePieces(project).length && !guideDone()) setGuideOpen(true);
+    if (screen === 'moodboard' && livePieces(project).length && !guideDone()) setGuideOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, project.id]);
 
@@ -213,7 +213,6 @@ function Workspace({ boot }: { boot: Boot }) {
   const resetUi = () => {
     analysisAbort.current?.abort();
     setOverlay(null);
-    setGenerateOpen(false);
     setAnalysis({ status: 'idle' });
   };
 
@@ -246,7 +245,7 @@ function Workspace({ boot }: { boot: Boot }) {
 
   const importBackupText = async (text: string, example = false) => {
     const { project: imported } = await restoreBackup(text, projectsList.map(x => x.id));
-    const p = example ? { ...imported, example: true, moment: 'ordenar' as Moment } : imported;
+    const p = example ? { ...imported, example: true, moment: 'moodboard' as Moment } : imported;
     // Un proyecto vacío de relleno se reemplaza por el importado.
     const isBlank = (x: Project) => !x.name.trim() && !x.intent?.trim() && !x.references.length && !x.patterns.length;
     setProjectsList(list => [...list.filter(x => !isBlank(x)), p]);
@@ -385,7 +384,7 @@ function Workspace({ boot }: { boot: Boot }) {
       apply(cur => {
         const m = mergeAnalysis(cur, detected);
         return {
-          project: { ...m.project, moment: 'ordenar' },
+          project: { ...m.project, moment: 'moodboard' },
           log: [{ kind: 'induce', targetId: 'referencias', label: `Análisis · ${corpusRefs(cur).length} referencias`, reason: `${m.added} piezas nuevas · ${m.updated} actualizadas` }],
           message: m.added ? `El agente ubicó ${m.added} piezas como sugerencias. Confirmá, subí o bajá.` : 'Análisis actualizado',
         };
@@ -453,7 +452,7 @@ function Workspace({ boot }: { boot: Boot }) {
   };
 
   /* ---------- Piezas escritas a mano (desde la generación con DALL·E) ---------- */
-  const openNewPattern = () => setPatternEditor({ draft: emptyDraft(), title: 'Nueva pieza', meta: 'La escribís vos (USUARIO) · entra como sugerencia en Acento' });
+  const openNewPattern = () => setPatternEditor({ draft: emptyDraft(), title: 'Nueva pieza', meta: 'La escribís vos (USUARIO) · entra en Acento' });
   const openEditPattern = (pattern: Pattern) => setPatternEditor({ patternId: pattern.id, draft: draftFromPattern(pattern), title: `Editar · ${pattern.name}`, meta: 'Texto y referencias' });
   const handleSavePattern = (draft: PatternDraft) => {
     const editor = patternEditor;
@@ -508,7 +507,7 @@ function Workspace({ boot }: { boot: Boot }) {
         onSelectProject={handleSelectProject}
         onNewProject={handleNewProject}
         onEditBrief={() => {
-          setScreen('subir');
+          setScreen('moodboard');
           setBriefRequest(n => n + 1);
         }}
         onDeleteProject={() => setDeleteRequest('current')}
@@ -520,7 +519,7 @@ function Workspace({ boot }: { boot: Boot }) {
         onOpenLog={() => setIsLogOpen(true)}
         onOpenAbout={() => setOverlay({ kind: 'about' })}
         onOpenHelp={() => {
-          setScreen('ordenar');
+          setScreen('moodboard');
           setGuideOpen(true);
         }}
         moment={screen}
@@ -529,11 +528,13 @@ function Workspace({ boot }: { boot: Boot }) {
       {project.example && <ExampleBanner onStart={handleNewProject} />}
 
       <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
-        {screen === 'subir' && (
-          <UploadScreen
+        {screen === 'moodboard' && (
+          <MoodboardScreen
             key={project.id}
             project={project}
             enabled={enabled}
+            apply={apply}
+            toast={toastText}
             onSubmitIntent={handleSubmitIntent}
             briefBusy={briefBusy}
             briefError={briefError}
@@ -545,28 +546,17 @@ function Workspace({ boot }: { boot: Boot }) {
             analysis={analysis}
             onAnalyze={handleAnalyze}
             onCancelAnalysis={() => analysisAbort.current?.abort()}
-            onGoOrder={() => setScreen('ordenar')}
-          />
-        )}
-        {screen === 'ordenar' && (
-          <OrderScreen
-            key={project.id}
-            project={project}
-            enabled={enabled}
-            apply={apply}
-            toast={toastText}
             onGoSystem={() => setScreen('sistema')}
-            onGoUpload={() => setScreen('subir')}
             split={piece => requestSplit(projectRef.current, piece)}
           />
         )}
-        {screen === 'sistema' && (
+        {(screen === 'sistema' || screen === 'probar') && (
           <SystemScreen
             key={project.id}
             project={project}
             enabled={enabled}
             toast={toastText}
-            onBack={() => setScreen('ordenar')}
+            onBack={() => setScreen('moodboard')}
             onGenerate={() => setGenerateOpen(true)}
             onNotice={text => showToast({ message: text })}
             paletteMissing={paletteMissing.length}

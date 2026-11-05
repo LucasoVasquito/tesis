@@ -305,14 +305,15 @@ export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { me
  * - Grupos y fragmentos sueltos pasan a ser piezas; la imagen de la pieza es el recorte de su fragmento.
  * - Lo que ya estaba en una hoja la conserva, confirmada (lo decidió el diseñador).
  * - Lo demás entra en la hoja que sugiere la IA o la evidencia, como sugerencia: nunca se arranca vacío.
- * - Los momentos viejos (armar, revelar, girar) pasan a subir, ordenar y sistema.
+ * - Los momentos viejos (armar, revelar, girar) pasan a moodboard y sistema (subir y ordenar se unieron).
  */
 export function migrateToPieces(p: Project, raw: any): Project {
   const moment = (): Project['moment'] => {
     const m = raw?.moment;
-    if (m === 'subir' || m === 'ordenar' || m === 'sistema') return m;
+    if (m === 'moodboard' || m === 'sistema' || m === 'probar') return m;
+    if (m === 'subir' || m === 'ordenar') return 'moodboard';
     if (raw?.view === 'front' || m === 'girar') return 'sistema';
-    return p.patterns.some(x => x.status !== 'discarded') ? 'ordenar' : 'subir';
+    return 'moodboard';
   };
   if ((raw?.schema ?? 0) >= 4) return { ...p, schema: SCHEMA, moment: moment() };
 
