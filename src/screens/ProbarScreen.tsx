@@ -94,6 +94,17 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
 
   useShortcuts(enabled, { escape: () => onBack(), ' ': () => onBack() });
 
+  // Con una generación en curso, cerrar o recargar la pestaña la perdería (y se cobra igual): el navegador avisa.
+  useEffect(() => {
+    if (busy === null) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [busy]);
+
   // Imágenes guardadas: se cargan de IndexedDB al abrir.
   useEffect(() => {
     let alive = true;

@@ -148,6 +148,11 @@ function Workspace({ boot }: { boot: Boot }) {
   /* ========== Pantalla ========== */
   const screen: Moment = project.moment ?? 'moodboard';
   const setScreen = (m: Moment) => updateProject(p => ({ ...p, moment: m }));
+  // 03 PROBAR queda montada (oculta) una vez abierta: si cambiás de pestaña con una generación en curso, no se corta ni se pierde el resultado.
+  const [probarSeen, setProbarSeen] = useState<string | null>(null);
+  useEffect(() => {
+    if (screen === 'probar') setProbarSeen(project.id);
+  }, [screen, project.id]);
 
   /* ========== UI ========== */
   const [overlay, setOverlay] = useState<Overlay>(null);
@@ -537,18 +542,20 @@ function Workspace({ boot }: { boot: Boot }) {
             onCompletePalette={handleCompletePalette}
           />
         )}
-        {screen === 'probar' && (
-          <ProbarScreen
-            key={project.id}
-            project={project}
-            enabled={enabled}
-            session={project.applications?.stack}
-            onSaveSession={session => {
-              const pid = project.id;
-              updateProject(x => ({ ...x, applications: { ...(x.applications ?? {}), stack: session } }), pid);
-            }}
-            onBack={() => setScreen('sistema')}
-          />
+        {(screen === 'probar' || probarSeen === project.id) && (
+          <div className={screen === 'probar' ? 'h-full' : 'hidden'}>
+            <ProbarScreen
+              key={project.id}
+              project={project}
+              enabled={enabled && screen === 'probar'}
+              session={project.applications?.stack}
+              onSaveSession={session => {
+                const pid = project.id;
+                updateProject(x => ({ ...x, applications: { ...(x.applications ?? {}), stack: session } }), pid);
+              }}
+              onBack={() => setScreen('sistema')}
+            />
+          </div>
         )}
       </main>
 
