@@ -107,6 +107,8 @@ export interface PromptInput {
   text: string;
   request: string;
   transparent: boolean;
+  /** Paleta sacada de una imagen de referencia: reemplaza a la del sistema. */
+  palette?: { hex: string; share: number }[];
 }
 
 /**
@@ -116,7 +118,7 @@ export interface PromptInput {
  */
 export function buildProbarPrompt(p: Project, o: PromptInput): string {
   const info = pieceTypeInfo(o.type);
-  const palette = stackPalette(p);
+  const palette: { hex: string; name?: string; share?: number; layer?: Layer }[] = o.palette?.length ? o.palette : stackPalette(p);
   const lines: string[] = [];
 
   lines.push('# 1 · Piece and format');
@@ -140,7 +142,7 @@ export function buildProbarPrompt(p: Project, o: PromptInput): string {
 
   if (palette.length) {
     lines.push('', '# 5 · Palette (use only these colors, in this proportion)');
-    palette.forEach(c => lines.push(`- ${c.hex.toUpperCase()}${c.name ? ` · ${c.name}` : ''} — about ${pct(c.share)} (${LAYER_EN[c.layer]})`));
+    palette.forEach(c => lines.push(`- ${c.hex.toUpperCase()}${c.name ? ` · ${c.name}` : ''} — about ${pct(c.share)}${c.layer ? ` (${LAYER_EN[c.layer]})` : ''}`));
   }
 
   if (o.text.trim() || o.request.trim()) {

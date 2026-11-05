@@ -6,6 +6,8 @@ import { LightboxModal } from '../components/LightboxModal';
 import { loadPieceImage, savePieceImage, toDataUrl } from '../utils/pieceStore';
 import { compressImageString } from '../utils/imageCompressor';
 import { cropImage } from '../utils/parts';
+import { ImageColor, paletteFromImage } from '../utils/imagePalette';
+import { stackPalette } from '../utils/stackExport';
 import { stackSystem } from '../utils/stackExport';
 import { fullRule } from '../utils/layerRules';
 import { sheetLabel } from '../pieces/model';
@@ -145,6 +147,26 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
   const recipe = useMemo(() => buildRecipe(project, pieceType), [project, pieceType]);
   const isOn = (id: string) => overrides[pieceType]?.[id] ?? recipe.suggested.has(id);
   const [limitNote, setLimitNote] = useState(false);
+  /** Paleta de una imagen de referencia (si el usuario la eligió): reemplaza a la del sistema en el pedido. */
+  const [refPalette, setRefPalette] = useState<null | { name: string; image: string; colors: ImageColor[] }>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [paletteBusy, setPaletteBusy] = useState(false);
+  const [paletteError, setPaletteError] = useState<string | null>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
+  const usePaletteOf = async (name: string, image: string) => {
+    setPaletteBusy(true);
+    setPaletteError(null);
+    try {
+      const colors = await paletteFromImage(image, 6);
+      setRefPalette({ name, image, colors });
+      setPickerOpen(false);
+    } catch (err: any) {
+      setPaletteError(err?.message || 'No se pudo leer la paleta de esa imagen.');
+    } finally {
+      setPaletteBusy(false);
+    }
+  };
+  const systemPalette = useMemo(() => stackPalette(project), [project]);
   const toggle = (x: Pattern, layer: 1 | 2 | 3) => {
     // Con el límite de decisiones lleno no se suma nada más: avisa en vez de no hacer nada.
     if (!isOn(x.id) && decisions >= MAX_DECISIONS) {
@@ -165,10 +187,10 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
   const decisions = sel.core.length + sel.support.length + (sel.accent ? 1 : 0);
   const omittedIds = new Set(sel.omitted.map(x => x.id));
 
-  const promptInput = (): PromptInput => ({ type: pieceType, sel, direct, text: brandText, request: details, transparent: pieceType === 'logo' && transparent });
+  const promptInput = (): PromptInput => ({ type: pieceType, sel, direct, text: brandText, request: details, transparent: pieceType === 'logo' && transparent, palette: refPalette?.colors });
   const prompt = useMemo(
     () => buildProbarPrompt(project, promptInput()),
-    [project, sel, direct, brandText, details, pieceType, transparent], // eslint-disable-line react-hooks/exhaustive-deps
+    [project, sel, direct, brandText, details, pieceType, transparent, refPalette], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   /* ---------- Pedido al servidor ---------- */
@@ -405,6 +427,54 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
               className="resize-y border-2 border-line-strong bg-transparent p-2 text-[14px] leading-[1.4] text-ink outline-none placeholder:text-ink-3 focus:border-bone"
             />
           </label>
+          {/* Paleta del pedido: la del sistema o la de una imagen de referencia */}
+          <div className="flex flex-col gap-2">
+            <span className="type-label text-[11px] text-ink-2">PALETA DEL PEDIDO</span>
+            <div className="flex h-[22px] overflow-hidden border border-line-strong" aria-label="Colores de la paleta">
+              {(refPalette ? refPalette.colors : systemPalette).map(c => (
+                <span key={c.hex} title={c.hex.toUpperCase()} style={{ background: c.hex, flexGrow: Math.max(0.05, c.share ?? 0.1) }} />
+              ))}
+              {!(refPalette ? refPalette.colors : systemPalette).length && <span className="px-2 text-[11px] text-ink-3">sin colores todavía</span>}
+            </div>
+            <span className="text-[11px] leading-snug text-ink-2">
+              {refPalette ? `De la imagen «${refPalette.name}».` : 'La del sistema (se lee en 02 SISTEMA con «Completar paleta»).'}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <KeyButton label={refPalette ? 'Cambiar imagen' : 'Usar la de una imagen'} onClick={() => setPickerOpen(o => !o)} />
+              {refPalette && <KeyButton label="Volver a la del sistema" tone="ghost" onClick={() => setRefPalette(null)} />}
+            </div>
+            {paletteError && <span role="alert" className="text-[12px] text-error-ink">{paletteError}</span>}
+            {pickerOpen && (
+              <div className="flex flex-col gap-2 border border-line p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-ink-2">Elegí una referencia o subí una imagen</span>
+                  <KeyButton label="Subir imagen" tone="bone" onClick={() => uploadRef.current?.click()} />
+                </div>
+                <div className="grid max-h-48 grid-cols-4 gap-1 overflow-y-auto">
+                  {project.references.filter(r => r.image).map(r => (
+                    <button key={r.id} type="button" disabled={paletteBusy} title={r.name} onClick={() => usePaletteOf(r.name, r.image)} className="p-0 outline-none hover:outline hover:outline-2 hover:outline-bone">
+                      <img src={r.image} alt={r.name} loading="lazy" className="aspect-square w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+                {paletteBusy && <span className="text-[11px] text-ink-2">Leyendo los colores…</span>}
+              </div>
+            )}
+            <input
+              ref={uploadRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={e => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => void usePaletteOf(file.name, String(reader.result));
+                reader.readAsDataURL(file);
+              }}
+            />
+          </div>
           {pieceType === 'logo' ? (
             <label className="flex cursor-pointer items-center gap-3 text-[13px]">
               <input type="checkbox" className="size-4 accent-[#F2EFE8]" checked={transparent} onChange={e => setTransparent(e.target.checked)} />
