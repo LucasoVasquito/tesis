@@ -10,6 +10,7 @@ import { downloadProjectMarkdown } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, migrateProject, withLog } from './utils/project';
 import { corpusRefs } from './utils/layers';
 import { stackOrder } from './utils/layerRules';
+import { applyLayerColors, computeLayerColors } from './utils/camaleon';
 import { stackPayload, stackSystem } from './utils/stackExport';
 import { useShortcuts } from './hooks/useAuditShortcuts';
 
@@ -450,6 +451,28 @@ function Workspace({ boot }: { boot: Boot }) {
       setPaletteBusy(false);
     }
   };
+
+  /* ========== Color camaleón ========== */
+  // Los colores de capa salen de la paleta del proyecto. Se recalculan cuando cambia qué hay en cada capa.
+  const colorSig = livePieces(project).map(x => `${x.id}:${x.layer}`).join('|') + `#${project.references.filter(r => r.breakdown).length}`;
+  useEffect(() => {
+    applyLayerColors(project.layerColors);
+  }, [project.layerColors, project.id]);
+  useEffect(() => {
+    if (analysis.status === 'preparing' || analysis.status === 'reading') return;
+    let cancelled = false;
+    const pid = project.id;
+    const t = setTimeout(async () => {
+      const colors = await computeLayerColors(projectRef.current);
+      if (cancelled) return;
+      updateProject(p => (JSON.stringify(p.layerColors ?? null) === JSON.stringify(colors) ? p : { ...p, layerColors: colors ?? undefined }), pid);
+    }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colorSig, project.id, analysis.status]);
 
   /* ---------- Piezas escritas a mano (desde la generación con DALL·E) ---------- */
   const openNewPattern = () => setPatternEditor({ draft: emptyDraft(), title: 'Nueva pieza', meta: 'La escribís vos (USUARIO) · entra en Acento' });
