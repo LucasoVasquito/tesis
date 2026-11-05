@@ -133,7 +133,14 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
   /* ---------- Receta ---------- */
   const recipe = useMemo(() => buildRecipe(project, pieceType), [project, pieceType]);
   const isOn = (id: string) => overrides[pieceType]?.[id] ?? recipe.suggested.has(id);
-  const toggle = (x: Pattern, layer: 2 | 3) =>
+  const [limitNote, setLimitNote] = useState(false);
+  const toggle = (x: Pattern, layer: 2 | 3) => {
+    // Con el límite de decisiones lleno no se suma nada más: avisa en vez de no hacer nada.
+    if (!isOn(x.id) && decisions >= MAX_DECISIONS) {
+      setLimitNote(true);
+      return;
+    }
+    setLimitNote(false);
     setOverrides(o => {
       const cur = { ...(o[pieceType] ?? {}) };
       const next = !isOn(x.id);
@@ -142,6 +149,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
       if (layer === 3 && next) recipe.accent.filter(a => a.id !== x.id).forEach(a => (cur[a.id] = false));
       return { ...o, [pieceType]: cur };
     });
+  };
   const sel: Selection = useMemo(() => selectDecisions(recipe, isOn), [recipe, overrides, pieceType]); // eslint-disable-line react-hooks/exhaustive-deps
   const decisions = sel.core.length + sel.support.length + (sel.accent ? 1 : 0);
   const omittedIds = new Set(sel.omitted.map(x => x.id));
@@ -412,7 +420,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
 
         {/* 2 · La receta */}
         <section aria-label="La receta" className="flex min-h-0 flex-col gap-5 overflow-y-auto border-r border-line p-5">
-          <ColHead n="02" title="LA RECETA" hint={direct ? 'El modo directo no usa el sistema: solo el pedido, el texto y la paleta.' : `Qué parte del sistema se usa, por capa y por peso. ${decisions} de ${MAX_DECISIONS} decisiones.`} />
+          <ColHead n="02" title="LA RECETA" hint={limitNote ? `Ya hay ${MAX_DECISIONS} decisiones, el máximo: desmarcá una para sumar otra.` : direct ? 'El modo directo no usa el sistema: solo el pedido, el texto y la paleta.' : `Qué parte del sistema se usa, por capa y por peso. ${decisions} de ${MAX_DECISIONS} decisiones.`} />
           <div className="flex flex-col gap-6" style={{ opacity: direct ? 0.4 : 1, pointerEvents: direct ? 'none' : undefined }}>
             {layerBlock(
               1,
