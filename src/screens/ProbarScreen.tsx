@@ -11,7 +11,6 @@ import { fullRule } from '../utils/layerRules';
 import { sheetLabel } from '../pieces/model';
 import {
   MAX_CORE_IMAGES,
-  MAX_CORE,
   MAX_DECISIONS,
   PIECE_TYPES,
   PromptInput,
@@ -135,7 +134,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
   const recipe = useMemo(() => buildRecipe(project, pieceType), [project, pieceType]);
   const isOn = (id: string) => overrides[pieceType]?.[id] ?? recipe.suggested.has(id);
   const [limitNote, setLimitNote] = useState(false);
-  const toggle = (x: Pattern, layer: 2 | 3) => {
+  const toggle = (x: Pattern, layer: 1 | 2 | 3) => {
     // Con el límite de decisiones lleno no se suma nada más: avisa en vez de no hacer nada.
     if (!isOn(x.id) && decisions >= MAX_DECISIONS) {
       setLimitNote(true);
@@ -302,7 +301,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
         <span className="type-name text-[20px] leading-[0.95]">{x.name}</span>
         <span className="flex items-center gap-2">
           <OriginTag piece={x} />
-          {state === 'out' && <span className="font-mono text-[10px] text-ink-2">{layer === 1 ? `FUERA DEL PEDIDO · DEL NÚCLEO ENTRAN LAS ${MAX_CORE} DE MÁS PESO` : `FUERA DEL PEDIDO · LÍMITE ${MAX_DECISIONS}`}</span>}
+          {state === 'out' && <span className="font-mono text-[10px] text-ink-2">{`FUERA DEL PEDIDO · LÍMITE ${MAX_DECISIONS}`}</span>}
         </span>
       </div>
       {control}
@@ -426,9 +425,9 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
             {layerBlock(
               1,
               sheetLabel(1),
-              'obligatorio',
+              'las 3 de más peso vienen marcadas',
               recipe.core,
-              x => item(x, 1, check(!omittedIds.has(x.id), true, `${x.name}: obligatorio`), omittedIds.has(x.id) ? 'out' : 'on'),
+              x => item(x, 1, check(isOn(x.id) && !omittedIds.has(x.id), false, `${x.name}: usar en el pedido`, () => toggle(x, 1)), omittedIds.has(x.id) ? 'out' : isOn(x.id) ? 'on' : 'off'),
               'El Núcleo está vacío: ubicá piezas en la Capa 1.',
             )}
             {layerBlock(
@@ -460,7 +459,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onBack 
               label="GENERAR 2 VARIANTES"
               onClick={() => generate(2)}
               disabled={busy !== null || (!direct && !sel.core.length)}
-              hint={!direct && !sel.core.length ? 'Sin Núcleo no hay sistema que probar' : undefined}
+              hint={!direct && !sel.core.length ? 'Marcá al menos una pieza del Núcleo' : undefined}
             />
           </div>
         </section>

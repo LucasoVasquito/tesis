@@ -59,7 +59,7 @@ Los nombres de las piezas son cortos (2 a 4 palabras) y el detalle va en la desc
 Verifica el sistema aplicándolo a una pieza concreta, no genera por generar. Tres columnas:
 
 1. **La pieza:** tipo (Logotipo, Fachada, Packaging, Afiche, Post, Story, Web u Otra), formato sugerido, texto que aparece y pedido libre.
-2. **La receta:** qué parte del sistema se usa, por capa y por peso. El Núcleo entra entero y no se desmarca; el agente preselecciona 1 o 2 piezas de Soporte que tienen sentido para ese tipo de pieza y, solo si aplica, un Acento. Máximo 5 decisiones. *Ver pedido completo* muestra el prompt final.
+2. **La receta:** qué parte del sistema se usa, por capa y por peso. El agente preselecciona las 3 piezas de Núcleo de más peso (se pueden cambiar), 1 o 2 piezas de Soporte que tienen sentido para ese tipo de pieza y, solo si aplica, un Acento. Máximo 5 decisiones. *Ver pedido completo* muestra el prompt final.
 3. **Los resultados:** las variantes, cada una con ✓ respetada / ✕ no respetada por cada pieza del Núcleo (lo evalúa el agente con visión), y los botones **Aprobar**, **Otra variante** y **Descargar**. Un switch chico alterna entre *Con el sistema* y *Directo* para comparar.
 
 El pedido sigue siempre este orden: tipo de pieza y formato → Núcleo (obligatorio) → Soporte (secundario) → Acento (detalle menor) → paleta en proporción según la capa → texto y pedido libre → restricciones. Las imágenes de las piezas del Núcleo (como máximo 3, priorizando las del usuario) viajan como referencia visual. El logo aprobado se reutiliza en las demás piezas.
