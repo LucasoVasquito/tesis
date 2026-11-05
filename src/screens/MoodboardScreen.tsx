@@ -1327,7 +1327,7 @@ function PieceCard(props: PieceCardProps) {
             className="type-name w-full border-b-2 border-bone bg-transparent text-[18px] text-ink outline-none"
           />
         ) : (
-          <span className="type-name line-clamp-2 text-[18px] leading-[0.95]">{piece.name}</span>
+          <span className="type-name text-[18px] leading-[0.95]">{piece.name}</span>
         )}
       </div>
       <div className="flex flex-wrap items-center gap-1">

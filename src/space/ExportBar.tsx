@@ -56,7 +56,7 @@ interface ExportBarProps {
 }
 
 /**
- * Exportar desde la vista de frente: lineamientos, prompt de DALL·E e imagen de la página.
+ * Exportar desde 02 SISTEMA: lineamientos, prompt e imagen de la página, y el paso a 03 PROBAR.
  * La lámina define el peso de cada patrón en las tres.
  */
 export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function ExportBar({ project, onGenerate, onNotice, paletteMissing, paletteBusy, onCompletePalette }, ref) {
@@ -70,12 +70,12 @@ export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function Exp
   };
   const exportPrompt = async () => {
     const text = buildStackPrompt(project);
-    downloadText(text, `${name}_prompt_dalle.txt`, 'text/plain');
+    downloadText(text, `${name}_prompt.txt`, 'text/plain');
     try {
       await navigator.clipboard.writeText(text);
-      onNotice('Prompt de DALL·E descargado y copiado · el Núcleo va primero');
+      onNotice('Prompt descargado y copiado · el Núcleo va primero');
     } catch {
-      onNotice('Prompt de DALL·E descargado · el Núcleo va primero');
+      onNotice('Prompt descargado · el Núcleo va primero');
     }
   };
   const exportImage = async () => {
@@ -84,7 +84,7 @@ export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function Exp
     setBusy(true);
     try {
       const fontEmbedCSS = await embeddedFontCSS();
-      const url = await toPng(node, { pixelRatio: 2, cacheBust: false, backgroundColor: '#F2EFE8', ...(fontEmbedCSS ? { fontEmbedCSS } : {}) });
+      const url = await toPng(node, { pixelRatio: 2, cacheBust: false, ...(fontEmbedCSS ? { fontEmbedCSS } : {}) });
       const a = document.createElement('a');
       a.href = url;
       a.download = `${name}_pagina.png`;
@@ -101,18 +101,18 @@ export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function Exp
 
   const btn = 'type-label px-2 py-[6px] text-left text-[11px] border-2 transition-colors duration-120';
   return (
-    <div ref={ref} role="group" aria-label="Exportar" className="flex w-[150px] flex-col gap-2">
-      <button type="button" onClick={exportGuidelines} className={`${btn} border-core bg-core text-void hover:bg-bone hover:border-bone`}>
+    <div ref={ref} role="group" aria-label="Exportar" className="flex w-[190px] flex-col gap-2">
+      <button type="button" onClick={exportGuidelines} className={`${btn} border-bone bg-bone text-void hover:bg-core hover:border-core`}>
         LINEAMIENTOS
       </button>
       <button type="button" onClick={exportPrompt} className={`${btn} border-bone text-bone hover:bg-bone hover:text-void`}>
-        PROMPT DALL·E
+        PROMPT
       </button>
       <button type="button" onClick={exportImage} disabled={busy} className={`${btn} border-bone text-bone hover:bg-bone hover:text-void disabled:opacity-60`}>
         {busy ? 'EXPORTANDO…' : 'IMAGEN'}
       </button>
-      <button type="button" onClick={onGenerate} className={`${btn} mt-2 border-accent bg-accent text-bone hover:bg-bone hover:text-void hover:border-bone`}>
-        GENERAR CON DALL·E
+      <button type="button" onClick={onGenerate} className={`${btn} mt-6 border-core bg-core px-3 py-3 text-[13px] text-void hover:bg-bone hover:border-bone`}>
+        PROBAR EN UN EJEMPLO
       </button>
       {paletteMissing > 0 && (
         <button type="button" onClick={onCompletePalette} disabled={paletteBusy} className={`${btn} mt-2 border-line-strong text-ink-2 hover:border-bone hover:text-ink disabled:opacity-60`}>

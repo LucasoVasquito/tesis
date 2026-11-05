@@ -316,7 +316,7 @@ Para cada descubrimiento o patrón que detectes, analiza y detalla rigurosamente
    - 'graphic_elements' (Recursos Gráficos Secundarios)
    - 'space_environment' (Espacio, Fachadas, Locales e Interiores: soportes en el espacio físico, señalética, escaparates, ambientación)
 
-2. NOMBRE DEL PATRÓN: Un título conceptual y técnico preciso (ej: "Tipografía display con deformaciones formales y alto impacto", "Mascotas estilo ilustración vintage cartoon").
+2. NOMBRE DEL PATRÓN: un nombre CORTO, de 2 a 4 palabras, concreto (ej: "Tipografía curvada", "Textura plástica", "Mascota vintage", "Fotografía gastronómica"). Nunca más de 4 palabras ni frases largas: el detalle va en la descripción, no en el nombre.
 
 3. DESCRIPCIÓN PROFUNDA Y RELACIONAL: Explica a fondo cómo opera este patrón, qué tensiones visuales resuelve y cómo dialoga entre diferentes soportes (por ejemplo, cómo la tipografía de los carteles se acopla con el packaging o cómo la fotografía complementa al sistema de marca).
 
@@ -377,7 +377,7 @@ Devuelve el análisis en formato JSON estricto cumpliendo el schema provisto.`;
                   type: Type.OBJECT,
                   properties: {
                     id: { type: Type.STRING, description: "Identificador único, ej. pat_01" },
-                    name: { type: Type.STRING, description: "Nombre conceptual y técnico preciso del patrón" },
+                    name: { type: Type.STRING, description: "Nombre corto de 2 a 4 palabras (ej. Tipografía curvada). El detalle va en la descripción." },
                     category: {
                       type: Type.STRING,
                       description: "typography | color | texture | composition | logo_identity | packaging | photography_treatment | mascot_illustration | flyer_poster | social_media | graphic_elements | space_environment",
@@ -800,7 +800,7 @@ app.post("/api/split-piece", async (req, res) => {
     parts.push({
       text: `Un diseñador agrupó estas referencias en una sola pieza de su sistema visual: "${piece.name}"${piece.description ? ` (${piece.description})` : ""}.
 Sospecha que la pieza mezcla dos cosas distintas. Separala en 2 (como máximo 3) piezas formalmente distintas.
-Para cada una devolvé: name (2 a 5 palabras en español, concreto), description (una oración), evidence (los IDs de las referencias que le corresponden; cada referencia va en una sola), y cover: la referencia donde mejor se ve (refId) y la zona en box_2d [ymin, xmin, ymax, xmax] normalizada 0-1000.
+Para cada una devolvé: name (2 a 4 palabras en español, concreto, sin puntos suspensivos), description (una oración), evidence (los IDs de las referencias que le corresponden; cada referencia va en una sola), y cover: la referencia donde mejor se ve (refId) y la zona en box_2d [ymin, xmin, ymax, xmax] normalizada 0-1000.
 Si de verdad es una sola cosa, devolvé igual la mejor división posible y decilo en la descripción.`,
     });
     const ai = getGeminiClient();
