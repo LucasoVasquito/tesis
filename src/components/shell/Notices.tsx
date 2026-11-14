@@ -24,7 +24,7 @@ export function Notices({ notice, onClose }: { notice: NoticeData | null; onClos
       role="status"
       aria-live="polite"
       className="no-print fixed right-6 top-[68px] z-[55] flex w-[380px] max-w-[calc(100vw-48px)] items-start gap-3 rounded-[12px] border border-line-mid p-3 shadow-[0_8px_32px_rgba(0,0,0,.5)]"
-      style={{ background: 'oklch(0.225 0.012 40)', borderColor: notice.tone === 'error' ? 'oklch(0.7 0.16 25 / .6)' : undefined }}
+      style={{ background: 'var(--cc-surface)', borderColor: notice.tone === 'error' ? 'var(--cc-error)' : undefined }}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <span className="text-[13px] leading-snug text-ink">{notice.text}</span>

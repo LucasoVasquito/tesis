@@ -166,6 +166,8 @@ export interface Pattern {
   revealed?: boolean;
   /** Todavía es solo un grupo (G), sin nombre de patrón (P). */
   isGroup?: boolean;
+  /** Color elegido a mano para una pieza de color (hex). Manda sobre el detectado. */
+  colorOverride?: string;
   /** Imagen de la pieza: un recorte de una de sus referencias. Sin recorte se usa la primera evidencia entera. */
   cover?: { refId: string; crop?: CropBox };
   /**

@@ -9,7 +9,7 @@
 
 @theme {
   /* Paleta 1c (valores exactos del documento de identidad) */
-  --color-void: oklch(0.165 0.012 40);   /* vacío: fondo */
+  --color-void: var(--cc-bg);   /* vacío: fondo (lo tiñe el motor Camaleón) */
   --color-bone: #F2EFE8;                 /* hueso: soporte, texto, barra de atajos */
   --color-core: oklch(0.7 0.19 45);      /* naranja: lámina 01 · núcleo */
   --color-accent: oklch(0.62 0.2 262);   /* azul: lámina 03 · acento y revelado */
@@ -20,17 +20,17 @@
   --color-layer-3: oklch(0.62 0.2 262);
 
   /* Superficies (derivadas del vacío) */
-  --color-bg: oklch(0.165 0.012 40);
-  --color-surface: oklch(0.205 0.012 265);
-  --color-raised: oklch(0.24 0.012 265);
-  --color-line: rgba(242, 239, 232, 0.1);
-  --color-line-mid: rgba(242, 239, 232, 0.18);
-  --color-line-strong: rgba(242, 239, 232, 0.32);
+  --color-bg: var(--cc-bg);
+  --color-surface: var(--cc-surface);
+  --color-raised: var(--cc-raised);
+  --color-line: var(--cc-line);
+  --color-line-mid: color-mix(in srgb, var(--cc-text) 18%, transparent);
+  --color-line-strong: color-mix(in srgb, var(--cc-text) 32%, transparent);
 
   /* Tinta */
-  --color-ink: #F2EFE8;
-  --color-ink-2: rgba(242, 239, 232, 0.75);
-  --color-ink-3: rgba(242, 239, 232, 0.5); /* solo para elementos deshabilitados o decorativos */
+  --color-ink: var(--cc-text);
+  --color-ink-2: color-mix(in srgb, var(--cc-text) 75%, transparent);
+  --color-ink-3: color-mix(in srgb, var(--cc-text) 50%, transparent); /* solo para elementos deshabilitados o decorativos */
 
   /* Estados de decisión (heredados; se van con la auditoría por etapas) */
   --color-pending: oklch(0.8 0.12 85);
@@ -527,28 +527,54 @@
 }
 
 /* ---------- Movimiento reducido: todo a 0ms ---------- */
-/* ---------- Color camaleón: tres neutros cálidos hasta el primer análisis; el cambio se anima ~800 ms ---------- */
-@property --capa-1 {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: oklch(0.68 0.14 33);
-}
-@property --capa-2 {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: oklch(0.80 0.12 86);
-}
-@property --capa-3 {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: oklch(0.74 0.09 190);
-}
+/* ---------- Motor Camaleón: la interfaz toma los colores del proyecto (src/utils/derivePalette.ts) ----------
+   Las variables --cc-* se registran como <color> para que el cambio se anime (.4 s). Con prefers-reduced-motion es instantáneo. */
+@property --cc-bg { syntax: '<color>'; inherits: true; initial-value: oklch(0.165 0.012 40); }
+@property --cc-surface { syntax: '<color>'; inherits: true; initial-value: oklch(0.225 0.012 40); }
+@property --cc-raised { syntax: '<color>'; inherits: true; initial-value: oklch(0.265 0.012 40); }
+@property --cc-l0 { syntax: '<color>'; inherits: true; initial-value: oklch(0.68 0.14 33); }
+@property --cc-l1 { syntax: '<color>'; inherits: true; initial-value: oklch(0.80 0.12 86); }
+@property --cc-l2 { syntax: '<color>'; inherits: true; initial-value: oklch(0.74 0.09 190); }
+@property --cc-primary { syntax: '<color>'; inherits: true; initial-value: oklch(0.68 0.14 33); }
+@property --cc-on-primary { syntax: '<color>'; inherits: true; initial-value: #141210; }
+@property --cc-text { syntax: '<color>'; inherits: true; initial-value: #F2EFE8; }
+@property --cc-text-muted { syntax: '<color>'; inherits: true; initial-value: rgba(242, 239, 232, 0.65); }
+@property --cc-line { syntax: '<color>'; inherits: true; initial-value: rgba(242, 239, 232, 0.1); }
+@property --cc-line-hover { syntax: '<color>'; inherits: true; initial-value: rgba(242, 239, 232, 0.14); }
 :root {
-  --capa-1: oklch(0.68 0.14 33);
-  --capa-2: oklch(0.80 0.12 86);
-  --capa-3: oklch(0.74 0.09 190);
-  transition: --capa-1 800ms var(--ease-camera), --capa-2 800ms var(--ease-camera), --capa-3 800ms var(--ease-camera);
+  --cc-bg: oklch(0.165 0.012 40);
+  --cc-surface: oklch(0.225 0.012 40);
+  --cc-raised: oklch(0.265 0.012 40);
+  --cc-l0: oklch(0.68 0.14 33);
+  --cc-l1: oklch(0.80 0.12 86);
+  --cc-l2: oklch(0.74 0.09 190);
+  --cc-primary: oklch(0.68 0.14 33);
+  --cc-on-primary: #141210;
+  --cc-text: #F2EFE8;
+  --cc-text-muted: rgba(242, 239, 232, 0.65);
+  --cc-line: rgba(242, 239, 232, 0.1);
+  --cc-line-hover: rgba(242, 239, 232, 0.14);
+  --cc-l0-edge: transparent;
+  --cc-l1-edge: transparent;
+  --cc-l2-edge: transparent;
+  --cc-l0-ink: var(--cc-l0);
+  --cc-l1-ink: var(--cc-l1);
+  --cc-l2-ink: var(--cc-l2);
+  /* Estados: no se tiñen */
+  --cc-ok: oklch(0.74 0.09 150);
+  --cc-warn: oklch(0.80 0.12 86);
+  --cc-error: oklch(0.66 0.16 28);
+  /* Compatibilidad: los colores de capa de la interfaz */
+  --capa-1: var(--cc-l0);
+  --capa-2: var(--cc-l1);
+  --capa-3: var(--cc-l2);
+  transition: --cc-bg 0.4s, --cc-surface 0.4s, --cc-raised 0.4s, --cc-l0 0.4s, --cc-l1 0.4s, --cc-l2 0.4s, --cc-primary 0.4s, --cc-on-primary 0.4s, --cc-text 0.4s, --cc-text-muted 0.4s, --cc-line 0.4s, --cc-line-hover 0.4s;
 }
+/* Una capa del color del fondo no desaparece: lleva un contorno de 1px */
+.layer-1 { --layer-edge: var(--cc-l0-edge); --layer-text: var(--cc-l0-ink); }
+.layer-2 { --layer-edge: var(--cc-l1-edge); --layer-text: var(--cc-l1-ink); }
+.layer-3 { --layer-edge: var(--cc-l2-edge); --layer-text: var(--cc-l2-ink); }
+.layer-dot { box-shadow: 0 0 0 1px var(--layer-edge, transparent); }
 
 /* ---------- Escena de capas (01 MOODBOARD) ---------- */
 .scene-layer {

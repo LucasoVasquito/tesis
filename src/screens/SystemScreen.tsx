@@ -30,7 +30,7 @@ function SectionHead({ layer, count }: { layer: Layer; count: number }) {
   return (
     <div className={`layer-${layer} flex flex-col gap-2`}>
       <div className="flex items-baseline justify-between">
-        <span className="type-label text-[13px] tracking-[0.08em]" style={{ color: 'var(--layer-color)' }}>
+        <span className="type-label text-[13px] tracking-[0.08em]" style={{ color: 'var(--layer-text)' }}>
           CAPA {layer} · {SHEET_NAME[layer].toUpperCase()}
         </span>
         <span className="font-mono text-[11px] text-ink-2">{count}</span>

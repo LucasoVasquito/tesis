@@ -38,12 +38,12 @@ export const BarSep = () => <span aria-hidden="true" className="mx-1 h-5 w-px sh
 export function BottomBar({ help, actions, primary }: { help?: string; actions?: React.ReactNode; primary?: Primary }) {
   return (
     <div className="no-print pointer-events-none absolute inset-x-0 bottom-6 z-30 flex flex-col items-center gap-2 px-4">
-      {help && <p className="pointer-events-none m-0 max-w-[640px] rounded-[8px] px-3 py-1 text-center text-[12px] leading-snug text-ink-2" style={{ background: 'oklch(0.165 0.012 40 / .8)' }}>{help}</p>}
+      {help && <p className="pointer-events-none m-0 max-w-[640px] rounded-[8px] px-3 py-1 text-center text-[12px] leading-snug text-ink-2" style={{ background: 'color-mix(in srgb, var(--cc-bg) 80%, transparent)' }}>{help}</p>}
       <div
         role="toolbar"
         aria-label="Acciones de la etapa"
         className="pointer-events-auto flex max-w-full items-center gap-1 rounded-[14px] border border-line-mid p-[6px] shadow-[0_8px_32px_rgba(0,0,0,.45)]"
-        style={{ background: 'oklch(0.225 0.012 40)' }}
+        style={{ background: 'var(--cc-surface)' }}
       >
         {actions && <div className="flex min-w-0 items-center gap-1 overflow-x-auto">{actions}</div>}
         {actions && primary && <BarSep />}
@@ -53,7 +53,8 @@ export function BottomBar({ help, actions, primary }: { help?: string; actions?:
             data-primary
             aria-disabled={primary.blocked ? true : undefined}
             onClick={() => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick())}
-            className={`inline-flex h-10 items-center gap-3 whitespace-nowrap rounded-[10px] px-5 text-[14px] font-bold transition-colors duration-120 ${primary.blocked ? 'cursor-not-allowed bg-white/10 text-ink-3' : 'bg-bone text-void hover:bg-white'}`}
+            className={`inline-flex h-10 items-center gap-3 whitespace-nowrap rounded-[10px] px-5 text-[14px] font-bold transition-colors duration-120 ${primary.blocked ? 'cursor-not-allowed bg-white/10 text-ink-3' : 'hover:brightness-110'}`}
+            style={primary.blocked ? undefined : { background: 'var(--cc-primary)', color: 'var(--cc-on-primary)', boxShadow: '0 0 0 1px var(--cc-l0-edge)' }}
           >
             {primary.blocked ? primary.blockedLabel ?? primary.label : primary.label}
             {primary.kbd && !primary.blocked && <kbd className="font-mono text-[12px] font-medium opacity-60">{primary.kbd}</kbd>}

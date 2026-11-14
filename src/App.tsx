@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LogItem, LogKind, Moment, Project, Reference, ReferenceBreakdown } from './types';
+import { Layer, LogItem, LogKind, Moment, Project, Reference, ReferenceBreakdown } from './types';
 import { loadStoredProjects, saveProjects } from './utils/projectStore';
 import { createEmptyProject } from './data/emptyProject';
 import { compressImageString } from './utils/imageCompressor';
@@ -10,7 +10,10 @@ import { downloadProjectMarkdown } from './utils/exportHelpers';
 import { filesToReferences, makeFeedback, makeLog, migrateProject, nextReferenceIds, withLog } from './utils/project';
 import { corpusRefs } from './utils/layers';
 import { stackOrder } from './utils/layerRules';
-import { applyLayerColors, computeLayerColors } from './utils/camaleon';
+import { applyTheme } from './utils/camaleon';
+import { DEFAULT_PALETTE, DetectedColor, buildTheme, colorName, derivePalette } from './utils/derivePalette';
+import { RefColorMap, colorPieces, detectColors, pieceBaseColor } from './utils/detectColors';
+import { ColorContext, ColorCtx } from './screens/colorContext';
 import { useShortcuts } from './hooks/useAuditShortcuts';
 
 import { Button } from './components/ui';
@@ -34,6 +37,7 @@ import { BriefPanel } from './screens/common';
 import { MutateOptions, NotifyOptions } from './screens/types';
 import { DEMO_ID, buildDemo, demoRequested } from './utils/demo';
 import { clearTestLog, downloadTestLog, logEvent, setLogStage, testMode } from './utils/testLog';
+import { useViewport } from './hooks/useViewport';
 import { STEPS, blockReason, locationText, stepIndex, stepLabel } from './utils/steps';
 
 /** Claves viejas de localStorage que ya no se usan (los proyectos pasaron a IndexedDB). */
@@ -132,6 +136,7 @@ const addTo = <T,>(list: T[] | undefined, v: T): T[] => (list?.includes(v) ? lis
 const MAX_HISTORY = 40;
 
 function Workspace({ boot }: { boot: Boot }) {
+  const viewport = useViewport();
   /* ========== Proyectos ========== */
   const [projectsList, setProjectsList] = useState<Project[]>(boot.projects);
   const [activeProjectId, setActiveProjectId] = useState<string>(boot.activeId);
@@ -335,6 +340,7 @@ function Workspace({ boot }: { boot: Boot }) {
   const [guideOpen, setGuideOpen] = useState(false);
   const [focusRef, setFocusRef] = useState<{ id: string; n: number } | null>(null);
   const [capaName, setCapaName] = useState('Núcleo');
+  const [goLayer, setGoLayer] = useState<{ layer: Layer; n: number } | null>(null);
   const [probarType, setProbarType] = useState('logotipo');
   const [probarActivity, setProbarActivity] = useState<string | null>(null);
   useEffect(() => {
@@ -657,27 +663,107 @@ function Workspace({ boot }: { boot: Boot }) {
     }
   };
 
-  /* ========== Color camaleón ========== */
-  // Los colores de capa salen de la paleta del proyecto. Se recalculan cuando cambia qué hay en cada capa.
-  const colorSig = livePieces(project).map(x => `${x.id}:${x.layer}`).join('|') + `#${project.references.filter(r => r.breakdown).length}`;
+  /* ========== Motor Camaleón: la interfaz toma los colores del proyecto ========== */
+  const [detection, setDetection] = useState<{ pid: string; detected: DetectedColor[]; byRef: RefColorMap } | null>(null);
+  /** Color que se está probando en el selector (en vivo, sin entrar al historial). */
+  const [liveColors, setLiveColors] = useState<Record<string, string>>({});
+  const detectSig = project.references.map(r => r.id + r.image.length).join('|') + '#' + project.references.filter(r => r.breakdown).length + '#' + livePieces(project).filter(x => x.category === 'color').map(x => x.id + x.origin).join(',');
   useEffect(() => {
-    applyLayerColors(project.layerColors);
-  }, [project.layerColors, project.id]);
-  useEffect(() => {
-    if (analysis.status === 'preparing' || analysis.status === 'reading') return;
     let cancelled = false;
     const pid = project.id;
     const t = setTimeout(async () => {
-      const colors = await computeLayerColors(projectRef.current);
-      if (cancelled) return;
-      updateProject(p => (JSON.stringify(p.layerColors ?? null) === JSON.stringify(colors) ? p : { ...p, layerColors: colors ?? undefined }), pid);
-    }, 700);
+      const d = await detectColors(projectRef.current);
+      if (!cancelled) setDetection({ pid, ...d });
+    }, 300);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colorSig, project.id, analysis.status]);
+  }, [detectSig, project.id]);
+
+  const det = detection && detection.pid === project.id ? detection : null;
+  const { palette, colorCtx } = (() => {
+    const pieces = det ? colorPieces(project, det.byRef) : [];
+    const overrides: Record<string, string> = {};
+    project.patterns.forEach(x => x.colorOverride && (overrides[x.id] = x.colorOverride));
+    Object.assign(overrides, liveColors);
+    const byPiece: ColorCtx['byPiece'] = {};
+    livePieces(project)
+      .filter(x => x.category === 'color')
+      .forEach(x => {
+        const base = det ? pieceBaseColor(x, det.byRef) : null;
+        const hex = overrides[x.id] || base;
+        if (hex) byPiece[x.id] = { hex, base, overridden: !!overrides[x.id] && overrides[x.id] !== base };
+      });
+    const rank = det ? [...new Set(det.detected.sort((p, q) => q.weight - p.weight).map(c => c.hex))].slice(0, 8) : [];
+    const saved = project.layerColors;
+    const fallback = saved ? { primary: saved[0], secondary: saved[1], accent: saved[2] } : DEFAULT_PALETTE;
+    return { palette: det ? derivePalette(det.detected, pieces, overrides) : fallback, colorCtx: { byPiece, detected: rank } as ColorCtx };
+  })();
+  const theme = buildTheme(palette);
+  const themeKey = JSON.stringify(palette);
+  useEffect(() => {
+    applyTheme(buildTheme(palette));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeKey]);
+  useEffect(() => () => applyTheme(null), []);
+  // La paleta se guarda con el proyecto (al abrirlo, la interfaz ya tiene sus colores).
+  useEffect(() => {
+    if (!det) return;
+    const next: [string, string, string] = [palette.primary, palette.secondary, palette.accent];
+    if (JSON.stringify(projectRef.current.layerColors ?? null) === JSON.stringify(next)) return;
+    const pid = project.id;
+    const t = setTimeout(() => updateProject(p => ({ ...p, layerColors: next }), pid), 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeKey, !!det]);
+  // Cuando cambia el primario: "La interfaz ahora usa Azul cobalto como primario." con Deshacer.
+  const prevPrimary = useRef<{ pid: string; primary: string } | null>(null);
+  const suppressPaletteNotice = useRef(0);
+  useEffect(() => {
+    if (!det) return;
+    const prev = prevPrimary.current;
+    if (!prev || prev.pid !== project.id) {
+      prevPrimary.current = { pid: project.id, primary: palette.primary };
+      return;
+    }
+    if (prev.primary === palette.primary) return;
+    const was = prev.primary;
+    const t = setTimeout(() => {
+      prevPrimary.current = { pid: project.id, primary: palette.primary };
+      if (Date.now() - suppressPaletteNotice.current < 4000 || Object.keys(liveColors).length) return;
+      if (colorName(was) !== colorName(palette.primary)) notify(`La interfaz ahora usa ${colorName(palette.primary)} como primario.`, { undo: true });
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [palette.primary, !!det]);
+  void theme;
+
+  /** Edición de color de una pieza (desde Capas): en vivo mientras se arrastra, una sola entrada en el historial al cerrar. */
+  const handleColorLive = useCallback((id: string, hex: string | null) => {
+    setLiveColors(c => {
+      const n = { ...c };
+      if (hex) n[id] = hex;
+      else delete n[id];
+      return n;
+    });
+  }, []);
+  const handleColorCommit = (id: string, hex: string | null) => {
+    const x = projectRef.current.patterns.find(q => q.id === id);
+    if (!x) return;
+    suppressPaletteNotice.current = Date.now();
+    setLiveColors(c => {
+      const n = { ...c };
+      delete n[id];
+      return n;
+    });
+    if ((x.colorOverride ?? null) === (hex ?? null)) return;
+    logEvent('color_edit', { piece: x.name, hex });
+    mutate(p => ({ ...p, patterns: p.patterns.map(q => (q.id === id ? { ...q, colorOverride: hex ?? undefined } : q)) }), {
+      notice: hex ? `Cambiaste «${x.name}» a ${hex.toUpperCase()}.` : `Se restauró el color detectado de «${x.name}».`,
+    });
+  };
 
   /* ========== Línea de estado (barra superior) ========== */
   // Mientras el agente lee, los mensajes avanzan solos; con el análisis real se muestra el avance de la preparación.
@@ -743,6 +829,7 @@ function Workspace({ boot }: { boot: Boot }) {
   const notifyBlocked = useCallback((reason: string) => notify(reason), [notify]);
 
   return (
+    <ColorContext.Provider value={colorCtx}>
     <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink print:h-auto print:overflow-visible">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:bg-ink focus:px-3 focus:py-2 focus:text-bg">
         Saltar al contenido
@@ -771,8 +858,8 @@ function Workspace({ boot }: { boot: Boot }) {
       />
       {project.example && <ExampleBanner onStart={handleNewProject} />}
 
-      <div className="flex min-h-0 flex-1">
-        <StepRail project={project} current={screen} onGo={(id, blocked) => {
+      <div className={`flex min-h-0 flex-1 ${viewport === 'mobile' ? 'flex-col' : ''}`}>
+        <StepRail project={project} current={screen} viewport={viewport} onGoLayer={l => { const why = blockReason(projectRef.current, 'capas'); if (why) return notify(`Capas · ${why}`); enter('capas'); setGoLayer({ layer: l, n: Date.now() }); }} onGo={(id, blocked) => {
             if (blocked) {
               logEvent('blocked_click', { target: id, reason: blocked });
               notify(`${stepLabel(id)} · ${blocked}`);
@@ -802,7 +889,7 @@ function Workspace({ boot }: { boot: Boot }) {
             />
           )}
           {screen === 'revisar' && <ReviewScreen key={project.id} project={project} enabled={enabled} apply={apply} mutate={mutate} onNext={() => go('capas')} />}
-          {screen === 'capas' && <LayersScreen key={project.id} project={project} enabled={enabled} apply={apply} onNext={() => go('sistema', 'capas')} onBlocked={notifyBlocked} onLayer={setCapaName} />}
+          {screen === 'capas' && <LayersScreen key={project.id} project={project} enabled={enabled} apply={apply} onNext={() => go('sistema', 'capas')} onBlocked={notifyBlocked} onLayer={setCapaName} onColorLive={handleColorLive} onColorCommit={handleColorCommit} notify={notify} goLayer={goLayer} />}
           {screen === 'sistema' && (
             <SystemScreen
               key={project.id}
@@ -881,5 +968,6 @@ function Workspace({ boot }: { boot: Boot }) {
 
       {overlay?.kind === 'about' && <AboutView onBack={() => setOverlay(null)} />}
     </div>
+    </ColorContext.Provider>
   );
 }

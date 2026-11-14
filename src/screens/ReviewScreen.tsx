@@ -39,13 +39,13 @@ function MiniStack({ piece, project, lit, strong }: { piece: Pattern; project: P
               className="absolute inset-0 overflow-hidden"
               style={{
                 transform: `translateZ(${(2 - l) * 34}px)`,
-                border: `${on ? 2 : 1}px solid ${on ? layerColor(layer) : 'rgba(242,239,232,.22)'}`,
-                background: on ? `color-mix(in oklab, ${layerColor(layer)} ${strong ? 26 : 14}%, oklch(0.165 0.012 40))` : 'oklch(0.2 0.012 40 / .7)',
+                border: `${on ? 2 : 1}px solid ${on ? layerColor(layer) : 'color-mix(in srgb, var(--cc-text) 22%, transparent)'}`,
+                background: on ? `color-mix(in oklab, ${layerColor(layer)} ${strong ? 26 : 14}%, var(--cc-bg))` : 'color-mix(in srgb, var(--cc-bg) 70%, transparent)',
                 boxShadow: on ? `0 0 28px color-mix(in oklab, ${layerColor(layer)} 45%, transparent)` : undefined,
                 transition: 'background 200ms, border-color 200ms, box-shadow 200ms',
               }}
             >
-              <span className="absolute left-2 top-1 font-mono text-[10px] leading-none" style={{ color: on ? layerColor(layer) : 'rgba(242,239,232,.45)' }}>
+              <span className="absolute left-2 top-1 font-mono text-[10px] leading-none" style={{ color: on ? `var(--cc-l${layer - 1}-ink)` : 'color-mix(in srgb, var(--cc-text) 45%, transparent)' }}>
                 {SHEET_NAME[layer].toUpperCase()}
               </span>
               {on && ref && (
@@ -161,8 +161,8 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
                   onMouseLeave={() => setHover(null)}
                   onFocus={() => setHover(l)}
                   onBlur={() => setHover(null)}
-                  className={`inline-flex h-10 items-center gap-2 rounded-[10px] px-4 text-[14px] font-bold transition-colors duration-120 ${isPrimary ? 'text-void' : 'border border-line-strong text-ink hover:bg-white/10'}`}
-                  style={isPrimary ? { background: layerColor(l) } : undefined}
+                  className={`inline-flex h-10 items-center gap-2 rounded-[10px] px-4 text-[14px] font-bold transition-colors duration-120 ${isPrimary ? '' : 'border border-line-strong text-ink hover:bg-white/10'}`}
+                  style={isPrimary ? { background: layerColor(l), color: `var(--cc-l${l - 1}-on)`, boxShadow: `0 0 0 1px var(--cc-l${l - 1}-edge)` } : undefined}
                 >
                   {!isPrimary && <span aria-hidden="true" className="size-2 rounded-full" style={{ background: layerColor(l) }} />}
                   {SHEET_NAME[l]}
@@ -184,7 +184,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
         {/* Derecha */}
         <section aria-label="Dónde entraría" className="flex min-w-0 flex-col gap-4">
           <MiniStack piece={current} project={project} lit={lit} strong={hover !== null} />
-          <p className="m-0 text-center font-mono text-[12px] tracking-[0.08em]" style={{ color: layerColor(lit) }}>
+          <p className="m-0 text-center font-mono text-[12px] tracking-[0.08em]" style={{ color: `var(--cc-l${lit - 1}-ink)` }}>
             ENTRARÍA EN {SHEET_NAME[lit].toUpperCase()}
           </p>
           <div className="flex flex-col gap-3">

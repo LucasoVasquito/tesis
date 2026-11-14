@@ -36,8 +36,8 @@ function StatusBar({ status }: { status: StatusLine }) {
     status.mode === 'activity'
       ? { background: 'var(--capa-1)', boxShadow: '0 0 0 4px color-mix(in oklab, var(--capa-1) 28%, transparent)' }
       : status.mode === 'back'
-        ? { background: 'oklch(0.80 0.12 86)' }
-        : { background: 'rgba(242,239,232,.3)' };
+        ? { background: 'var(--cc-warn)' }
+        : { background: 'color-mix(in srgb, var(--cc-text) 30%, transparent)' };
   return (
     <div role="status" aria-live="polite" className="flex min-w-0 items-center justify-center gap-3">
       <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={dot} />
@@ -56,7 +56,7 @@ function StatusBar({ status }: { status: StatusLine }) {
 function SaveIndicator({ state }: { state: SaveState }) {
   if (state === 'idle') return <span className="w-[88px]" />;
   const text = state === 'saving' ? 'Guardando…' : state === 'saved' ? '✓ Guardado' : 'No se guardó';
-  const color = state === 'saving' ? 'rgba(242,239,232,1)' : state === 'saved' ? 'rgba(242,239,232,.45)' : 'oklch(0.85 0.08 25)';
+  const color = state === 'saving' ? 'var(--cc-text)' : state === 'saved' ? 'color-mix(in srgb, var(--cc-text) 45%, transparent)' : 'var(--cc-error)';
   return (
     <span aria-live="polite" className="whitespace-nowrap text-[11px]" style={{ fontFamily: 'var(--font-mono)', color }}>
       {text}

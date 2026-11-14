@@ -12,7 +12,7 @@
     "start": "node server.cjs",
     "build": "vite build",
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tsconfig.server.json",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test src/utils/derivePalette.test.mjs"
   },
   "keywords": [],
   "author": "",

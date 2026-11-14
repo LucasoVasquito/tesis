@@ -383,10 +383,10 @@ export function ReferencesScreen(props: Props) {
         className="absolute inset-0 touch-none select-none"
         style={{
           cursor: drag.current?.kind === 'pan' ? 'grabbing' : 'grab',
-          backgroundImage: 'radial-gradient(circle, rgba(242,239,232,.09) 1px, transparent 1.2px)',
+          backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--cc-text) 9%, transparent) 1px, transparent 1.2px)',
           backgroundSize: `${dots}px ${dots}px`,
           backgroundPosition: `${cam.x}px ${cam.y}px`,
-          outline: dragOver ? '2px dashed rgba(242,239,232,.5)' : undefined,
+          outline: dragOver ? '2px dashed color-mix(in srgb, var(--cc-text) 50%, transparent)' : undefined,
           outlineOffset: -8,
         }}
       >
@@ -410,7 +410,7 @@ export function ReferencesScreen(props: Props) {
                   height: b.h,
                   zIndex: front[r.id] ?? 0,
                   cursor: 'move',
-                  outline: bad ? `${3 / cam.z}px solid oklch(0.7 0.16 25)` : isSel ? `${2 / cam.z}px solid #F2EFE8` : undefined,
+                  outline: bad ? `${3 / cam.z}px solid var(--cc-error)` : isSel ? `${2 / cam.z}px solid #F2EFE8` : undefined,
                 }}
               >
                 <img
@@ -421,7 +421,7 @@ export function ReferencesScreen(props: Props) {
                   className="pointer-events-none size-full select-none object-cover"
                 />
                 {bad && (
-                  <span className="pointer-events-none absolute left-0 top-0 bg-[oklch(0.7_0.16_25)] px-[6px] py-[2px] font-mono leading-none text-void" style={{ fontSize: Math.max(9, 11 / cam.z) }}>
+                  <span className="pointer-events-none absolute left-0 top-0 bg-[var(--cc-error)] px-[6px] py-[2px] font-mono leading-none text-void" style={{ fontSize: Math.max(9, 11 / cam.z) }}>
                     NO SE PUDO LEER
                   </span>
                 )}

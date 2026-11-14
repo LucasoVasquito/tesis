@@ -34,7 +34,7 @@ type Piece = GeneratedPiece & { imageUrl: string };
 
 /** Tipos de pieza que se ofrecen en el paso 1. */
 const CHIPS: PieceType[] = ['logo', 'facade', 'packaging', 'poster', 'post'];
-const GREEN = 'oklch(0.74 0.09 150)';
+const GREEN = 'var(--cc-ok)';
 
 /** Nombres en español de las direcciones que explora cada variante (el servidor las manda como "Direction A — …"). */
 const DIRECTIONS: Partial<Record<PieceType, string[]>> & { default: string[] } = {
@@ -389,7 +389,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
   const layerBlock = (layer: Layer, note: string, items: Pattern[], body: (x: Pattern) => React.ReactNode, emptyText: string) => (
     <section className={`layer-${layer} flex flex-col gap-2`} aria-label={sheetLabel(layer)}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="type-label text-[12px] tracking-[0.08em]" style={{ color: 'var(--layer-color)' }}>
+        <span className="type-label text-[12px] tracking-[0.08em]" style={{ color: 'var(--layer-text)' }}>
           {sheetLabel(layer)}
         </span>
         <span className="type-label text-[10px] text-ink-2">{note}</span>
@@ -460,7 +460,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     }
     if (err) {
       return (
-        <li key={slot} className="flex flex-col gap-3 border p-3" style={{ borderColor: "oklch(0.7 0.16 25)" }} role="alert">
+        <li key={slot} className="flex flex-col gap-3 border p-3" style={{ borderColor: "var(--cc-error)" }} role="alert">
           <span className="text-[14px] font-semibold">No pudimos generar la variante {slot + 1}.</span>
           <span className="text-[12px] leading-snug text-ink-2">{err.message}</span>
           {err.detail && (
@@ -526,7 +526,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
             type="button"
             onClick={() => toggleApprove(p, slot + 1)}
             className="inline-flex h-9 items-center rounded-[8px] px-4 text-[13px] font-bold"
-            style={isApproved ? { background: GREEN, color: 'oklch(0.165 0.012 40)' } : { background: '#F2EFE8', color: 'oklch(0.165 0.012 40)' }}
+            style={isApproved ? { background: GREEN, color: 'var(--cc-bg)' } : { background: '#F2EFE8', color: 'var(--cc-bg)' }}
           >
             {isApproved ? '✓ Aprobada' : 'Aprobar'}
           </button>

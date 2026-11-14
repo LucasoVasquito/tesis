@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { inferPalette, HEX_IN_TEXT, normalizeHex } from '../utils/palette';
+import { useColors } from './colorContext';
 import { Pattern, Project } from '../types';
 import { Crop } from '../space/Crop';
 import { Notice } from '../pieces/model';
@@ -27,17 +28,43 @@ function pieceHex(piece: Pattern, project: Project): string | null {
  * (fondo vacío al 78%, filete del color y el hex en mono); las tipográficas, la palabra de la marca.
  * Nada de cuadrados de color sueltos.
  */
-export function PieceThumb({ piece, project, className, style, word }: { piece: Pattern; project: Project; className?: string; style?: React.CSSProperties; word?: boolean }) {
-  const hex = useMemo(() => (piece.category === 'color' ? pieceHex(piece, project) : null), [piece.id, piece.category, piece.description, project.references]); // eslint-disable-line react-hooks/exhaustive-deps
+export function PieceThumb({ piece, project, className, style, word, onSwatch }: { piece: Pattern; project: Project; className?: string; style?: React.CSSProperties; word?: boolean; onSwatch?: () => void }) {
+  const colors = useColors();
+  const fallback = useMemo(() => (piece.category === 'color' ? pieceHex(piece, project) : null), [piece.id, piece.category, piece.description, project.references]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hex = piece.category === 'color' ? colors.byPiece[piece.id]?.hex ?? piece.colorOverride ?? fallback : null;
   const brand = (project.name || project.intent || '').split(/s[—–-]s/)[0].trim();
+  const label = hex && (
+    <>
+      <span aria-hidden="true" className="size-5 shrink-0" style={{ background: hex, boxShadow: '0 0 0 1px color-mix(in srgb, var(--cc-text) 40%, transparent)' }} />
+      <span>{hex.toUpperCase()}</span>
+    </>
+  );
+  const labelStyle: React.CSSProperties = { background: 'color-mix(in srgb, var(--cc-bg) 78%, transparent)', borderLeft: `3px solid ${hex}` };
   return (
     <div className={`relative overflow-hidden ${className ?? ''}`} style={style}>
       <PieceImage piece={piece} project={project} className="absolute inset-0 size-full" />
-      {hex && (
-        <span className="absolute bottom-[6px] left-[6px] flex items-center py-[3px] pl-2 pr-2 font-mono text-[11px] leading-none text-ink" style={{ background: 'oklch(0.165 0.012 40 / .78)', borderLeft: `3px solid ${hex}` }}>
-          {hex.toUpperCase()}
-        </span>
-      )}
+      {hex &&
+        (onSwatch ? (
+          <button
+            type="button"
+            data-swatch
+            aria-label={`Cambiar el color de ${piece.name} (C)`}
+            title="Cambiar el color"
+            onPointerDown={e => e.stopPropagation()}
+            onClick={e => {
+              e.stopPropagation();
+              onSwatch();
+            }}
+            className="absolute bottom-[6px] left-[6px] flex items-center gap-2 py-[2px] pl-[2px] pr-2 font-mono text-[11px] leading-none text-ink hover:brightness-125"
+            style={labelStyle}
+          >
+            {label}
+          </button>
+        ) : (
+          <span className="absolute bottom-[6px] left-[6px] flex items-center gap-2 py-[2px] pl-[2px] pr-2 font-mono text-[11px] leading-none text-ink" style={labelStyle}>
+            {label}
+          </span>
+        ))}
       {word !== false && piece.category === 'typography' && brand && (
         <span className="type-name pointer-events-none absolute inset-x-2 bottom-1 truncate text-[clamp(18px,3.4vw,34px)] leading-none text-bone" style={{ textShadow: '0 1px 8px rgba(0,0,0,.7)' }}>
           {brand}
