@@ -108,7 +108,7 @@ export function ExportActions({ project, onNotice, paletteMissing, paletteBusy, 
       </BarButton>
       {paletteMissing > 0 && (
         <BarButton onClick={onCompletePalette} disabled={paletteBusy}>
-          {paletteBusy ? 'Leyendo colores…' : `Completar paleta · ${paletteMissing}`}
+          {paletteBusy ? 'Analizando colores…' : `Completar paleta · ${paletteMissing}`}
         </BarButton>
       )}
     </>

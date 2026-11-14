@@ -2,9 +2,10 @@ import React from 'react';
 import { FullView } from './shell/FullView';
 
 const STEPS: [string, string, string][] = [
-  ['01', 'Moodboard', 'Tres capas apiladas y un panel de referencias. El usuario ubica; el agente analiza, extrae las piezas y completa lo que quedó sin ubicar, siempre como sugerencia. Nunca mueve lo del usuario: solo avisa.'],
-  ['02', 'Sistema', 'Las tres capas como una página editorial: el Núcleo titula, el Soporte desarrolla y el Acento anota. El peso (capa × origen) ordena los lineamientos, la paleta y el pedido.'],
-  ['03', 'Probar', 'El sistema aplicado a una pieza concreta. La receta dice qué parte se usa, por capa y por peso; el agente revisa si lo generado respeta cada pieza del Núcleo.'],
+  ['01', 'Referencias y revisión', 'Un lienzo libre de referencias. El análisis detecta piezas y las propone como sugerencias; el usuario las acepta, las mueve o las descarta. Lo del usuario pesa más y nunca se mueve solo.'],
+  ['03', 'Capas', 'Un recorrido por Núcleo, Soporte y Acento. Cada capa tiene una pregunta guía y los colores de la interfaz salen de las piezas de color de cada una.'],
+  ['04', 'Sistema', 'Las tres capas como una página editorial: el Núcleo titula, el Soporte desarrolla y el Acento anota. El peso (capa × origen) ordena los lineamientos, la paleta y el pedido.'],
+  ['05', 'Probar', 'El sistema aplicado a una pieza concreta. La receta dice qué parte se usa, por capa y por peso; el agente revisa si lo generado respeta cada pieza del Núcleo.'],
 ];
 
 /** Marco conceptual de la tesis. */

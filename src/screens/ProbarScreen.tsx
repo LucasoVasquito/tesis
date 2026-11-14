@@ -53,8 +53,8 @@ function directionLabel(p: { direction: string; pieceType: PieceType }) {
 }
 
 function OriginTag({ piece }: { piece: Pattern }) {
-  if (piece.origin === 'user') return <span className="type-label shrink-0 bg-bone px-1 text-[10px] text-void">USUARIO</span>;
-  return <span className="type-label shrink-0 border border-ink-3 px-1 text-[10px] text-ink-2">AGENTE</span>;
+  if (piece.origin === 'user') return <span className="type-label shrink-0 bg-bone px-1 text-[10px] text-void">TUYO</span>;
+  return <span className="type-label shrink-0 border border-ink-3 px-1 text-[10px] text-ink-2">DETECTADO</span>;
 }
 
 const StepLabel = ({ children }: { children: React.ReactNode }) => <span className="font-mono text-[11px] tracking-[0.08em] text-ink-2">{children}</span>;
@@ -498,7 +498,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
           <span className="px-1 text-[12px] text-ink-3">Modo directo: sin control del Núcleo.</span>
         ) : c === 'loading' ? (
           <span className="flex items-center gap-2 px-1 text-[12px] text-ink-2">
-            <span className="spinner text-core" /> El agente está mirando si respeta el Núcleo…
+            <span className="spinner text-core" /> Revisando si respeta el Núcleo…
           </span>
         ) : c === 'error' ? (
           <span className="flex items-center gap-2 px-1 text-[12px] text-ink-2">
@@ -632,7 +632,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                 </p>
                 <div className="flex flex-col gap-5" style={{ opacity: direct ? 0.4 : 1, pointerEvents: direct ? 'none' : undefined }}>
                   {layerBlock(1, 'las 3 de más peso vienen marcadas', recipe.core, x => item(x, check(isOn(x.id) && !omittedIds.has(x.id), `${x.name}: usar en el pedido`, () => toggle(x, 1)), stateOf(x)), 'El Núcleo está vacío: ubicá piezas en la Capa 1.')}
-                  {layerBlock(2, 'el agente preseleccionó lo que aplica', recipe.support, x => item(x, check(isOn(x.id) && !omittedIds.has(x.id), `${x.name}: usar en el pedido`, () => toggle(x, 2)), stateOf(x)), 'No hay piezas de Soporte.')}
+                  {layerBlock(2, 'se preseleccionó lo que aplica', recipe.support, x => item(x, check(isOn(x.id) && !omittedIds.has(x.id), `${x.name}: usar en el pedido`, () => toggle(x, 2)), stateOf(x)), 'No hay piezas de Soporte.')}
                   {layerBlock(3, 'detalle · una sola', recipe.accent, x => item(x, check(isOn(x.id) && !omittedIds.has(x.id), `${x.name}: usar como detalle`, () => toggle(x, 3)), stateOf(x)), 'No hay piezas de Acento.')}
                 </div>
 
@@ -668,7 +668,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                           </button>
                         ))}
                       </div>
-                      {paletteBusy && <span className="text-[11px] text-ink-2">Leyendo los colores…</span>}
+                      {paletteBusy && <span className="text-[11px] text-ink-2">Analizando colores…</span>}
                     </div>
                   )}
                   <input

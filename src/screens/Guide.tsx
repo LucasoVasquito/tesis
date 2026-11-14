@@ -14,7 +14,7 @@ export const guideDone = () => {
 const STEPS: { text: string; where: string }[] = [
   { text: 'Cinco etapas a la izquierda: Referencias, Revisar, Capas, Sistema y Probar. Podés ir y volver.', where: 'left-[224px] top-[110px]' },
   { text: 'Juntá imágenes en el lienzo: arrastralas, pegá una URL o usá Ctrl+V. Con 5 o más, analizá.', where: 'left-1/2 top-[160px] -translate-x-1/2' },
-  { text: 'Revisá lo que propone el agente y ordená las capas con la rueda. Ctrl+Z deshace.', where: 'bottom-[120px] right-6' },
+  { text: 'Revisá las sugerencias y ordená las capas con la rueda. Ctrl+Z deshace.', where: 'bottom-[120px] right-6' },
 ];
 
 /** Guía de 3 carteles: solo la primera vez (o desde AYUDA), salteable. */

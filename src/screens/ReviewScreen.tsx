@@ -4,6 +4,7 @@ import { useShortcuts } from '../hooks/useAuditShortcuts';
 import { evidenceCount } from '../utils/layers';
 import { ActionResult, SHEET_NAME, confirm, evidenceText, outPieces, place, proposedLayer, recover, suggestions, takeOut } from '../pieces/model';
 import { reviewProgress, summary } from '../utils/steps';
+import { LAYER_QUESTION } from '../utils/layerQuestions';
 import { BottomBar } from '../components/shell/BottomBar';
 import { Crop } from '../space/Crop';
 import { PieceThumb } from './common';
@@ -135,7 +136,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
   /* ---------- Una sugerencia por vez ---------- */
   const evidenceRefs = current.evidence.map(id => project.references.find(r => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r).slice(0, 3);
   const lit = hover ?? suggested;
-  const reason = current.systemHypothesis?.trim() || current.description?.trim() || 'El agente la encontró repetida en varias referencias.';
+  const reason = `${current.name.charAt(0).toUpperCase()}${current.name.slice(1)} aparece en ${evidenceText(current, project).replace(' referencias', ' imágenes').replace(' referencia', ' imagen')}.${current.description?.trim() ? ` ${current.description.trim()}` : ''}`;
   const idx = Math.min(progress.total, progress.reviewed + 1);
 
   return (
@@ -144,7 +145,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
         {/* Izquierda */}
         <section aria-label="Sugerencia" className="flex min-w-0 flex-col gap-4">
           <span className="font-mono text-[12px] tracking-[0.06em] text-ink-2">
-            SUGERENCIA DEL AGENTE · {idx} DE {progress.total}
+            SUGERENCIA · {idx} DE {progress.total}
           </span>
           <PieceThumb piece={current} project={project} className="aspect-[4/3] max-w-full bg-raised" style={{ height: 'clamp(80px, calc(100vh - 416px), 280px)' }} />
           <h1 className="m-0 text-[32px] font-bold leading-[1.05]">{current.name}</h1>
@@ -161,11 +162,14 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
                   onMouseLeave={() => setHover(null)}
                   onFocus={() => setHover(l)}
                   onBlur={() => setHover(null)}
-                  className={`inline-flex h-10 items-center gap-2 rounded-[10px] px-4 text-[14px] font-bold transition-colors duration-120 ${isPrimary ? '' : 'border border-line-strong text-ink hover:bg-white/10'}`}
+                  className={`inline-flex min-h-[44px] max-w-[210px] items-start gap-2 rounded-[10px] px-4 py-2 text-left text-[14px] font-bold transition-colors duration-120 ${isPrimary ? '' : 'border border-line-strong text-ink hover:bg-white/10'}`}
                   style={isPrimary ? { background: layerColor(l), color: `var(--cc-l${l - 1}-on)`, boxShadow: `0 0 0 1px var(--cc-l${l - 1}-edge)` } : undefined}
                 >
                   {!isPrimary && <span aria-hidden="true" className="size-2 rounded-full" style={{ background: layerColor(l) }} />}
-                  {SHEET_NAME[l]}
+                  <span className="flex flex-col">
+                    {SHEET_NAME[l]}
+                    <span className="text-[12px] font-normal leading-tight opacity-80">{LAYER_QUESTION[l]}</span>
+                  </span>
                   {isPrimary ? <kbd className="font-mono text-[12px] font-medium opacity-60">⏎</kbd> : <kbd className="font-mono text-[11px] font-medium opacity-50">{KEY_OF[l]}</kbd>}
                 </button>
               );

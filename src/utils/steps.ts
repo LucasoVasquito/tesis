@@ -16,7 +16,7 @@ export interface StepInfo {
 
 export const STEPS: StepInfo[] = [
   { id: 'referencias', label: 'Referencias', desc: 'Juntá todo lo que te inspira' },
-  { id: 'revisar', label: 'Revisar', desc: 'Decidí qué propone el agente' },
+  { id: 'revisar', label: 'Revisar', desc: 'Decidí qué se sugiere' },
   { id: 'capas', label: 'Capas', desc: 'Ordená por importancia' },
   { id: 'sistema', label: 'Sistema', desc: 'Mirá el resultado' },
   { id: 'probar', label: 'Probar', desc: 'Aplicalo a una pieza' },

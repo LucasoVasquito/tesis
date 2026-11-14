@@ -21,8 +21,8 @@ interface SystemScreenProps {
 
 /** Quién ubicó la pieza. */
 function Origin({ piece, suggestion }: { piece: Pattern; suggestion: boolean }) {
-  if (piece.origin === 'user') return <span className="type-label self-start bg-bone px-1 text-[10px] text-void">USUARIO</span>;
-  return <span className="type-label self-start border border-ink-3 px-1 text-[10px] text-ink-2">{suggestion ? 'AGENTE · SUGERENCIA' : 'AGENTE'}</span>;
+  if (piece.origin === 'user') return <span className="type-label self-start bg-bone px-1 text-[10px] text-void">TUYO</span>;
+  return <span className="type-label self-start border border-ink-3 px-1 text-[10px] text-ink-2">{suggestion ? 'DETECTADO · SUGERENCIA' : 'DETECTADO'}</span>;
 }
 
 /** Rótulo de capa del color de la capa, con su filete. */

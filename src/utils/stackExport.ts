@@ -51,7 +51,7 @@ export function stackPalette(p: Project, max = 6): StackPaletteColor[] {
 
 const pct = (n?: number) => `${Math.round((n ?? 0) * 100)}%`;
 /** Las sugerencias de la IA que el diseñador todavía no confirmó van marcadas. */
-const unaudited = (x: Pattern) => (x.confirmed ? '' : ' [AGENTE · SUGERENCIA]');
+const unaudited = (x: Pattern) => (x.confirmed ? '' : ' [DETECTADO · SUGERENCIA]');
 
 /* ---------- Prompt ---------- */
 
@@ -97,7 +97,7 @@ export function stackGuidelinesMarkdown(p: Project): string {
   lines.push(`# ${title}`, '');
   if (p.intent && p.intent !== title) lines.push(`> ${p.intent}`, '');
   if (p.brief) lines.push(p.brief, '');
-  lines.push(`Sistema visual en tres capas. El Núcleo define, el Soporte acompaña y el Acento da carácter. Las piezas marcadas con [AGENTE · SUGERENCIA] las ubicó el agente y el diseñador todavía no las confirmó.`, '');
+  lines.push(`Sistema visual en tres capas. El Núcleo define, el Soporte acompaña y el Acento da carácter. Las piezas marcadas con [DETECTADO · SUGERENCIA] las ubicó el agente y el diseñador todavía no las confirmó.`, '');
 
   const core = layerContents(p, 1);
   lines.push(`## 01 · Núcleo`, '');

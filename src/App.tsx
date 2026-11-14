@@ -460,7 +460,7 @@ function Workspace({ boot }: { boot: Boot }) {
       if (!res.ok || !result.success) throw new Error(result.details || result.error || 'No se pudo redactar el brief');
       const d = result.data;
       updateProject(p => ({ ...p, name: p.name.trim() && p.name !== intent ? p.name : d.name || intent, objective: d.objective || p.objective, description: d.brief || p.description, brief: d.brief || p.brief }), projectId);
-      addLog('brief', 'brief', 'Brief redactado por el agente', 'Borrador: el diseñador lo puede editar', { projectId });
+      addLog('brief', 'brief', 'Brief redactado por el sistema', 'Borrador: el diseñador lo puede editar', { projectId });
     } catch (err: any) {
       const raw = String(err?.message || err);
       notify('El brief queda para después.', { tone: 'error', detail: friendlyError(err instanceof TypeError ? 'failed to fetch' : raw).replace('No se pudo analizar. ', '') });
@@ -561,7 +561,7 @@ function Workspace({ boot }: { boot: Boot }) {
       } catch {
         throw serverError(text, res.status);
       }
-      if (!res.ok || !result.success) throw Object.assign(new Error(result.error || result.details || 'El agente no respondió'), { detail: result.error || result.details });
+      if (!res.ok || !result.success) throw Object.assign(new Error(result.error || result.details || 'El servicio de análisis no respondió'), { detail: result.error || result.details });
       const detected: any[] = result.data?.patterns ?? [];
       const bad = new Set(skipped);
       let pieces = 0;
@@ -581,7 +581,7 @@ function Workspace({ boot }: { boot: Boot }) {
       setAnalysis({ status: 'idle' });
       if (bad.size) {
         const first = skipped[0];
-        notify(`El agente encontró ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}. ${bad.size} ${bad.size === 1 ? 'imagen no se pudo leer' : 'imágenes no se pudieron leer'} (archivo dañado).`, {
+        notify(`Se encontraron ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}. ${bad.size} ${bad.size === 1 ? 'imagen no se pudo leer' : 'imágenes no se pudieron leer'} (archivo dañado).`, {
           action: {
             label: 'Ver cuál',
             run: () => {
@@ -591,7 +591,7 @@ function Workspace({ boot }: { boot: Boot }) {
           },
         });
       } else {
-        notify(`El agente encontró ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'} para revisar.`, { action: { label: 'Ir a Revisar', run: () => go('revisar') } });
+        notify(`Se encontraron ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'} para revisar.`, { action: { label: 'Ir a Revisar', run: () => go('revisar') } });
       }
     } catch (err: any) {
       if (err?.name === 'AbortError') {
@@ -649,7 +649,7 @@ function Workspace({ boot }: { boot: Boot }) {
     const missing = paletteMissing;
     try {
       for (let i = 0; i < missing.length; i++) {
-        setPaletteActivity(`Leyendo colores · ${i + 1} de ${missing.length}…`);
+        setPaletteActivity(`Analizando colores · ${i + 1} de ${missing.length}…`);
         try {
           await inspectReference(missing[i]);
         } catch {
@@ -774,7 +774,7 @@ function Workspace({ boot }: { boot: Boot }) {
     return () => clearInterval(id);
   }, [analysis.status]);
   const analysisActivity = (() => {
-    if (analysis.status === 'preparing') return `Leyendo colores · ${Math.min(analysis.total, analysis.done + 1)} de ${analysis.total}…`;
+    if (analysis.status === 'preparing') return `Analizando colores · ${Math.min(analysis.total, analysis.done + 1)} de ${analysis.total}…`;
     if (analysis.status === 'reading') {
       void tick;
       const s = (Date.now() - analysis.since) / 1000;
@@ -962,7 +962,7 @@ function Workspace({ boot }: { boot: Boot }) {
           const item = makeFeedback({ type: fb.type, comment: fb.comment });
           updateProject(p => ({ ...p, feedback: [...p.feedback, item] }));
           addLog('feedback', 'proyecto', fb.type === 'designer_rule' ? 'Regla del diseñador' : 'Ajuste', fb.comment, { feedbackId: item.id });
-          notify('Regla guardada · el agente la usa en el próximo análisis');
+          notify('Regla guardada · se usa en el próximo análisis');
         }}
       />
 

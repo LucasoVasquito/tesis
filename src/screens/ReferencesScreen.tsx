@@ -469,7 +469,7 @@ export function ReferencesScreen(props: Props) {
             className="rounded-[8px] border border-line-mid bg-bg/80 px-3 py-2 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-bone"
           />
         </label>
-        {props.briefBusy && <span className="font-mono text-[11px] text-ink-2">El agente está redactando el brief…</span>}
+        {props.briefBusy && <span className="font-mono text-[11px] text-ink-2">Redactando el brief…</span>}
       </div>
 
       <BottomBar
