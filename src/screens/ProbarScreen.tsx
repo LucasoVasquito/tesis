@@ -11,6 +11,8 @@ import { fullRule } from '../utils/layerRules';
 import { SHEET_NAME, sheetLabel } from '../pieces/model';
 import { MAX_CORE_IMAGES, MAX_DECISIONS, PIECE_TYPES, PromptInput, Selection, buildProbarPrompt, buildRecipe, pieceTypeInfo, selectDecisions } from '../utils/probar';
 import { BottomBar } from '../components/shell/BottomBar';
+import { ExportMenu } from '../components/ExportMenu';
+import { downloadPiecePng } from '../utils/exportKit';
 import { KeyButton, PieceImage } from './common';
 import { Notify } from './types';
 import { logEvent } from '../utils/testLog';
@@ -530,13 +532,21 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
           >
             {isApproved ? '✓ Aprobada' : 'Aprobar'}
           </button>
-          <a
-            href={p.imageUrl || undefined}
-            download={`${system.name.replace(/\s+/g, '_')}_${p.pieceType}_${p.id}.png`}
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const file = await downloadPiecePng(project, p.imageUrl, p.pieceType, slot + 1);
+                logEvent('export', { type: 'png', kind: p.pieceType });
+                onNotify(`Se descargó ${file}`);
+              } catch (e: any) {
+                onNotify('No se pudo descargar la imagen.', { tone: 'error', detail: e?.message });
+              }
+            }}
             className="inline-flex h-9 items-center rounded-[8px] border border-line-strong px-4 text-[13px] font-medium text-ink hover:bg-white/10"
           >
             Descargar
-          </a>
+          </button>
         </div>
       </li>
     );
@@ -746,7 +756,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
         </section>
       </div>
 
-      <BottomBar primary={primary} />
+      <BottomBar actions={<ExportMenu project={project} notify={onNotify} />} primary={primary} />
       <LightboxModal
         reference={zoomPiece ? { id: zoomPiece.id, name: `${pieceTypeInfo(zoomPiece.pieceType).label} · ${zoomPiece.mode === 'direct' ? 'directo' : 'con el sistema'}`, image: zoomPiece.imageUrl, createdAt: '' } : null}
         onClose={() => setZoomId(null)}

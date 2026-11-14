@@ -3,9 +3,10 @@ import { Layer, Pattern, Project } from '../types';
 import { useShortcuts } from '../hooks/useAuditShortcuts';
 import { evidenceCount } from '../utils/layers';
 import { fullRule, oneLine, shortRule } from '../utils/layerRules';
-import { ExportActions } from '../space/ExportBar';
+import { ExportMenu } from '../components/ExportMenu';
+import { Notify } from './types';
 import { SHEET_NAME, evidenceText, isSuggestion, livePieces, piecesIn } from '../pieces/model';
-import { BottomBar } from '../components/shell/BottomBar';
+import { BarButton, BottomBar } from '../components/shell/BottomBar';
 import { PieceThumb } from './common';
 
 interface SystemScreenProps {
@@ -13,7 +14,7 @@ interface SystemScreenProps {
   enabled: boolean;
   onNext: () => void;
   onBlocked: (reason: string) => void;
-  onNotice: (text: string) => void;
+  notify: Notify;
   paletteMissing: number;
   paletteBusy: boolean;
   onCompletePalette: () => void;
@@ -145,7 +146,16 @@ export function SystemScreen(props: SystemScreenProps) {
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-40" style={{ background: 'linear-gradient(to top, var(--color-bg) 30%, transparent)' }} />
 
       <BottomBar
-        actions={<ExportActions project={project} onNotice={props.onNotice} paletteMissing={props.paletteMissing} paletteBusy={props.paletteBusy} onCompletePalette={props.onCompletePalette} />}
+        actions={
+          <>
+            <ExportMenu project={project} notify={props.notify} />
+            {props.paletteMissing > 0 && (
+              <BarButton onClick={props.onCompletePalette} disabled={props.paletteBusy}>
+                {props.paletteBusy ? 'Analizando colores…' : `Completar paleta · ${props.paletteMissing}`}
+              </BarButton>
+            )}
+          </>
+        }
         primary={
           core.length
             ? { label: 'Probar en una pieza', kbd: '⏎', onClick: props.onNext }

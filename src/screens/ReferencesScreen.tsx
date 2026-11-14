@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BoardBox, Project, Reference } from '../types';
 import { useShortcuts } from '../hooks/useAuditShortcuts';
+import { useViewport } from '../hooks/useViewport';
 import { corpusRefs } from '../utils/layers';
 import { MIN_REFS } from '../pieces/model';
 import { AnalysisState } from '../pieces/analyze';
@@ -62,6 +63,9 @@ interface Props {
 export function ReferencesScreen(props: Props) {
   const { project, mutate } = props;
   const refs = useMemo(() => corpusRefs(project), [project]);
+  const viewport = useViewport();
+  const mobile = viewport === 'mobile';
+  const fileInput = useRef<HTMLInputElement>(null);
   const analyzed = isAnalyzed(project);
   const busy = props.analysis.status === 'preparing' || props.analysis.status === 'reading';
   const missing = Math.max(0, MIN_REFS - refs.length);
@@ -129,14 +133,15 @@ export function ReferencesScreen(props: Props) {
     });
   }, [size.w, size.h]);
 
-  // La rueda hace zoom en el cursor (listener no pasivo para poder frenar el scroll).
+  // Convención Figma/Miro: la rueda o el trackpad desplazan el lienzo; Ctrl/Cmd + rueda (o el pellizco del trackpad) hace zoom en el cursor.
   useEffect(() => {
     const el = wrapRef.current;
     if (!el || !props.enabled) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
-      zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - rect.left, e.clientY - rect.top);
+      if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * (Math.abs(e.deltaY) >= 50 ? 0.002 : 0.01)), e.clientX - rect.left, e.clientY - rect.top);
+      else setCam(c => ({ ...c, x: c.x - e.deltaX, y: c.y - e.deltaY }));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
@@ -273,12 +278,85 @@ export function ReferencesScreen(props: Props) {
     window.addEventListener('pointercancel', up);
   };
 
+  // Espacio + arrastrar: desplazar (además de arrastrar el fondo).
+  const spaceDown = useRef(false);
+  const [spacePan, setSpacePan] = useState(false);
+  useEffect(() => {
+    if (!props.enabled) return;
+    const typing = () => {
+      const el = document.activeElement as HTMLElement | null;
+      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+    };
+    const dn = (e: KeyboardEvent) => {
+      if (e.key !== ' ' || typing()) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === 'BUTTON' || el.tagName === 'A')) return;
+      e.preventDefault();
+      spaceDown.current = true;
+      setSpacePan(true);
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key !== ' ') return;
+      spaceDown.current = false;
+      setSpacePan(false);
+    };
+    window.addEventListener('keydown', dn);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', dn);
+      window.removeEventListener('keyup', up);
+    };
+  }, [props.enabled]);
+
+  // Dos dedos: zoom con el pellizco (y desplazamiento con el punto medio).
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<null | { dist: number; mx: number; my: number }>(null);
+  const trackTouch = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.current.size === 2) {
+      drag.current = null; // se cancela lo que se arrastraba con un dedo
+      setLive(null);
+      const [a, b] = [...touches.current.values()];
+      pinch.current = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+    }
+  };
+  const moveTouch = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch' || !touches.current.has(e.pointerId)) return;
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.current.size !== 2 || !pinch.current) return;
+    const [a, b] = [...touches.current.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const rect = wrapRef.current?.getBoundingClientRect();
+    const factor = dist / pinch.current.dist;
+    const dx = mx - pinch.current.mx;
+    const dy = my - pinch.current.my;
+    pinch.current = { dist, mx, my };
+    setCam(c => {
+      const z = clamp(c.z * factor, MIN_Z, MAX_Z);
+      const px = mx - (rect?.left ?? 0);
+      const py = my - (rect?.top ?? 0);
+      const wx = (px - c.x) / c.z;
+      const wy = (py - c.y) / c.z;
+      return { z, x: px - wx * z + dx, y: py - wy * z + dy };
+    });
+  };
+  const endTouch = (e: React.PointerEvent) => {
+    touches.current.delete(e.pointerId);
+    if (touches.current.size < 2) pinch.current = null;
+  };
+
   const onBackgroundDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.button !== 1) return;
     begin({ kind: 'pan', sx: e.clientX, sy: e.clientY, cam: camRef.current, moved: false });
   };
   const onImageDown = (e: React.PointerEvent, r: Reference) => {
     if (e.button !== 0 || !r.board) return;
+    if (spaceDown.current) return; // con Espacio se desplaza el lienzo: lo resuelve el fondo
+    trackTouch(e);
+    if (touches.current.size >= 2) return;
     e.stopPropagation();
     e.preventDefault();
     setSelected(r.id);
@@ -373,7 +451,13 @@ export function ReferencesScreen(props: Props) {
         data-canvas
         role="application"
         aria-label="Lienzo de referencias"
-        onPointerDown={onBackgroundDown}
+        onPointerDown={e => {
+          trackTouch(e);
+          if (touches.current.size < 2) onBackgroundDown(e);
+        }}
+        onPointerMove={moveTouch}
+        onPointerUp={endTouch}
+        onPointerCancel={endTouch}
         onDragOver={e => {
           e.preventDefault();
           setDragOver(true);
@@ -382,7 +466,7 @@ export function ReferencesScreen(props: Props) {
         onDrop={onDrop}
         className="absolute inset-0 touch-none select-none"
         style={{
-          cursor: drag.current?.kind === 'pan' ? 'grabbing' : 'grab',
+          cursor: spacePan || drag.current?.kind === 'pan' ? 'grabbing' : 'grab',
           backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--cc-text) 9%, transparent) 1px, transparent 1.2px)',
           backgroundSize: `${dots}px ${dots}px`,
           backgroundPosition: `${cam.x}px ${cam.y}px`,
@@ -396,7 +480,7 @@ export function ReferencesScreen(props: Props) {
             if (!b) return null;
             const isSel = selected === r.id;
             const bad = r.broken || unreadable.has(r.id);
-            const hs = 12 / cam.z;
+            const hs = (mobile ? 24 : 12) / cam.z;
             return (
               <div
                 key={r.id}
@@ -472,14 +556,26 @@ export function ReferencesScreen(props: Props) {
         {props.briefBusy && <span className="font-mono text-[11px] text-ink-2">Redactando el brief…</span>}
       </div>
 
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={e => {
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = '';
+          if (files.length) props.onAddFiles(files);
+        }}
+      />
       <BottomBar
-        help="Arrastrá imágenes al lienzo, pegá una URL o una imagen con Ctrl+V. La rueda acerca y aleja; arrastrá el fondo para moverte."
+        help={mobile ? 'Un dedo mueve; dos dedos hacen zoom. Tocá una imagen para elegirla y arrastrá las esquinas para cambiar el tamaño.' : 'Rueda para moverte, Ctrl + rueda para zoom. Arrastrá las esquinas para cambiar el tamaño.'}
         actions={
           <>
             {analyzed && !busy && <BarButton onClick={props.onRequestReanalyze}>Volver a analizar</BarButton>}
             {busy && <BarButton onClick={props.onCancelAnalysis}>Cancelar análisis</BarButton>}
             {(analyzed || busy) && <BarSep />}
-            <BarButton onClick={props.onOpenUpload}>+ Imagen</BarButton>
+            <BarButton onClick={() => (mobile ? fileInput.current?.click() : props.onOpenUpload())}>+ Imagen</BarButton>
             <BarSep />
             <BarButton onClick={() => zoomAt(0.8)} ariaLabel="Alejar" title="Alejar (−)">
               −

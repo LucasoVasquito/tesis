@@ -699,7 +699,7 @@ function Workspace({ boot }: { boot: Boot }) {
     const rank = det ? [...new Set(det.detected.sort((p, q) => q.weight - p.weight).map(c => c.hex))].slice(0, 8) : [];
     const saved = project.layerColors;
     const fallback = saved ? { primary: saved[0], secondary: saved[1], accent: saved[2] } : DEFAULT_PALETTE;
-    return { palette: det ? derivePalette(det.detected, pieces, overrides) : fallback, colorCtx: { byPiece, detected: rank } as ColorCtx };
+    return { palette: det ? derivePalette(det.detected, pieces, overrides) : fallback, colorCtx: { byPiece, detected: rank, palette: det ? derivePalette(det.detected, pieces, overrides) : fallback } as ColorCtx };
   })();
   const theme = buildTheme(palette);
   const themeKey = JSON.stringify(palette);
@@ -897,7 +897,7 @@ function Workspace({ boot }: { boot: Boot }) {
               enabled={enabled}
               onNext={() => go('probar', 'sistema')}
               onBlocked={notifyBlocked}
-              onNotice={text => notify(text)}
+              notify={notify}
               paletteMissing={paletteMissing.length}
               paletteBusy={paletteBusy}
               onCompletePalette={handleCompletePalette}
