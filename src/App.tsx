@@ -866,7 +866,7 @@ function Workspace({ boot }: { boot: Boot }) {
             } else enter(id);
           }} />
 
-        <main id="main" tabIndex={-1} className={`relative min-w-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
+        <main id="main" tabIndex={-1} className={`relative min-h-0 min-w-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
           {screen === 'referencias' && (
             <ReferencesScreen
               key={project.id}

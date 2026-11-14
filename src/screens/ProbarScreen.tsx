@@ -15,6 +15,7 @@ import { ExportMenu } from '../components/ExportMenu';
 import { downloadPiecePng } from '../utils/exportKit';
 import { KeyButton, PieceImage } from './common';
 import { Notify } from './types';
+import { useViewport } from '../hooks/useViewport';
 import { logEvent } from '../utils/testLog';
 
 interface ProbarScreenProps {
@@ -89,6 +90,8 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
   const [zoomId, setZoomId] = useState<string | null>(null);
   const [promptOpen, setPromptOpen] = useState(false);
   const busy = busySlots.length > 0;
+  const mobile = useViewport() === 'mobile';
+  const [recipeOpen, setRecipeOpen] = useState(false);
 
   useEffect(() => onType(pieceTypeInfo(pieceType).label.toLowerCase()), [pieceType]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -452,7 +455,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     const generating = busySlots.includes(slot);
     if (generating) {
       return (
-        <li key={slot} className="flex flex-col gap-2 border border-line bg-void p-2" aria-busy="true">
+        <li key={slot} className="flex flex-col gap-2 border border-line bg-void p-2 max-md:min-w-full max-md:snap-center" aria-busy="true">
           <div className="flex aspect-square w-full items-center justify-center bg-raised">
             <span className="spinner text-core" />
           </div>
@@ -462,7 +465,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     }
     if (err) {
       return (
-        <li key={slot} className="flex flex-col gap-3 border p-3" style={{ borderColor: "var(--cc-error)" }} role="alert">
+        <li key={slot} className="flex flex-col gap-3 border p-3 max-md:min-w-full max-md:snap-center" style={{ borderColor: "var(--cc-error)" }} role="alert">
           <span className="text-[14px] font-semibold">No pudimos generar la variante {slot + 1}.</span>
           <span className="text-[12px] leading-snug text-ink-2">{err.message}</span>
           {err.detail && (
@@ -482,7 +485,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     const isApproved = approved[p.pieceType] === p.id;
     const coreOf = (cid: string) => project.patterns.find(x => x.id === cid);
     return (
-      <li key={p.id} className="flex flex-col gap-2 border bg-void p-2" style={{ borderColor: isApproved ? GREEN : 'var(--color-line)' }}>
+      <li key={p.id} className="flex flex-col gap-2 border bg-void p-2 max-md:min-w-full max-md:snap-center" style={{ borderColor: isApproved ? GREEN : 'var(--color-line)' }}>
         <button type="button" onClick={() => setZoomId(p.id)} aria-label={`Ampliar variante ${slot + 1}`} className="block p-0">
           <img
             src={p.imageUrl || undefined}
@@ -557,13 +560,13 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
 
   return (
     <div className="relative h-full">
-      <div className="grid h-full min-h-0 grid-cols-1 min-[880px]:grid-cols-[380px_minmax(0,1fr)]">
+      <div className="grid h-full min-h-0 grid-cols-1 max-md:block max-md:overflow-y-auto min-[880px]:grid-cols-[380px_minmax(0,1fr)]">
         {/* Izquierda: la pieza y la receta */}
-        <div className="flex min-h-0 flex-col gap-8 overflow-y-auto border-r border-line p-6 pb-40">
+        <div className="flex min-h-0 flex-col gap-8 overflow-y-auto border-r border-line p-6 pb-8 max-md:overflow-visible max-md:border-r-0 md:pb-40">
           <section aria-label="Paso 1 · La pieza" className="flex flex-col gap-4">
             <StepLabel>PASO 1 · LA PIEZA</StepLabel>
             <h2 className="m-0 text-[22px] font-bold leading-tight">¿Qué querés probar?</h2>
-            <div role="radiogroup" aria-label="Tipo de pieza" className="flex flex-wrap gap-2">
+            <div role="radiogroup" aria-label="Tipo de pieza" className="flex gap-2 max-md:-mx-6 max-md:flex-nowrap max-md:overflow-x-auto max-md:px-6 md:flex-wrap">
               {CHIPS.map(id => {
                 const t = pieceTypeInfo(id);
                 const on = pieceType === id;
@@ -574,7 +577,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                     role="radio"
                     aria-checked={on}
                     onClick={() => setPieceType(id)}
-                    className={`h-9 rounded-full px-4 text-[13px] font-medium transition-colors duration-120 ${on ? 'bg-bone text-void' : 'border border-line-strong text-ink-2 hover:border-bone hover:text-ink'}`}
+                    className={`h-9 shrink-0 rounded-full px-4 text-[13px] font-medium transition-colors duration-120 max-md:h-11 ${on ? 'bg-bone text-void' : 'border border-line-strong text-ink-2 hover:border-bone hover:text-ink'}`}
                   >
                     {t.label}
                     {approved[id] && <span aria-label="aprobada"> ✓</span>}
@@ -606,7 +609,12 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
               </button>
             </div>
             <p className="m-0 text-[13px] text-ink-2">Sale sola de tus capas.</p>
-            {direct ? (
+            {mobile && !recipeOpen && !editing ? (
+              <button type="button" onClick={() => setRecipeOpen(true)} className="flex min-h-[44px] items-center justify-between rounded-[10px] border border-line px-3 text-left text-[13px] text-ink-2">
+                <span>Receta automática</span>
+                <span className="text-ink underline underline-offset-2">Ver</span>
+              </button>
+            ) : direct ? (
               <p className="m-0 text-[13px] text-ink-2">Modo directo: no usa el sistema, solo el pedido, el texto y la paleta.</p>
             ) : (
               <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
@@ -733,7 +741,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
         </div>
 
         {/* Derecha: el resultado */}
-        <section aria-label="Paso 3 · Resultado" aria-busy={busy} className="flex min-h-0 flex-col gap-4 overflow-y-auto p-6 pb-40">
+        <section aria-label="Paso 3 · Resultado" aria-busy={busy} className="flex min-h-0 flex-col gap-4 overflow-y-auto p-6 pb-40 max-md:overflow-visible">
           <StepLabel>PASO 3 · RESULTADO</StepLabel>
 
           {busy && (
@@ -752,7 +760,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
             </div>
           )}
 
-          {(busy || hasResult || slotErrs.some(Boolean)) && <ul className="m-0 grid list-none gap-4 p-0 xl:grid-cols-2">{[0, 1].map(variantCard)}</ul>}
+          {(busy || hasResult || slotErrs.some(Boolean)) && <ul className="m-0 grid list-none gap-4 p-0 max-md:flex max-md:snap-x max-md:snap-mandatory max-md:overflow-x-auto xl:grid-cols-2">{[0, 1].map(variantCard)}</ul>}
         </section>
       </div>
 

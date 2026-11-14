@@ -5,6 +5,7 @@ import { evidenceCount } from '../utils/layers';
 import { ActionResult, SHEET_NAME, confirm, evidenceText, outPieces, place, proposedLayer, recover, suggestions, takeOut } from '../pieces/model';
 import { reviewProgress, summary } from '../utils/steps';
 import { LAYER_QUESTION } from '../utils/layerQuestions';
+import { useViewport } from '../hooks/useViewport';
 import { BottomBar } from '../components/shell/BottomBar';
 import { Crop } from '../space/Crop';
 import { PieceThumb } from './common';
@@ -62,6 +63,7 @@ function MiniStack({ piece, project, lit, strong }: { piece: Pattern; project: P
 
 export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props) {
   const progress = reviewProgress(project);
+  const mobile = useViewport() === 'mobile';
 
   // Si el proyecto no recuerda cuántas sugerencias había al empezar, se fija ahora.
   useEffect(() => {
@@ -141,16 +143,16 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto grid max-w-[920px] grid-cols-1 gap-x-12 gap-y-8 px-8 py-8 md:grid-cols-[minmax(0,1fr)_minmax(0,340px)]">
+      <div className="mx-auto grid max-w-[920px] grid-cols-1 gap-x-12 gap-y-8 px-4 py-6 pb-32 md:grid-cols-[minmax(0,1fr)_minmax(0,340px)] md:px-8 md:py-8">
         {/* Izquierda */}
         <section aria-label="Sugerencia" className="flex min-w-0 flex-col gap-4">
           <span className="font-mono text-[12px] tracking-[0.06em] text-ink-2">
             SUGERENCIA · {idx} DE {progress.total}
           </span>
-          <PieceThumb piece={current} project={project} className="aspect-[4/3] max-w-full bg-raised" style={{ height: 'clamp(80px, calc(100vh - 416px), 280px)' }} />
+          <PieceThumb piece={current} project={project} className={`aspect-[4/3] max-w-full bg-raised ${mobile ? 'w-full' : ''}`} style={mobile ? undefined : { height: 'clamp(80px, calc(100vh - 416px), 280px)' }} />
           <h1 className="m-0 text-[32px] font-bold leading-[1.05]">{current.name}</h1>
           <span className="font-mono text-[12px] tracking-[0.06em] text-ink-2">EN {evidenceText(current, project).toUpperCase()}</span>
-          <div role="group" aria-label="Decidir" className="flex flex-wrap items-center gap-2">
+          <div role="group" aria-label="Decidir" className={mobile ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap items-center gap-2'}>
             {LAYERS.map(l => {
               const isPrimary = l === primaryLayer;
               return (
@@ -162,7 +164,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
                   onMouseLeave={() => setHover(null)}
                   onFocus={() => setHover(l)}
                   onBlur={() => setHover(null)}
-                  className={`inline-flex min-h-[44px] max-w-[210px] items-start gap-2 rounded-[10px] px-4 py-2 text-left text-[14px] font-bold transition-colors duration-120 ${isPrimary ? '' : 'border border-line-strong text-ink hover:bg-white/10'}`}
+                  className={`inline-flex ${mobile ? 'min-h-[56px]' : 'min-h-[44px] max-w-[210px]'} items-start gap-2 rounded-[10px] px-4 py-2 text-left text-[14px] font-bold transition-colors duration-120 ${isPrimary ? '' : 'border border-line-strong text-ink hover:bg-white/10'}`}
                   style={isPrimary ? { background: layerColor(l), color: `var(--cc-l${l - 1}-on)`, boxShadow: `0 0 0 1px var(--cc-l${l - 1}-edge)` } : undefined}
                 >
                   {!isPrimary && <span aria-hidden="true" className="size-2 rounded-full" style={{ background: layerColor(l) }} />}
@@ -177,7 +179,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
             <button
               type="button"
               onClick={discard}
-              className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-transparent px-3 text-[14px] font-medium text-ink-2 hover:border-line-strong hover:text-ink"
+              className={`inline-flex items-center gap-2 rounded-[10px] border px-3 text-[14px] font-medium text-ink-2 hover:border-line-strong hover:text-ink ${mobile ? 'min-h-[56px] justify-center border-line' : 'h-10 border-transparent'}`}
             >
               Descartar
               <kbd className="font-mono text-[11px] font-medium opacity-50">X</kbd>
@@ -187,7 +189,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
 
         {/* Derecha */}
         <section aria-label="Dónde entraría" className="flex min-w-0 flex-col gap-4">
-          <MiniStack piece={current} project={project} lit={lit} strong={hover !== null} />
+          {!mobile && <MiniStack piece={current} project={project} lit={lit} strong={hover !== null} />}
           <p className="m-0 text-center font-mono text-[12px] tracking-[0.08em]" style={{ color: `var(--cc-l${lit - 1}-ink)` }}>
             ENTRARÍA EN {SHEET_NAME[lit].toUpperCase()}
           </p>

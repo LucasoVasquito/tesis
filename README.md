@@ -48,6 +48,21 @@ El peso ordena cada capa, el Sistema, los Lineamientos y la receta de Probar.
 ### Color camaleón
 Antes del primer análisis la interfaz usa coral, mostaza y turquesa. Después, el tono de cada capa sale de la paleta del proyecto; la luminosidad y la saturación son fijas por capa (Núcleo L 0,68 C 0,14 · Soporte L 0,80 C 0,12 · Acento L 0,74 C 0,09). El cambio se anima ~800 ms.
 
+### Motor Camaleón: la interfaz toma los colores del proyecto
+Los tres colores (primario, secundario y acento) se derivan con `derivePalette(detectados, piezas, overrides)` (`src/utils/derivePalette.ts`, con tests: `npm test`). Primero se ordenan los colores detectados por presencia (lo que sale de las referencias del usuario pesa el doble que lo inferido); después manda la jerarquía: la pieza de color de Núcleo con más frecuencia es el primario, la de Soporte el secundario y la de Acento el acento. Una capa sin pieza de color toma el siguiente color del ranking sin usar. En **Capas**, la muestra de 20px de cada pieza de color (o la tecla `C`) abre un panel para editar el color (hex, selector o los otros colores del proyecto): ese valor manda y se ve en vivo. El fondo toma el tono del primario; el texto, los marcos y los estados no se tiñen, y si un color de capa casi no contrasta con el fondo se dibuja con un contorno de 1px.
+
+### Preguntas guía
+Núcleo: «¿Sin esto deja de ser la marca?» · Soporte: «¿La acompaña siempre, pero se podría cambiar?» · Acento: «¿Aparece poco, pero la hace reconocible?». Aparecen en Capas, en Revisar, en la barra lateral y en las zonas para soltar al arrastrar una pieza.
+
+### Exportar
+Desde Sistema y Probar: **PNG** de la pieza aprobada (2048px, `{proyecto}-{pieza}-{n}.png`), **PDF** del sistema (A4, se abre la impresión del navegador: «Guardar como PDF») y **Prompt / JSON** para otra IA.
+
+### Responsive
+Escritorio desde 1024px, tablet de 768 a 1023px (barra lateral de 64px que se despliega) y móvil por debajo (barra de pasos arriba, barra inferior pegada con «⋯», Revisar en una columna, Capas con deslizamiento vertical).
+
+### Modo testeo
+`?demo=badder` carga el ejemplo Badder (11 referencias, sin analizar). `?test=1` registra eventos en localStorage (`cc-test-log`); **Ctrl+Shift+E** descarga el registro y **Ctrl+Shift+R** reinicia el ejemplo.
+
 ### Errores
 Cada error dice la causa en lenguaje simple y trae una acción: imagen que no se pudo leer (*Ver cuál*, la marca con borde rojo en el lienzo), URL inválida, análisis cortado y variante que no se generó (*Reintentar*).
 

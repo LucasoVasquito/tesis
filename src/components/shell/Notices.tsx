@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useViewport } from '../../hooks/useViewport';
 
 export interface NoticeData {
   id: number;
@@ -18,12 +19,13 @@ export function Notices({ notice, onClose }: { notice: NoticeData | null; onClos
     const t = setTimeout(onClose, 5000);
     return () => clearTimeout(t);
   }, [notice?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mobile = useViewport() === 'mobile';
   if (!notice) return null;
   return (
     <div
       role="status"
       aria-live="polite"
-      className="no-print fixed right-6 top-[68px] z-[55] flex w-[380px] max-w-[calc(100vw-48px)] items-start gap-3 rounded-[12px] border border-line-mid p-3 shadow-[0_8px_32px_rgba(0,0,0,.5)]"
+      className={`no-print fixed z-[66] flex items-start gap-3 rounded-[12px] border border-line-mid p-3 shadow-[0_8px_32px_rgba(0,0,0,.5)] ${mobile ? 'inset-x-2 bottom-[calc(80px+env(safe-area-inset-bottom))]' : 'right-6 top-[68px] w-[380px] max-w-[calc(100vw-48px)]'}`}
       style={{ background: 'var(--cc-surface)', borderColor: notice.tone === 'error' ? 'var(--cc-error)' : undefined }}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -36,13 +38,13 @@ export function Notices({ notice, onClose }: { notice: NoticeData | null; onClos
               notice.action!.run();
               onClose();
             }}
-            className="self-start rounded-[6px] bg-bone px-3 py-1 text-[12px] font-bold text-void hover:bg-white"
+            className="self-start rounded-[6px] bg-bone px-3 py-1 text-[12px] font-bold text-void hover:bg-white" style={{ minHeight: mobile ? 44 : undefined }}
           >
             {notice.action.label}
           </button>
         )}
       </div>
-      <button type="button" aria-label="Cerrar aviso" onClick={onClose} className="shrink-0 px-1 text-[16px] leading-none text-ink-2 hover:text-ink">
+      <button type="button" aria-label="Cerrar aviso" onClick={onClose} className="shrink-0 px-1 text-[16px] leading-none text-ink-2 hover:text-ink" style={{ minWidth: mobile ? 44 : undefined, minHeight: mobile ? 44 : undefined }}>
         ✕
       </button>
     </div>

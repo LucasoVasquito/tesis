@@ -63,7 +63,7 @@ export function SystemScreen(props: SystemScreenProps) {
   return (
     <div className="relative h-full">
       <div className="h-full overflow-y-auto">
-        <div id="front-page" className="system-page mx-auto flex max-w-[720px] flex-col gap-12 bg-void px-8 pb-48 pt-10 text-ink">
+        <div id="front-page" className="system-page mx-auto flex max-w-[720px] flex-col gap-12 bg-void px-4 pb-48 pt-8 text-ink md:px-8 md:pt-10">
           <header className="flex flex-wrap items-baseline justify-between gap-3">
             <span className="type-name text-[22px] text-ink-2">{title}</span>
             <span className="type-label text-[11px] tracking-[0.1em] text-ink-3">SISTEMA VISUAL · CAMALEÓN CORPUS</span>
@@ -87,7 +87,7 @@ export function SystemScreen(props: SystemScreenProps) {
                   <span className="font-mono text-[11px] tracking-[0.06em] text-ink-2">EN {evidenceText(lead, project).toUpperCase()}</span>
                 </div>
                 {moreCore.length > 0 && (
-                  <div className="grid grid-cols-3 gap-5 pt-2">
+                  <div className="grid grid-cols-3 gap-5 pt-2 max-md:grid-cols-2">
                     {moreCore.map(x => (
                       <div key={x.id} className="flex min-w-0 flex-col gap-2">
                         <PieceThumb piece={x} project={project} className="aspect-[16/10] w-full bg-raised" style={{ opacity: suggestion(x) ? 0.85 : 1 }} />
@@ -108,7 +108,7 @@ export function SystemScreen(props: SystemScreenProps) {
           <section className="flex flex-col gap-5" aria-label="Capa 2 · Soporte">
             <SectionHead layer={2} count={others(support).length} />
             {others(support).length === 0 && <p className="m-0 text-[14px] text-ink-2">Sin soporte todavía.</p>}
-            <div className="grid grid-cols-3 gap-x-5 gap-y-8">
+            <div className="grid grid-cols-3 gap-x-5 gap-y-8 max-md:grid-cols-2">
               {others(support).map(x => (
                 <div key={x.id} className="flex min-w-0 flex-col gap-2">
                   <PieceThumb piece={x} project={project} className="aspect-[16/10] w-full bg-raised" style={{ opacity: suggestion(x) ? 0.85 : 1 }} />

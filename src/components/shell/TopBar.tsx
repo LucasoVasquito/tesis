@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { Project } from '../../types';
+import { useViewport } from '../../hooks/useViewport';
 
 export interface StatusLine {
   mode: 'location' | 'activity' | 'back';
@@ -31,7 +32,7 @@ interface TopBarProps {
 }
 
 /** Línea de estado: dónde estás, qué está haciendo el sistema o que volviste atrás. */
-function StatusBar({ status }: { status: StatusLine }) {
+function StatusBar({ status, small }: { status: StatusLine; small?: boolean }) {
   const dot =
     status.mode === 'activity'
       ? { background: 'var(--capa-1)', boxShadow: '0 0 0 4px color-mix(in oklab, var(--capa-1) 28%, transparent)' }
@@ -41,7 +42,7 @@ function StatusBar({ status }: { status: StatusLine }) {
   return (
     <div role="status" aria-live="polite" className="flex min-w-0 items-center justify-center gap-3">
       <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={dot} />
-      <span className="truncate text-[13px] text-ink" style={{ fontFamily: 'var(--font-mono)' }}>
+      <span className={`truncate text-ink ${small ? 'text-[12px]' : 'text-[13px]'}`} style={{ fontFamily: 'var(--font-mono)' }}>
         {status.text}
       </span>
       {status.action && (
@@ -53,7 +54,11 @@ function StatusBar({ status }: { status: StatusLine }) {
   );
 }
 
-function SaveIndicator({ state }: { state: SaveState }) {
+function SaveIndicator({ state, dot }: { state: SaveState; dot?: boolean }) {
+  if (dot) {
+    const c = state === 'saving' ? 'var(--cc-text)' : state === 'error' ? 'var(--cc-error)' : 'color-mix(in srgb, var(--cc-text) 45%, transparent)';
+    return <span role="img" aria-label={state === 'saving' ? 'Guardando' : state === 'error' ? 'No se guardó' : 'Guardado'} className="size-2 shrink-0 rounded-full" style={{ background: c }} />;
+  }
   if (state === 'idle') return <span className="w-[88px]" />;
   const text = state === 'saving' ? 'Guardando…' : state === 'saved' ? '✓ Guardado' : 'No se guardó';
   const color = state === 'saving' ? 'var(--cc-text)' : state === 'saved' ? 'color-mix(in srgb, var(--cc-text) 45%, transparent)' : 'var(--cc-error)';
@@ -90,6 +95,8 @@ function MenuItem({ children, onSelect, current, hint }: { children: React.React
 
 export function TopBar(props: TopBarProps) {
   const { project, projects } = props;
+  const viewport = useViewport();
+  const mobile = viewport === 'mobile';
   const [open, setOpen] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
   const menuId = useId();
@@ -133,10 +140,10 @@ export function TopBar(props: TopBarProps) {
   const name = project.name.trim() || 'Proyecto sin nombre';
 
   return (
-    <header className="no-print flex h-14 shrink-0 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-3 lg:gap-6 lg:px-4">
+    <header className={`no-print flex shrink-0 items-center border-b border-line bg-bg px-3 lg:gap-6 lg:px-4 ${mobile ? 'min-h-14 flex-wrap gap-x-2 pb-1 pt-1' : 'h-14 gap-3'}`}>
       {/* Proyecto */}
       <div className="relative flex min-w-0 flex-1 basis-0 items-center gap-3" ref={wrapRef}>
-        <span className="type-name hidden shrink-0 whitespace-nowrap text-[22px] tracking-[0.02em] text-ink sm:inline">CAMALEÓN CORPUS</span>
+        <span className={`type-name shrink-0 whitespace-nowrap tracking-[0.02em] text-ink ${mobile ? 'text-[16px]' : 'text-[22px]'}`}>CAMALEÓN CORPUS</span>
         <span aria-hidden="true" className="hidden h-4 w-px bg-line-mid sm:inline-block" />
         <button
           ref={buttonRef}
@@ -202,14 +209,14 @@ export function TopBar(props: TopBarProps) {
       </div>
 
       {/* Línea de estado */}
-      <div className="flex min-w-0 shrink justify-center" style={{ flex: '0 1 auto' }}>
-        <StatusBar status={props.status} />
+      <div className={`flex min-w-0 justify-center ${mobile ? 'order-last basis-full pb-1' : 'shrink'}`} style={mobile ? undefined : { flex: '0 1 auto' }}>
+        <StatusBar status={props.status} small={mobile} />
       </div>
 
       {/* Guardado y ayuda */}
       <div className="flex min-w-0 flex-1 basis-0 items-center justify-end gap-4 max-[1100px]:flex-none">
-        <SaveIndicator state={props.save} />
-        <button type="button" onClick={props.onOpenHelp} className="rounded-[8px] px-3 py-2 text-[13px] font-medium text-ink-2 hover:bg-white/10 hover:text-ink">
+        <SaveIndicator state={props.save} dot={mobile} />
+        <button type="button" onClick={props.onOpenHelp} className="rounded-[8px] px-3 py-2 text-[13px] font-medium text-ink-2 hover:bg-white/10 hover:text-ink" style={{ minHeight: viewport === 'desktop' ? undefined : 44 }}>
           ? Ayuda
         </button>
       </div>

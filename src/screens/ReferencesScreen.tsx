@@ -161,7 +161,7 @@ export function ReferencesScreen(props: Props) {
       const boxes = new Map<string, BoardBox>();
       const hs = ratios.map(r => w / (r || 4 / 3));
       if (todo.length >= 4) {
-        const aspect = Math.max(0.8, size.w / Math.max(200, size.h - BOTTOM_RESERVE));
+        const aspect = Math.max(0.35, size.w / Math.max(200, size.h - BOTTOM_RESERVE));
         const cols = Math.min(todo.length, Math.max(3, Math.ceil(Math.sqrt(todo.length * aspect * 1.1))));
         const gap = 24;
         const rows = Math.ceil(todo.length / cols);
