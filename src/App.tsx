@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LogItem, LogKind, Moment, Pattern, Project, Reference, ReferenceBreakdown } from './types';
+import { LogItem, LogKind, Moment, Project, Reference, ReferenceBreakdown } from './types';
 import { loadStoredProjects, saveProjects } from './utils/projectStore';
 import { createEmptyProject } from './data/emptyProject';
 import { compressImageString } from './utils/imageCompressor';
@@ -7,25 +7,32 @@ import { deleteProjectPieces } from './utils/pieceStore';
 import { buildBackup, downloadBackup, restoreBackup } from './utils/backup';
 import { clearBreakdownCache, clearCachedBreakdown, clearProjectBreakdowns, getCachedBreakdown, setCachedBreakdown } from './utils/inspectorCache';
 import { downloadProjectMarkdown } from './utils/exportHelpers';
-import { filesToReferences, makeFeedback, makeLog, migrateProject, withLog } from './utils/project';
+import { filesToReferences, makeFeedback, makeLog, migrateProject, nextReferenceIds, withLog } from './utils/project';
 import { corpusRefs } from './utils/layers';
 import { stackOrder } from './utils/layerRules';
 import { applyLayerColors, computeLayerColors } from './utils/camaleon';
 import { useShortcuts } from './hooks/useAuditShortcuts';
 
-import { Button, Tone } from './components/ui';
-import { TopBar } from './components/shell/TopBar';
+import { Button } from './components/ui';
+import { SaveState, StatusLine, TopBar } from './components/shell/TopBar';
+import { StepRail } from './components/shell/StepRail';
+import { NoticeData, Notices } from './components/shell/Notices';
 import { UploadModal } from './components/UploadModal';
 import { AboutView } from './components/AboutView';
 import { ProbarScreen } from './screens/ProbarScreen';
 import { LogDrawer } from './components/LogDrawer';
 import { Modal } from './components/shell/Modal';
 
-import { ActionResult, MIN_REFS, livePieces, mergeAnalysis } from './pieces/model';
-import { buildAnalysisBody, friendlyError, requestSplit } from './pieces/analyze';
-import { AnalysisState, MoodboardScreen } from './screens/MoodboardScreen';
+import { ActionResult, MIN_REFS, livePieces, mergeAnalysis, suggestions } from './pieces/model';
+import { AnalysisState, buildAnalysisBody, canOpen, friendlyError } from './pieces/analyze';
+import { ReferencesScreen } from './screens/ReferencesScreen';
+import { ReviewScreen } from './screens/ReviewScreen';
+import { LayersScreen } from './screens/LayersScreen';
 import { SystemScreen } from './screens/SystemScreen';
 import { ExampleBanner, Guide, guideDone } from './screens/Guide';
+import { BriefPanel } from './screens/common';
+import { MutateOptions, NotifyOptions } from './screens/types';
+import { STEPS, blockReason, locationText, stepIndex, stepLabel } from './utils/steps';
 
 /** Claves viejas de localStorage que ya no se usan (los proyectos pasaron a IndexedDB). */
 const DISCARDED_KEYS = [
@@ -41,13 +48,6 @@ const DISCARDED_KEYS = [
 ];
 
 type Overlay = null | { kind: 'about' };
-
-/** Aviso breve: se muestra como franja sobre la barra de atajos. */
-interface Toast {
-  id: number;
-  message: string;
-  tone?: Tone;
-}
 
 interface Boot {
   projects: Project[];
@@ -87,7 +87,7 @@ export default function App() {
       }
       try {
         const { project } = await restoreBackup(await fetchExample(), []);
-        const example = { ...project, example: true, moment: 'moodboard' as Moment };
+        const example = { ...project, example: true, moment: 'referencias' as Moment };
         setBoot({ projects: [example], activeId: example.id });
       } catch {
         const p = createEmptyProject();
@@ -109,6 +109,11 @@ export default function App() {
 const serverError = (text: string, status: number) =>
   Object.assign(new Error(text.trim().startsWith('<') ? 'El servidor corre una versión anterior: reiniciá iniciar.bat.' : `El servidor no respondió (HTTP ${status}).`), { detail: text.slice(0, 600) });
 
+/** Agrega un elemento a una lista sin repetir. */
+const addTo = <T,>(list: T[] | undefined, v: T): T[] => (list?.includes(v) ? list : [...(list ?? []), v]);
+
+const MAX_HISTORY = 40;
+
 function Workspace({ boot }: { boot: Boot }) {
   /* ========== Proyectos ========== */
   const [projectsList, setProjectsList] = useState<Project[]>(boot.projects);
@@ -126,59 +131,184 @@ function Workspace({ boot }: { boot: Boot }) {
     [activeProjectId],
   );
 
-  /* Guardado en IndexedDB: solo lo que cambió, medio segundo después del último cambio. */
+  /* ========== Guardado real (IndexedDB) y su indicador ========== */
   const [saveFailed, setSaveFailed] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
   const saved = useRef(new Map<string, Project>());
+  const firstSave = useRef(true);
   useEffect(() => {
+    if (firstSave.current) {
+      // Lo que se cargó ya está guardado: no es un cambio.
+      firstSave.current = false;
+      saved.current = new Map(projectsList.map(p => [p.id, p]));
+      return;
+    }
+    const changed = new Set(projectsList.filter(p => saved.current.get(p.id) !== p).map(p => p.id));
+    if (!changed.size) return;
+    setSaveState('saving');
+    const started = Date.now();
+    let cancelled = false;
     const t = setTimeout(() => {
-      const changed = new Set(projectsList.filter(p => saved.current.get(p.id) !== p).map(p => p.id));
       saveProjects(projectsList, activeProjectId, changed)
         .then(() => {
           saved.current = new Map(projectsList.map(p => [p.id, p]));
           setSaveFailed(false);
+          // «Guardando…» se ve al menos 800 ms después del cambio.
+          const wait = Math.max(0, 800 - (Date.now() - started));
+          setTimeout(() => !cancelled && setSaveState('saved'), wait);
         })
         .catch(e => {
           console.warn('No se pudo guardar el proyecto', e);
           setSaveFailed(true);
+          if (!cancelled) setSaveState('error');
         });
-    }, 500);
-    return () => clearTimeout(t);
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [projectsList, activeProjectId]);
 
-  /* ========== Pantalla ========== */
-  const screen: Moment = project.moment ?? 'moodboard';
-  const setScreen = (m: Moment) => updateProject(p => ({ ...p, moment: m }));
-  // 03 PROBAR queda montada (oculta) una vez abierta: si cambiás de pestaña con una generación en curso, no se corta ni se pierde el resultado.
+  /* ========== Avisos ========== */
+  const [notice, setNotice] = useState<NoticeData | null>(null);
+  const undoRef = useRef<() => void>(() => {});
+  const notify = useCallback((text: string, o: NotifyOptions = {}) => {
+    const action = o.undo ? { label: 'Deshacer', run: () => undoRef.current() } : o.action;
+    setNotice({ id: Date.now() + Math.random(), text, detail: o.detail, tone: o.tone, action });
+  }, []);
+  useEffect(() => {
+    if (saveFailed) notify('No se pudo guardar el proyecto en este navegador: descargá el respaldo desde el menú del proyecto.', { tone: 'error' });
+  }, [saveFailed, notify]);
+
+  /* ========== Historial global: deshacer (Ctrl/Cmd+Z), hasta 40 pasos ========== */
+  const undoStack = useRef<(() => void)[]>([]);
+  const pushUndo = useCallback((fn: () => void) => {
+    undoStack.current.push(fn);
+    if (undoStack.current.length > MAX_HISTORY) undoStack.current.shift();
+  }, []);
+  const undo = useCallback(() => {
+    const fn = undoStack.current.pop();
+    if (!fn) {
+      notify('No hay nada para deshacer.');
+      return;
+    }
+    fn();
+  }, [notify]);
+  undoRef.current = undo;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== 'z') return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      e.preventDefault();
+      undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo]);
+
+  /** Deshace un cambio de piezas, referencias o tablero: vuelve a esa instantánea sin tocar lo demás. */
+  const restoreFrom = useCallback(
+    (snap: Project) => () =>
+      updateProject(
+        p => ({
+          ...p,
+          references: snap.references,
+          patterns: snap.patterns,
+          patternGroups: snap.patternGroups,
+          fragments: snap.fragments,
+          reviewTotal: snap.reviewTotal,
+          done: snap.done,
+          stale: snap.stale,
+          lastAnalyzedAt: snap.lastAnalyzedAt,
+          status: snap.status,
+        }),
+        snap.id,
+      ),
+    [updateProject],
+  );
+
+  /** Quita de «desactualizadas» la etapa que se acaba de revisitar y marca las visitadas si cambiaron las piezas. */
+  const markStale = (p: Project): Project => {
+    const stale = (['sistema', 'probar'] as Moment[]).filter(m => p.visited?.includes(m));
+    return stale.length ? { ...p, stale: [...new Set([...(p.stale ?? []), ...stale])] } : p;
+  };
+
+  /** Todo cambio del proyecto pasa por acá: historial, desactualizadas y aviso con «Deshacer». */
+  const commit = useCallback(
+    (cur: Project, next: Project, o: MutateOptions = {}) => {
+      if (next === cur) return;
+      let n = next;
+      if (!o.silent && n.patterns !== cur.patterns) n = markStale(n);
+      if (o.undoable !== false) pushUndo(restoreFrom(cur));
+      projectRef.current = n;
+      updateProject(() => n, cur.id);
+      if (o.notice) notify(o.notice, { undo: o.undoable !== false });
+    },
+    [pushUndo, restoreFrom, updateProject, notify],
+  );
+
+  const mutate = useCallback((fn: (p: Project) => Project, o: MutateOptions = {}) => commit(projectRef.current, fn(projectRef.current), o), [commit]);
+
+  /** Aplica una acción del modelo (con su bitácora). El aviso lleva «Deshacer». */
+  const apply = (fn: (p: Project) => ActionResult, noticeText?: string | false): ActionResult => {
+    const current = projectRef.current;
+    const r = fn(current);
+    if (r.project === current && !r.log.length) {
+      if (r.message && noticeText !== false) notify(r.message);
+      return r;
+    }
+    const next = withLog(r.project, ...r.log.map(l => makeLog(l.kind, l.targetId, l.label, l.reason)));
+    commit(current, next, { notice: noticeText === false ? undefined : noticeText ?? r.message });
+    return r;
+  };
+
+  /* ========== Etapas ========== */
+  const screen: Moment = STEPS.some(s => s.id === project.moment) ? (project.moment as Moment) : 'referencias';
+  /** Entra a una etapa: recuerda la más avanzada, la marca visitada y limpia su aviso de «desactualizada». */
+  const enter = (m: Moment, markDone?: Moment) =>
+    updateProject(p => ({
+      ...p,
+      moment: m,
+      reached: Math.max(p.reached ?? 0, stepIndex(m)),
+      visited: addTo(p.visited, m),
+      stale: (p.stale ?? []).filter(s => s !== m),
+      done: markDone && (markDone === 'capas' || markDone === 'sistema') ? addTo(p.done, markDone) : p.done,
+    }));
+  const go = (m: Moment, markDone?: Moment) => {
+    const why = blockReason(projectRef.current, m);
+    if (why) {
+      notify(why);
+      return;
+    }
+    enter(m, markDone);
+  };
+  // 05 PROBAR queda montada (oculta) una vez abierta: si cambiás de etapa con una generación en curso, no se corta ni se pierde el resultado.
   const [probarSeen, setProbarSeen] = useState<string | null>(null);
   useEffect(() => {
     if (screen === 'probar') setProbarSeen(project.id);
   }, [screen, project.id]);
+  // La etapa en la que se abre el proyecto también cuenta como visitada.
+  useEffect(() => {
+    updateProject(p => (p.visited?.includes(screen) && (p.reached ?? 0) >= stepIndex(screen) ? p : { ...p, reached: Math.max(p.reached ?? 0, stepIndex(screen)), visited: addTo(p.visited, screen) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
 
   /* ========== UI ========== */
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<null | 'current' | 'all'>(null);
-  /** Pedido de abrir el brief desde el menú del proyecto (cambia el número). */
-  const [briefRequest, setBriefRequest] = useState(0);
-  /** Guía de 3 carteles: la primera vez que se llega a 01 MOODBOARD con piezas, o desde AYUDA. */
+  const [briefOpen, setBriefOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [focusRef, setFocusRef] = useState<{ id: string; n: number } | null>(null);
+  const [capaName, setCapaName] = useState('Núcleo');
+  const [probarType, setProbarType] = useState('logotipo');
+  const [probarActivity, setProbarActivity] = useState<string | null>(null);
   useEffect(() => {
-    if (screen === 'moodboard' && livePieces(project).length && !guideDone()) setGuideOpen(true);
+    if (screen === 'referencias' && project.references.length && !guideDone()) setGuideOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, project.id]);
-
-  /* ========== Avisos ========== */
-  const [toast, setToast] = useState<Toast | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showToast = useCallback((t: Omit<Toast, 'id'>, ms = 3000) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ ...t, id: Date.now() });
-    toastTimer.current = setTimeout(() => setToast(null), ms);
-  }, []);
-  useEffect(() => {
-    if (saveFailed) showToast({ message: 'No se pudo guardar el proyecto en este navegador: descargá el respaldo desde el menú del proyecto.', tone: 'discarded' }, 12000);
-  }, [saveFailed, showToast]);
 
   /** Agrega entradas a la bitácora del proyecto. */
   const addLog = useCallback(
@@ -190,21 +320,6 @@ function Workspace({ boot }: { boot: Boot }) {
     [updateProject],
   );
 
-  /** Aplica una acción sobre el proyecto más reciente, con su bitácora en el mismo cambio. */
-  const apply = (fn: (p: Project) => ActionResult): ActionResult => {
-    const current = projectRef.current;
-    const r = fn(current);
-    if (r.project === current && !r.log.length) {
-      if (r.message) showToast({ message: r.message });
-      return r;
-    }
-    const next = withLog(r.project, ...r.log.map(l => makeLog(l.kind, l.targetId, l.label, l.reason)));
-    projectRef.current = next;
-    updateProject(() => next, current.id);
-    if (r.message) showToast({ message: r.message });
-    return r;
-  };
-
   /* ========== Proyectos: acciones ========== */
   const analysisAbort = useRef<AbortController | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisState>({ status: 'idle' });
@@ -212,6 +327,10 @@ function Workspace({ boot }: { boot: Boot }) {
     analysisAbort.current?.abort();
     setOverlay(null);
     setAnalysis({ status: 'idle' });
+    undoStack.current = [];
+    setNotice(null);
+    setBriefOpen(false);
+    setProbarActivity(null);
   };
 
   const handleSelectProject = (id: string) => {
@@ -229,43 +348,43 @@ function Workspace({ boot }: { boot: Boot }) {
 
   const handleExportBackup = async () => {
     const p = projectRef.current;
-    showToast({ message: 'Preparando el respaldo…' }, 60000);
+    notify('Preparando el respaldo…');
     try {
       const { backup, webMissing } = await buildBackup(p);
       const at = backup.exportedAt;
       downloadBackup({ ...backup, project: { ...backup.project, lastBackupAt: at } });
       updateProject(x => ({ ...x, lastBackupAt: at }), p.id);
-      showToast({ message: `Respaldo descargado · ${p.references.length} referencias${webMissing ? ` · ${webMissing} de la web quedaron como link` : ''}` }, 5000);
+      notify(`Respaldo descargado · ${p.references.length} referencias${webMissing ? ` · ${webMissing} de la web quedaron como link` : ''}`);
     } catch (err: any) {
-      showToast({ message: `No se pudo armar el respaldo: ${err?.message || err}` }, 6000);
+      notify(`No se pudo armar el respaldo: ${err?.message || err}`, { tone: 'error' });
     }
   };
 
   const importBackupText = async (text: string, example = false) => {
     const { project: imported } = await restoreBackup(text, projectsList.map(x => x.id));
-    const p = example ? { ...imported, example: true, moment: 'moodboard' as Moment } : imported;
+    const p = example ? { ...imported, example: true, moment: 'referencias' as Moment } : imported;
     // Un proyecto vacío de relleno se reemplaza por el importado.
     const isBlank = (x: Project) => !x.name.trim() && !x.intent?.trim() && !x.references.length && !x.patterns.length;
     setProjectsList(list => [...list.filter(x => !isBlank(x)), p]);
     setActiveProjectId(p.id);
     resetUi();
-    showToast({ message: `Proyecto abierto · ${p.name || 'sin nombre'} · ${p.references.length} referencias` }, 4000);
+    notify(`Proyecto abierto · ${p.name || 'sin nombre'} · ${p.references.length} referencias`);
   };
 
   const handleImportBackup = async (file: File) => {
     try {
       await importBackupText(await file.text());
     } catch (err: any) {
-      showToast({ message: err?.message || 'No se pudo importar el respaldo' }, 6000);
+      notify(err?.message || 'No se pudo importar el respaldo', { tone: 'error' });
     }
   };
 
   const handleLoadExample = async () => {
-    showToast({ message: 'Abriendo el proyecto de ejemplo…' }, 60000);
+    notify('Abriendo el proyecto de ejemplo…');
     try {
       await importBackupText(await fetchExample(), true);
     } catch (err: any) {
-      showToast({ message: err?.message || 'No se pudo abrir el ejemplo' }, 6000);
+      notify(err?.message || 'No se pudo abrir el ejemplo', { tone: 'error' });
     }
   };
 
@@ -280,19 +399,17 @@ function Workspace({ boot }: { boot: Boot }) {
       resetUi();
     }
     setDeleteRequest(null);
-    showToast({ message: ids.length === 1 ? 'Proyecto eliminado' : `${ids.length} proyectos eliminados` });
+    notify(ids.length === 1 ? 'Proyecto eliminado' : `${ids.length} proyectos eliminados`);
   };
 
-  /* ========== 01 · SUBIR ========== */
+  /* ========== 01 · REFERENCIAS ========== */
   const [briefBusy, setBriefBusy] = useState(false);
-  const [briefError, setBriefError] = useState<string | null>(null);
   /** El agente redacta el brief a partir de la frase. Queda como borrador editable. */
   const handleSubmitIntent = async (intent: string) => {
     const projectId = projectRef.current.id;
     updateProject(p => ({ ...p, intent, name: p.name.trim() ? p.name : intent, objective: p.objective.trim() ? p.objective : intent }), projectId);
     addLog('brief', 'brief', 'Frase de intención', intent, { projectId });
     setBriefBusy(true);
-    setBriefError(null);
     try {
       const res = await fetch('/api/draft-brief', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ intent }) });
       const text = await res.text();
@@ -308,7 +425,7 @@ function Workspace({ boot }: { boot: Boot }) {
       addLog('brief', 'brief', 'Brief redactado por el agente', 'Borrador: el diseñador lo puede editar', { projectId });
     } catch (err: any) {
       const raw = String(err?.message || err);
-      setBriefError(`El brief queda para después: ${friendlyError(err instanceof TypeError ? 'failed to fetch' : raw).replace('No se pudo analizar. ', '')}`);
+      notify('El brief queda para después.', { tone: 'error', detail: friendlyError(err instanceof TypeError ? 'failed to fetch' : raw).replace('No se pudo analizar. ', '') });
     } finally {
       setBriefBusy(false);
     }
@@ -322,52 +439,81 @@ function Workspace({ boot }: { boot: Boot }) {
   const handleAddReferences = useCallback(
     (refs: Reference[]) => {
       if (!refs.length) return;
-      updateProject(p => ({ ...p, references: [...p.references, ...refs] }));
-      showToast({ message: refs.length === 1 ? 'Referencia agregada' : `${refs.length} referencias agregadas` });
+      mutate(p => ({ ...p, references: [...p.references, ...refs] }), { notice: refs.length === 1 ? 'Agregaste una referencia.' : `Agregaste ${refs.length} referencias.` });
     },
-    [updateProject, showToast],
+    [mutate],
   );
 
   const handleAddFiles = useCallback(
     async (files: File[]) => {
       const refs = await filesToReferences(files, projectRef.current.references);
       if (!refs.length) {
-        showToast({ message: 'Solo se aceptan imágenes' });
+        notify('Solo se aceptan imágenes.');
         return;
       }
       handleAddReferences(refs);
     },
-    [handleAddReferences, showToast],
+    [handleAddReferences, notify],
   );
 
-  /** Quita una referencia: sale de las piezas que la citaban. */
+  /** Una imagen por URL: se prueba antes de sumarla. Si no abre, se avisa y se puede reintentar. */
+  const addUrlRef = useRef<(url: string, extra?: { name?: string; tags?: string[]; notes?: string }) => Promise<void>>(async () => {});
+  const handleAddUrl = async (url: string, extra: { name?: string; tags?: string[]; notes?: string } = {}) => {
+    if (!(await canOpen(url))) {
+      notify('No pudimos abrir esa dirección.', { tone: 'error', detail: 'Revisá que sea el link directo a una imagen (termina en .jpg, .png o .webp).', action: { label: 'Reintentar', run: () => void addUrlRef.current(url, extra) } });
+      return;
+    }
+    const [id] = nextReferenceIds(projectRef.current.references, 1);
+    const last = decodeURIComponent(url.split('?')[0].split('/').pop() || '').replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim();
+    handleAddReferences([
+      {
+        id,
+        name: extra.name?.trim() || last || `Referencia web ${id.replace('ref_', '')}`,
+        image: url,
+        createdAt: new Date().toISOString(),
+        tags: extra.tags?.length ? extra.tags : ['Web'],
+        notes: extra.notes?.trim() || undefined,
+        isNew: true,
+      },
+    ]);
+  };
+  addUrlRef.current = handleAddUrl;
+
+  /** Quita una referencia: sale de las piezas que la citaban. Se puede deshacer. */
   const handleDeleteReference = (id: string) => {
     const p = projectRef.current;
     const ref = p.references.find(r => r.id === id);
     if (!ref) return;
-    apply(cur => ({
-      project: {
-        ...cur,
-        references: cur.references.filter(r => r.id !== id),
-        patterns: cur.patterns.map(x => ({ ...x, evidence: x.evidence.filter(e => e !== id), cover: x.cover?.refId === id ? undefined : x.cover })),
-        systems: cur.systems.map(s => ({ ...s, referenceIds: s.referenceIds.filter(r => r !== id) })),
-      },
-      log: [{ kind: 'discard', targetId: id, label: `Referencia quitada · ${ref.name}` }],
-      message: `Referencia quitada · ${ref.name}`,
-    }));
+    apply(
+      cur => ({
+        project: {
+          ...cur,
+          references: cur.references.filter(r => r.id !== id),
+          patterns: cur.patterns.map(x => ({ ...x, evidence: x.evidence.filter(e => e !== id), cover: x.cover?.refId === id ? undefined : x.cover })),
+          systems: cur.systems.map(s => ({ ...s, referenceIds: s.referenceIds.filter(r => r !== id) })),
+        },
+        log: [{ kind: 'discard', targetId: id, label: `Referencia quitada · ${ref.name}` }],
+      }),
+      'Borraste una referencia.',
+    );
     clearCachedBreakdown(p.id, id);
   };
 
   /* ---------- ANALIZAR: una sola llamada que recorta, junta, cuenta y sugiere hoja ---------- */
+  const analyzeRef = useRef<() => Promise<void>>(async () => {});
   const handleAnalyze = async () => {
     const p = projectRef.current;
     if (analysis.status === 'preparing' || analysis.status === 'reading') return;
-    if (corpusRefs(p).length < MIN_REFS) return;
+    if (corpusRefs(p).length < MIN_REFS) {
+      notify(`Para analizar hacen falta al menos ${MIN_REFS} referencias.`);
+      return;
+    }
     const controller = new AbortController();
     analysisAbort.current = controller;
     setAnalysis({ status: 'preparing', done: 0, total: corpusRefs(p).length });
     try {
-      const body = await buildAnalysisBody(p, (done, total) => setAnalysis({ status: 'preparing', done, total }), controller.signal);
+      const { skipped, ...body } = await buildAnalysisBody(p, (done, total) => setAnalysis({ status: 'preparing', done, total }), controller.signal);
+      if (!body.references.length) throw new Error('Ninguna de las imágenes se pudo leer.');
       setAnalysis({ status: 'reading', total: body.references.length, since: Date.now() });
       const res = await fetch('/api/analyze-references', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: JSON.stringify(body) });
       const text = await res.text();
@@ -379,27 +525,55 @@ function Workspace({ boot }: { boot: Boot }) {
       }
       if (!res.ok || !result.success) throw Object.assign(new Error(result.error || result.details || 'El agente no respondió'), { detail: result.error || result.details });
       const detected: any[] = result.data?.patterns ?? [];
+      const bad = new Set(skipped);
+      let pieces = 0;
       apply(cur => {
         const m = mergeAnalysis(cur, detected);
+        pieces = suggestions(m.project).length;
         return {
-          project: { ...m.project, moment: 'moodboard' },
+          project: {
+            ...m.project,
+            moment: 'referencias',
+            reviewTotal: pieces,
+            references: m.project.references.map(r => (bad.has(r.id) ? { ...r, broken: true } : r.broken ? { ...r, broken: undefined } : r)),
+          },
           log: [{ kind: 'induce', targetId: 'referencias', label: `Análisis · ${corpusRefs(cur).length} referencias`, reason: `${m.added} piezas nuevas · ${m.updated} actualizadas` }],
-          message: m.added ? `El agente ubicó ${m.added} piezas como sugerencias. Confirmá, subí o bajá.` : 'Análisis actualizado',
         };
-      });
+      }, false);
       setAnalysis({ status: 'idle' });
+      if (bad.size) {
+        const first = skipped[0];
+        notify(`El agente encontró ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}. ${bad.size} ${bad.size === 1 ? 'imagen no se pudo leer' : 'imágenes no se pudieron leer'} (archivo dañado).`, {
+          action: {
+            label: 'Ver cuál',
+            run: () => {
+              enter('referencias');
+              setFocusRef({ id: first, n: Date.now() });
+            },
+          },
+        });
+      } else {
+        notify(`El agente encontró ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'} para revisar.`, { action: { label: 'Ir a Revisar', run: () => go('revisar') } });
+      }
     } catch (err: any) {
       if (err?.name === 'AbortError') {
         setAnalysis({ status: 'idle' });
-        showToast({ message: 'Análisis cancelado. No cambió nada.' });
+        notify('Análisis cancelado. No cambió nada.');
         return;
       }
       const raw = String(err?.detail || err?.message || err);
-      setAnalysis({ status: 'error', message: friendlyError(err instanceof TypeError ? 'failed to fetch' : raw), detail: raw });
+      const message = friendlyError(err instanceof TypeError ? 'failed to fetch' : raw);
+      setAnalysis({ status: 'error', message, detail: raw });
+      notify('El análisis se cortó.', { tone: 'error', detail: `${message} Tus referencias siguen acá.`, action: { label: 'Reintentar', run: () => void analyzeRef.current() } });
     } finally {
       analysisAbort.current = null;
     }
   };
+  analyzeRef.current = handleAnalyze;
+
+  /** Volver a analizar pide confirmar: se reinicia la revisión de sugerencias. */
+  const requestReanalyze = () =>
+    notify('Si volvés a analizar, se reinicia tu revisión de sugerencias. Tus capas no cambian.', { action: { label: 'Analizar igual', run: () => void analyzeRef.current() } });
 
   /* ---------- Paleta del corpus (lee los colores de la evidencia que falta) ---------- */
   const inspectReference = async (ref: Reference): Promise<ReferenceBreakdown | null> => {
@@ -429,6 +603,7 @@ function Workspace({ boot }: { boot: Boot }) {
     return project.references.filter(r => ids.has(r.id) && !r.breakdown);
   })();
   const [paletteBusy, setPaletteBusy] = useState(false);
+  const [paletteActivity, setPaletteActivity] = useState<string | null>(null);
   const handleCompletePalette = async () => {
     if (paletteBusy) return;
     setPaletteBusy(true);
@@ -436,15 +611,16 @@ function Workspace({ boot }: { boot: Boot }) {
     const missing = paletteMissing;
     try {
       for (let i = 0; i < missing.length; i++) {
-        showToast({ message: `Leyendo colores · ${i + 1} de ${missing.length}` }, 60000);
+        setPaletteActivity(`Leyendo colores · ${i + 1} de ${missing.length}…`);
         try {
           await inspectReference(missing[i]);
         } catch {
           failed++;
         }
       }
-      showToast({ message: failed ? `Paleta completada · ${failed} referencias no se pudieron leer` : 'Paleta completada desde tus referencias' }, 4000);
+      notify(failed ? `Paleta completada · ${failed} referencias no se pudieron leer` : 'Paleta completada desde tus referencias');
     } finally {
+      setPaletteActivity(null);
       setPaletteBusy(false);
     }
   };
@@ -471,8 +647,34 @@ function Workspace({ boot }: { boot: Boot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorSig, project.id, analysis.status]);
 
-  const enabled = !overlay && !isUploadOpen && !deleteRequest && !isLogOpen && !guideOpen;
-  const toastText = toast?.message ?? null;
+  /* ========== Línea de estado (barra superior) ========== */
+  // Mientras el agente lee, los mensajes avanzan solos; con el análisis real se muestra el avance de la preparación.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (analysis.status !== 'reading') return;
+    const id = setInterval(() => setTick(n => n + 1), 400);
+    return () => clearInterval(id);
+  }, [analysis.status]);
+  const analysisActivity = (() => {
+    if (analysis.status === 'preparing') return `Leyendo colores · ${Math.min(analysis.total, analysis.done + 1)} de ${analysis.total}…`;
+    if (analysis.status === 'reading') {
+      void tick;
+      const s = (Date.now() - analysis.since) / 1000;
+      const n = suggestions(project).length;
+      return s < 6 ? 'Detectando tipografías…' : s < 14 ? 'Buscando lo que se repite…' : n ? `Armando ${n} sugerencias…` : 'Armando las sugerencias…';
+    }
+    return null;
+  })();
+  const activity = analysisActivity ?? paletteActivity ?? probarActivity;
+  const reached = project.reached ?? 0;
+  const status: StatusLine = activity
+    ? { mode: 'activity', text: activity }
+    : stepIndex(screen) < reached
+      ? { mode: 'back', text: `Volviste a ${stepLabel(screen)}`, action: { label: `Seguir en ${stepLabel(STEPS[reached].id)} →`, run: () => go(STEPS[reached].id) } }
+      : { mode: 'location', text: locationText(project, screen, screen === 'capas' ? capaName : screen === 'probar' ? probarType : undefined) };
+
+  const enabled = !overlay && !isUploadOpen && !deleteRequest && !isLogOpen && !guideOpen && !briefOpen;
+  const notifyBlocked = useCallback((reason: string) => notify(reason), [notify]);
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink print:h-auto print:overflow-visible">
@@ -484,10 +686,7 @@ function Workspace({ boot }: { boot: Boot }) {
         projects={projectsList}
         onSelectProject={handleSelectProject}
         onNewProject={handleNewProject}
-        onEditBrief={() => {
-          setScreen('moodboard');
-          setBriefRequest(n => n + 1);
-        }}
+        onEditBrief={() => setBriefOpen(true)}
         onDeleteProject={() => setDeleteRequest('current')}
         onDeleteAllProjects={() => setDeleteRequest('all')}
         onExportBackup={handleExportBackup}
@@ -497,70 +696,86 @@ function Workspace({ boot }: { boot: Boot }) {
         onOpenLog={() => setIsLogOpen(true)}
         onOpenAbout={() => setOverlay({ kind: 'about' })}
         onOpenHelp={() => {
-          setScreen('moodboard');
+          enter('referencias');
           setGuideOpen(true);
         }}
-        moment={screen}
-        onSelectMoment={setScreen}
+        status={status}
+        save={saveState}
       />
       {project.example && <ExampleBanner onStart={handleNewProject} />}
 
-      <main id="main" tabIndex={-1} className={`relative min-h-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
-        {screen === 'moodboard' && (
-          <MoodboardScreen
-            key={project.id}
-            project={project}
-            enabled={enabled}
-            apply={apply}
-            toast={toastText}
-            onSubmitIntent={handleSubmitIntent}
-            briefBusy={briefBusy}
-            briefError={briefError}
-            onSaveBrief={handleSaveBrief}
-            briefRequest={briefRequest}
-            onAddFiles={handleAddFiles}
-            onOpenUpload={() => setIsUploadOpen(true)}
-            onDeleteRef={handleDeleteReference}
-            analysis={analysis}
-            onAnalyze={handleAnalyze}
-            onCancelAnalysis={() => analysisAbort.current?.abort()}
-            onGoSystem={() => setScreen('sistema')}
-            split={piece => requestSplit(projectRef.current, piece)}
-          />
-        )}
-        {screen === 'sistema' && (
-          <SystemScreen
-            key={project.id}
-            project={project}
-            enabled={enabled}
-            toast={toastText}
-            onBack={() => setScreen('moodboard')}
-            onGenerate={() => setScreen('probar')}
-            onNotice={text => showToast({ message: text })}
-            paletteMissing={paletteMissing.length}
-            paletteBusy={paletteBusy}
-            onCompletePalette={handleCompletePalette}
-          />
-        )}
-        {(screen === 'probar' || probarSeen === project.id) && (
-          <div className={screen === 'probar' ? 'h-full' : 'hidden'}>
-            <ProbarScreen
+      <div className="flex min-h-0 flex-1">
+        <StepRail project={project} current={screen} onGo={(id, blocked) => (blocked ? notify(`${stepLabel(id)} · ${blocked}`) : enter(id))} />
+
+        <main id="main" tabIndex={-1} className={`relative min-w-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
+          {screen === 'referencias' && (
+            <ReferencesScreen
               key={project.id}
               project={project}
-              enabled={enabled && screen === 'probar'}
-              session={project.applications?.stack}
-              onSaveSession={session => {
-                const pid = project.id;
-                updateProject(x => ({ ...x, applications: { ...(x.applications ?? {}), stack: session } }), pid);
-              }}
-              onBack={() => setScreen('sistema')}
+              enabled={enabled}
+              mutate={mutate}
+              analysis={analysis}
+              onAnalyze={handleAnalyze}
+              onCancelAnalysis={() => analysisAbort.current?.abort()}
+              onRequestReanalyze={requestReanalyze}
+              onAddFiles={handleAddFiles}
+              onAddUrl={url => void handleAddUrl(url)}
+              onOpenUpload={() => setIsUploadOpen(true)}
+              onDeleteRef={handleDeleteReference}
+              onNext={() => go('revisar')}
+              onBlocked={notifyBlocked}
+              onSubmitIntent={handleSubmitIntent}
+              briefBusy={briefBusy}
+              focus={focusRef}
             />
-          </div>
-        )}
-      </main>
+          )}
+          {screen === 'revisar' && <ReviewScreen key={project.id} project={project} enabled={enabled} apply={apply} mutate={mutate} onNext={() => go('capas')} />}
+          {screen === 'capas' && <LayersScreen key={project.id} project={project} enabled={enabled} apply={apply} onNext={() => go('sistema', 'capas')} onBlocked={notifyBlocked} onLayer={setCapaName} />}
+          {screen === 'sistema' && (
+            <SystemScreen
+              key={project.id}
+              project={project}
+              enabled={enabled}
+              onNext={() => go('probar', 'sistema')}
+              onBlocked={notifyBlocked}
+              onNotice={text => notify(text)}
+              paletteMissing={paletteMissing.length}
+              paletteBusy={paletteBusy}
+              onCompletePalette={handleCompletePalette}
+            />
+          )}
+          {(screen === 'probar' || probarSeen === project.id) && (
+            <div className={screen === 'probar' ? 'h-full' : 'hidden'}>
+              <ProbarScreen
+                key={project.id}
+                project={project}
+                enabled={enabled && screen === 'probar'}
+                session={project.applications?.stack}
+                onSaveSession={session => {
+                  const pid = project.id;
+                  updateProject(x => ({ ...x, applications: { ...(x.applications ?? {}), stack: session } }), pid);
+                }}
+                onNotify={notify}
+                onActivity={setProbarActivity}
+                onUndoable={pushUndo}
+                onType={setProbarType}
+                onBlocked={notifyBlocked}
+              />
+            </div>
+          )}
+          {briefOpen && (
+            <BriefPanel
+              brief={project.brief || project.description || ''}
+              onSave={handleSaveBrief}
+              onClose={() => setBriefOpen(false)}
+            />
+          )}
+        </main>
+      </div>
 
+      <Notices notice={notice} onClose={() => setNotice(null)} />
       {guideOpen && <Guide onClose={() => setGuideOpen(false)} />}
-      <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} />
+      <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} onAddUrl={(url, extra) => void handleAddUrl(url, extra)} />
       <Modal open={!!deleteRequest} title={deleteRequest === 'all' ? 'Eliminar todos los proyectos' : 'Eliminar proyecto'} meta="No se puede deshacer" width={440} onClose={() => setDeleteRequest(null)}>
         <div className="flex flex-col gap-4 p-5">
           <p className="m-0 text-13 text-ink">
@@ -588,7 +803,7 @@ function Workspace({ boot }: { boot: Boot }) {
           const item = makeFeedback({ type: fb.type, comment: fb.comment });
           updateProject(p => ({ ...p, feedback: [...p.feedback, item] }));
           addLog('feedback', 'proyecto', fb.type === 'designer_rule' ? 'Regla del diseñador' : 'Ajuste', fb.comment, { feedbackId: item.id });
-          showToast({ message: 'Regla guardada · el agente la usa en el próximo análisis' });
+          notify('Regla guardada · el agente la usa en el próximo análisis');
         }}
       />
 

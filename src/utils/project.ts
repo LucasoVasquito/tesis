@@ -58,6 +58,14 @@ export function migrateProject(input: any): Project {
     groups: Array.isArray(raw?.groups) ? raw.groups : [],
     lastBackupAt: typeof raw?.lastBackupAt === 'string' ? raw.lastBackupAt : undefined,
     applications: raw?.applications && typeof raw.applications === 'object' ? raw.applications : {},
+    patternGroups: Array.isArray(raw?.patternGroups) ? raw.patternGroups : undefined,
+    layerColors: Array.isArray(raw?.layerColors) && raw.layerColors.length === 3 ? raw.layerColors : undefined,
+    example: raw?.example ? true : undefined,
+    reached: Number.isInteger(raw?.reached) ? raw.reached : undefined,
+    done: Array.isArray(raw?.done) ? raw.done : undefined,
+    visited: Array.isArray(raw?.visited) ? raw.visited : undefined,
+    stale: Array.isArray(raw?.stale) ? raw.stale : undefined,
+    reviewTotal: Number.isInteger(raw?.reviewTotal) ? raw.reviewTotal : undefined,
   };
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';
   return migrateToPieces(migrateToStack(p, raw), raw);
@@ -310,10 +318,10 @@ export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { me
 export function migrateToPieces(p: Project, raw: any): Project {
   const moment = (): Project['moment'] => {
     const m = raw?.moment;
-    if (m === 'moodboard' || m === 'sistema' || m === 'probar') return m;
-    if (m === 'subir' || m === 'ordenar') return 'moodboard';
+    if (m === 'referencias' || m === 'revisar' || m === 'capas' || m === 'sistema' || m === 'probar') return m;
+    if (m === 'moodboard' || m === 'subir' || m === 'ordenar') return 'referencias';
     if (raw?.view === 'front' || m === 'girar') return 'sistema';
-    return 'moodboard';
+    return 'referencias';
   };
   if ((raw?.schema ?? 0) >= 4) return { ...p, schema: SCHEMA, moment: moment() };
 

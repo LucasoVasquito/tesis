@@ -4,6 +4,23 @@ import { cropImage } from '../utils/parts';
 import { compressImageString } from '../utils/imageCompressor';
 import { SplitPart, coverFrom, livePieces } from './model';
 
+export type AnalysisState =
+  | { status: 'idle' }
+  | { status: 'preparing'; done: number; total: number }
+  | { status: 'reading'; total: number; since: number }
+  | { status: 'error'; message: string; detail?: string };
+
+/** ¿La imagen se puede abrir? Una imagen dañada no se manda al agente. */
+export function canOpen(src: string): Promise<boolean> {
+  return new Promise(resolve => {
+    if (!src) return resolve(false);
+    const img = new Image();
+    img.onload = () => resolve(img.naturalWidth > 0);
+    img.onerror = () => resolve(false);
+    img.src = src;
+  });
+}
+
 /**
  * Pedido de análisis: todas las referencias en una sola llamada. La IA devuelve las piezas ya juntadas,
  * con su evidencia, una hoja sugerida y un recorte de ejemplo. `onProgress` informa la preparación
@@ -12,10 +29,16 @@ import { SplitPart, coverFrom, livePieces } from './model';
 export async function buildAnalysisBody(p: Project, onProgress: (done: number, total: number) => void, signal?: AbortSignal) {
   const refs = corpusRefs(p);
   const references = [];
+  /** Imágenes que no se pudieron leer: se saltean y se avisa. */
+  const skipped: string[] = [];
   for (let i = 0; i < refs.length; i++) {
     if (signal?.aborted) throw new DOMException('Cancelado', 'AbortError');
     onProgress(i, refs.length);
     const r = refs[i];
+    if (!(await canOpen(r.image))) {
+      skipped.push(r.id);
+      continue;
+    }
     references.push({ id: r.id, name: r.name, notes: r.notes, image: await compressImageString(r.image, { maxWidth: 1024, maxHeight: 1024, quality: 0.8 }) });
   }
   onProgress(refs.length, refs.length);
@@ -39,6 +62,7 @@ export async function buildAnalysisBody(p: Project, onProgress: (done: number, t
   );
   const ownIds = new Set(own.map(x => x.id));
   return {
+    skipped,
     references,
     projectName: p.name,
     objective: p.objective,

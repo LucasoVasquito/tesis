@@ -11,6 +11,8 @@ interface UploadModalProps {
   existing: Reference[];
   onAddFiles: (files: File[]) => void;
   onAddReferences: (refs: Reference[]) => void;
+  /** Una imagen por URL: se prueba antes de sumarla, y si no abre se avisa. */
+  onAddUrl?: (url: string, extra: { name?: string; tags?: string[]; notes?: string }) => void;
 }
 
 type Tab = 'files' | 'url' | 'packs';
@@ -48,7 +50,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'packs', label: 'Paquetes de ejemplo' },
 ];
 
-export function UploadModal({ isOpen, onClose, existing, onAddFiles, onAddReferences }: UploadModalProps) {
+export function UploadModal({ isOpen, onClose, existing, onAddFiles, onAddReferences, onAddUrl }: UploadModalProps) {
   const [tab, setTab] = useState<Tab>('files');
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
@@ -78,8 +80,13 @@ export function UploadModal({ isOpen, onClose, existing, onAddFiles, onAddRefere
       setUrlError('Pegá una dirección que empiece con http:// o https://');
       return;
     }
-    const [id] = nextReferenceIds(existing, 1);
     const tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
+    if (onAddUrl) {
+      onAddUrl(v, { name, tags: tagList, notes });
+      close();
+      return;
+    }
+    const [id] = nextReferenceIds(existing, 1);
     onAddReferences([
       {
         id,

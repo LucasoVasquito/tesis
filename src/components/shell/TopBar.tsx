@@ -1,6 +1,14 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
-import { Moment, Project } from '../../types';
+import { Project } from '../../types';
+
+export interface StatusLine {
+  mode: 'location' | 'activity' | 'back';
+  text: string;
+  /** Solo en vuelta atrás: volver a donde estabas. */
+  action?: { label: string; run: () => void };
+}
+export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
 interface TopBarProps {
   project: Project;
@@ -18,34 +26,41 @@ interface TopBarProps {
   onOpenAbout: () => void;
   /** Ayuda: vuelve a mostrar la guía de tres carteles. */
   onOpenHelp: () => void;
-  moment: Moment;
-  onSelectMoment: (m: Moment) => void;
+  status: StatusLine;
+  save: SaveState;
 }
 
-const MOMENTS: { id: Moment; num: string; label: string }[] = [
-  { id: 'moodboard', num: '01', label: 'MOODBOARD' },
-  { id: 'sistema', num: '02', label: 'SISTEMA' },
-  { id: 'probar', num: '03', label: 'PROBAR' },
-];
-
-/** Indicador de pantalla: 01 MOODBOARD · 02 SISTEMA · 03 PROBAR. Se puede ir y volver. */
-function MomentIndicator({ current, onSelect }: { current: Moment; onSelect?: (m: Moment) => void }) {
+/** Línea de estado: dónde estás, qué está haciendo el sistema o que volviste atrás. */
+function StatusBar({ status }: { status: StatusLine }) {
+  const dot =
+    status.mode === 'activity'
+      ? { background: 'var(--capa-1)', boxShadow: '0 0 0 4px color-mix(in oklab, var(--capa-1) 28%, transparent)' }
+      : status.mode === 'back'
+        ? { background: 'oklch(0.80 0.12 86)' }
+        : { background: 'rgba(242,239,232,.3)' };
   return (
-    <nav aria-label="Pantalla" className="flex items-center gap-3">
-      {MOMENTS.map((m, i) => (
-        <React.Fragment key={m.id}>
-          {i > 0 && <span aria-hidden="true" className="text-ink-3">·</span>}
-          <button
-            type="button"
-            aria-current={m.id === current ? 'step' : undefined}
-            onClick={() => onSelect?.(m.id)}
-            className={`type-label px-2 py-1 text-[14px] transition-colors duration-120 ${m.id === current ? 'bg-bone text-void' : 'text-ink-2 hover:text-ink'}`}
-          >
-            {m.num} {m.label}
-          </button>
-        </React.Fragment>
-      ))}
-    </nav>
+    <div role="status" aria-live="polite" className="flex min-w-0 items-center justify-center gap-3">
+      <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={dot} />
+      <span className="truncate text-[13px] text-ink" style={{ fontFamily: 'var(--font-mono)' }}>
+        {status.text}
+      </span>
+      {status.action && (
+        <button type="button" onClick={status.action.run} className="shrink-0 rounded-[6px] border border-line-strong px-2 py-[3px] text-[12px] font-medium text-ink hover:bg-white/10">
+          {status.action.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SaveIndicator({ state }: { state: SaveState }) {
+  if (state === 'idle') return <span className="w-[88px]" />;
+  const text = state === 'saving' ? 'Guardando…' : state === 'saved' ? '✓ Guardado' : 'No se guardó';
+  const color = state === 'saving' ? 'rgba(242,239,232,1)' : state === 'saved' ? 'rgba(242,239,232,.45)' : 'oklch(0.85 0.08 25)';
+  return (
+    <span aria-live="polite" className="whitespace-nowrap text-[11px]" style={{ fontFamily: 'var(--font-mono)', color }}>
+      {text}
+    </span>
   );
 }
 
@@ -121,7 +136,7 @@ export function TopBar(props: TopBarProps) {
     <header className="no-print flex h-14 shrink-0 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-3 lg:gap-6 lg:px-4">
       {/* Proyecto */}
       <div className="relative flex min-w-0 flex-1 basis-0 items-center gap-3" ref={wrapRef}>
-        <span className="type-name hidden shrink-0 whitespace-nowrap text-[22px] tracking-[0.02em] text-ink sm:inline">CAMALEON CORPUS</span>
+        <span className="type-name hidden shrink-0 whitespace-nowrap text-[22px] tracking-[0.02em] text-ink sm:inline">CAMALEÓN CORPUS</span>
         <span aria-hidden="true" className="hidden h-4 w-px bg-line-mid sm:inline-block" />
         <button
           ref={buttonRef}
@@ -133,7 +148,7 @@ export function TopBar(props: TopBarProps) {
           onClick={() => setOpen(o => !o)}
         >
           <span className="sr-only">Proyecto: </span>
-          <span className="truncate">{name}</span>
+          <span className="truncate font-mono text-[13px]">{name}</span>
           <ChevronDown aria-hidden="true" />
         </button>
         {open && (
@@ -186,15 +201,16 @@ export function TopBar(props: TopBarProps) {
         />
       </div>
 
-      {/* Pantalla: 01 SUBIR · 02 ORDENAR · 03 SISTEMA */}
-      <div className="flex shrink-0 justify-center">
-        <MomentIndicator current={props.moment} onSelect={props.onSelectMoment} />
+      {/* Línea de estado */}
+      <div className="flex min-w-0 shrink justify-center" style={{ flex: '0 1 auto' }}>
+        <StatusBar status={props.status} />
       </div>
 
-      {/* Ayuda */}
-      <div className="flex min-w-0 flex-1 basis-0 items-center justify-end">
-        <button type="button" onClick={props.onOpenHelp} className="type-label px-3 py-2 text-[13px] text-ink-2 hover:text-ink">
-          ? AYUDA
+      {/* Guardado y ayuda */}
+      <div className="flex min-w-0 flex-1 basis-0 items-center justify-end gap-4 max-[1100px]:flex-none">
+        <SaveIndicator state={props.save} />
+        <button type="button" onClick={props.onOpenHelp} className="rounded-[8px] px-3 py-2 text-[13px] font-medium text-ink-2 hover:bg-white/10 hover:text-ink">
+          ? Ayuda
         </button>
       </div>
     </header>

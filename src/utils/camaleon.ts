@@ -9,14 +9,14 @@ import { livePieces, pieceWeight } from '../pieces/model';
  * así nunca grita, siempre contrasta sobre el fondo oscuro y no compite con las referencias.
  */
 
-/** Antes del primer análisis: tres neutros cálidos. */
-export const NEUTRAL_LAYER_COLORS: [string, string, string] = ['oklch(0.92 0.01 85)', 'oklch(0.78 0.01 85)', 'oklch(0.64 0.01 85)'];
+/** Antes del primer análisis: los colores de capa por defecto (coral, mostaza, turquesa). */
+export const NEUTRAL_LAYER_COLORS: [string, string, string] = ['oklch(0.68 0.14 33)', 'oklch(0.80 0.12 86)', 'oklch(0.74 0.09 190)'];
 
 /** Luminosidad y saturación fijas por capa (Núcleo, Soporte, Acento). */
 const FIXED: [number, number][] = [
-  [0.8, 0.09],
-  [0.74, 0.07],
-  [0.68, 0.06],
+  [0.68, 0.14],
+  [0.8, 0.12],
+  [0.74, 0.09],
 ];
 
 /** Dos tonos cuentan como distintos si están a más de 40° uno del otro. */

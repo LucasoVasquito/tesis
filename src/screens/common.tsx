@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { inferPalette, HEX_IN_TEXT, normalizeHex } from '../utils/palette';
 import { Pattern, Project } from '../types';
 import { Crop } from '../space/Crop';
 import { Notice } from '../pieces/model';
@@ -9,6 +10,41 @@ export function PieceImage({ piece, project, className, style }: { piece: Patter
   const ref = refId ? project.references.find(r => r.id === refId) : undefined;
   if (!ref) return <span className={`block bg-raised ${className ?? ''}`} style={style} />;
   return <Crop image={ref.image} crop={piece.cover?.refId === ref.id ? piece.cover.crop : undefined} fit="cover" alt={piece.name} className={className} style={style} />;
+}
+
+/** Color de una pieza de color: de su descripción o del desglose de su evidencia. */
+function pieceHex(piece: Pattern, project: Project): string | null {
+  for (const raw of piece.description?.match(HEX_IN_TEXT) ?? []) {
+    const h = normalizeHex(raw);
+    if (h) return h;
+  }
+  const fromEvidence = inferPalette([{ ...piece, status: 'confirmed' }], project.references, { max: 1 })[0];
+  return fromEvidence?.hex ?? null;
+}
+
+/**
+ * Imagen de una pieza con su señal sobre la foto: las piezas de color llevan una etiqueta abajo a la izquierda
+ * (fondo vacío al 78%, filete del color y el hex en mono); las tipográficas, la palabra de la marca.
+ * Nada de cuadrados de color sueltos.
+ */
+export function PieceThumb({ piece, project, className, style, word }: { piece: Pattern; project: Project; className?: string; style?: React.CSSProperties; word?: boolean }) {
+  const hex = useMemo(() => (piece.category === 'color' ? pieceHex(piece, project) : null), [piece.id, piece.category, piece.description, project.references]); // eslint-disable-line react-hooks/exhaustive-deps
+  const brand = (project.name || project.intent || '').split(/s[—–-]s/)[0].trim();
+  return (
+    <div className={`relative overflow-hidden ${className ?? ''}`} style={style}>
+      <PieceImage piece={piece} project={project} className="absolute inset-0 size-full" />
+      {hex && (
+        <span className="absolute bottom-[6px] left-[6px] flex items-center py-[3px] pl-2 pr-2 font-mono text-[11px] leading-none text-ink" style={{ background: 'oklch(0.165 0.012 40 / .78)', borderLeft: `3px solid ${hex}` }}>
+          {hex.toUpperCase()}
+        </span>
+      )}
+      {word !== false && piece.category === 'typography' && brand && (
+        <span className="type-name pointer-events-none absolute inset-x-2 bottom-1 truncate text-[clamp(18px,3.4vw,34px)] leading-none text-bone" style={{ textShadow: '0 1px 8px rgba(0,0,0,.7)' }}>
+          {brand}
+        </span>
+      )}
+    </div>
+  );
 }
 
 /** Botón con el atajo adentro: [⏎] CONFIRMAR. Lo que se hace con teclado siempre tiene un botón. */

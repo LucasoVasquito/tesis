@@ -23,7 +23,7 @@ export interface ActionResult {
 }
 
 /** Mínimo de referencias para analizar. */
-export const MIN_REFS = 6;
+export const MIN_REFS = 5;
 
 export const SHEET_NAME: Record<Layer, string> = { 1: 'Núcleo', 2: 'Soporte', 3: 'Acento' };
 export const sheetLabel = (l: Layer) => `CAPA ${l} · ${SHEET_NAME[l].toUpperCase()}`;
@@ -152,6 +152,21 @@ export function restore(p: Project, id: string): ActionResult {
     message: `${x.name} vuelve a ${SHEET_NAME[l]} como sugerencia`,
   };
 }
+
+/** Recuperar una descartada en la revisión: vuelve a su capa sugerida, ya aceptada. */
+export function recover(p: Project, id: string): ActionResult {
+  const x = find(p, id);
+  if (!x) return { project: p, log: [] };
+  const l = isLayer(x.layer) ? x.layer : proposedLayer(x, p);
+  return {
+    project: touch(p, id, y => ({ ...y, status: 'confirmed', layer: l, confirmed: true })),
+    log: [{ kind: 'restore', targetId: id, label: `${x.name} recuperada en ${SHEET_NAME[l]}` }],
+    message: `Recuperaste «${x.name}» en ${SHEET_NAME[l]}.`,
+  };
+}
+
+/** Sugerencias que el agente todavía propone (sin decidir). */
+export const suggestions = (p: Project) => livePieces(p).filter(isSuggestion);
 
 /** Unir: las piezas se juntan en la primera (evidencia sumada). */
 export function merge(p: Project, ids: string[]): ActionResult {

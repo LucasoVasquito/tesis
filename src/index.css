@@ -9,7 +9,7 @@
 
 @theme {
   /* Paleta 1c (valores exactos del documento de identidad) */
-  --color-void: oklch(0.17 0.012 265);   /* vacío: fondo */
+  --color-void: oklch(0.165 0.012 40);   /* vacío: fondo */
   --color-bone: #F2EFE8;                 /* hueso: soporte, texto, barra de atajos */
   --color-core: oklch(0.7 0.19 45);      /* naranja: lámina 01 · núcleo */
   --color-accent: oklch(0.62 0.2 262);   /* azul: lámina 03 · acento y revelado */
@@ -20,7 +20,7 @@
   --color-layer-3: oklch(0.62 0.2 262);
 
   /* Superficies (derivadas del vacío) */
-  --color-bg: oklch(0.17 0.012 265);
+  --color-bg: oklch(0.165 0.012 40);
   --color-surface: oklch(0.205 0.012 265);
   --color-raised: oklch(0.24 0.012 265);
   --color-line: rgba(242, 239, 232, 0.1);
@@ -531,22 +531,22 @@
 @property --capa-1 {
   syntax: '<color>';
   inherits: true;
-  initial-value: oklch(0.92 0.01 85);
+  initial-value: oklch(0.68 0.14 33);
 }
 @property --capa-2 {
   syntax: '<color>';
   inherits: true;
-  initial-value: oklch(0.78 0.01 85);
+  initial-value: oklch(0.80 0.12 86);
 }
 @property --capa-3 {
   syntax: '<color>';
   inherits: true;
-  initial-value: oklch(0.64 0.01 85);
+  initial-value: oklch(0.74 0.09 190);
 }
 :root {
-  --capa-1: oklch(0.92 0.01 85);
-  --capa-2: oklch(0.78 0.01 85);
-  --capa-3: oklch(0.64 0.01 85);
+  --capa-1: oklch(0.68 0.14 33);
+  --capa-2: oklch(0.80 0.12 86);
+  --capa-3: oklch(0.74 0.09 190);
   transition: --capa-1 800ms var(--ease-camera), --capa-2 800ms var(--ease-camera), --capa-3 800ms var(--ease-camera);
 }
 

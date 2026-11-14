@@ -12,9 +12,9 @@ export const guideDone = () => {
 };
 
 const STEPS: { text: string; where: string }[] = [
-  { text: 'Tres capas: la de adelante es la activa. W / S o un clic en 1 · 2 · 3 para cambiar.', where: 'left-[40px] top-[180px]' },
-  { text: 'Arrastrá referencias del panel a una capa. Lo que ubicás vos pesa más.', where: 'right-[340px] top-[200px]' },
-  { text: 'Analizá: el agente ubica el resto como sugerencia. Después, mirá tu sistema.', where: 'bottom-[110px] right-6' },
+  { text: 'Cinco etapas a la izquierda: Referencias, Revisar, Capas, Sistema y Probar. Podés ir y volver.', where: 'left-[224px] top-[110px]' },
+  { text: 'Juntá imágenes en el lienzo: arrastralas, pegá una URL o usá Ctrl+V. Con 5 o más, analizá.', where: 'left-1/2 top-[160px] -translate-x-1/2' },
+  { text: 'Revisá lo que propone el agente y ordená las capas con la rueda. Ctrl+Z deshace.', where: 'bottom-[120px] right-6' },
 ];
 
 /** Guía de 3 carteles: solo la primera vez (o desde AYUDA), salteable. */

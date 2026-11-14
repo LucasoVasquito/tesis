@@ -1,4 +1,5 @@
-import React, { forwardRef, useState } from 'react';
+import { useState } from 'react';
+import { BarButton } from '../components/shell/BottomBar';
 import { toPng } from 'html-to-image';
 import { Project } from '../types';
 import { downloadText } from '../utils/exportHelpers';
@@ -46,9 +47,8 @@ const fileSlug = (s: string) =>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '') || 'tesis';
 
-interface ExportBarProps {
+interface ExportActionsProps {
   project: Project;
-  onGenerate: () => void;
   onNotice: (text: string) => void;
   paletteMissing: number;
   paletteBusy: boolean;
@@ -56,10 +56,10 @@ interface ExportBarProps {
 }
 
 /**
- * Exportar desde 02 SISTEMA: lineamientos, prompt e imagen de la página, y el paso a 03 PROBAR.
- * La lámina define el peso de cada patrón en las tres.
+ * Exportar desde 04 SISTEMA: lineamientos, prompt e imagen de la página. Van en la barra inferior.
+ * La capa define el peso de cada pieza en las tres.
  */
-export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function ExportBar({ project, onGenerate, onNotice, paletteMissing, paletteBusy, onCompletePalette }, ref) {
+export function ExportActions({ project, onNotice, paletteMissing, paletteBusy, onCompletePalette }: ExportActionsProps) {
   const [busy, setBusy] = useState(false);
   const name = fileSlug(project.name || project.intent || '');
   const unaudited = project.patterns.filter(x => x.status !== 'discarded' && !x.isGroup && x.layer != null && !x.confirmed).length;
@@ -99,27 +99,18 @@ export const ExportBar = forwardRef<HTMLDivElement, ExportBarProps>(function Exp
     }
   };
 
-  const btn = 'type-label px-2 py-[6px] text-left text-[11px] border-2 transition-colors duration-120';
   return (
-    <div ref={ref} role="group" aria-label="Exportar" className="flex w-[190px] flex-col gap-2">
-      <button type="button" onClick={exportGuidelines} className={`${btn} border-bone bg-bone text-void hover:bg-core hover:border-core`}>
-        LINEAMIENTOS
-      </button>
-      <button type="button" onClick={exportPrompt} className={`${btn} border-bone text-bone hover:bg-bone hover:text-void`}>
-        PROMPT
-      </button>
-      <button type="button" onClick={exportImage} disabled={busy} className={`${btn} border-bone text-bone hover:bg-bone hover:text-void disabled:opacity-60`}>
-        {busy ? 'EXPORTANDO…' : 'IMAGEN'}
-      </button>
-      <button type="button" onClick={onGenerate} className={`${btn} mt-6 border-core bg-core px-3 py-3 text-[13px] text-void hover:bg-bone hover:border-bone`}>
-        PROBAR EN UN EJEMPLO
-      </button>
+    <>
+      <BarButton onClick={exportGuidelines}>Lineamientos</BarButton>
+      <BarButton onClick={exportPrompt}>Prompt</BarButton>
+      <BarButton onClick={exportImage} disabled={busy}>
+        {busy ? 'Exportando…' : 'Imagen'}
+      </BarButton>
       {paletteMissing > 0 && (
-        <button type="button" onClick={onCompletePalette} disabled={paletteBusy} className={`${btn} mt-2 border-line-strong text-ink-2 hover:border-bone hover:text-ink disabled:opacity-60`}>
-          {paletteBusy ? 'LEYENDO COLORES…' : `COMPLETAR PALETA · ${paletteMissing} REFERENCIAS`}
-        </button>
+        <BarButton onClick={onCompletePalette} disabled={paletteBusy}>
+          {paletteBusy ? 'Leyendo colores…' : `Completar paleta · ${paletteMissing}`}
+        </BarButton>
       )}
-      {unaudited > 0 && <span className="text-[12px] leading-snug text-ink-2">{unaudited} sugerencias sin confirmar: salen marcadas al exportar.</span>}
-    </div>
+    </>
   );
-});
+}

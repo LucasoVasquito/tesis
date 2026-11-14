@@ -82,6 +82,19 @@ export interface Reference {
   position?: LayerPosition;
   /** Capa que propuso el agente, aunque la ubicación sea del usuario. */
   agentSuggestedLayer?: Layer | null;
+
+  /* ---------- Lienzo de 01 Referencias ---------- */
+  /** Posición y tamaño libres en el lienzo (px del mundo). */
+  board?: BoardBox;
+  /** No se pudo leer al analizar: se marca con borde rojo. */
+  broken?: boolean;
+}
+
+export interface BoardBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 /** Posición y tamaño dentro de una capa, normalizados 0..1 respecto de la capa. */
@@ -169,7 +182,7 @@ export type Layer = 1 | 2 | 3;
 
 /** Los tres momentos del flujo (reemplazan a las 5 etapas). */
 /** Las tres pantallas: 01 MOODBOARD · 02 SISTEMA · 03 PROBAR. */
-export type Moment = 'moodboard' | 'sistema' | 'probar';
+export type Moment = 'referencias' | 'revisar' | 'capas' | 'sistema' | 'probar';
 
 /** Costado: láminas separadas en profundidad. Frente: la Síntesis, como página editorial. */
 export type StackView = 'side' | 'front';
@@ -413,6 +426,16 @@ export interface Project {
   patternGroups?: PatternGroup[];
   /** Colores de capa calculados con la paleta del proyecto (color camaleón): Núcleo, Soporte, Acento. */
   layerColors?: [string, string, string];
+  /** Etapa más avanzada alcanzada (0 a 4). */
+  reached?: number;
+  /** Etapas que se completaron al avanzar (Capas y Sistema). */
+  done?: Moment[];
+  /** Etapas ya visitadas (para saber si quedan desactualizadas). */
+  visited?: Moment[];
+  /** Etapas desactualizadas: se cambió algo antes. */
+  stale?: Moment[];
+  /** Cuántas sugerencias había al empezar la revisión. */
+  reviewTotal?: number;
   /** Proyecto de ejemplo (muestra el cartel "EMPEZAR EL MÍO"). */
   example?: boolean;
 }
