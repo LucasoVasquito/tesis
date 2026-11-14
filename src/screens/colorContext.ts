@@ -9,7 +9,22 @@ export interface PieceColor {
   overridden: boolean;
 }
 
+export type RoleKey = 'primary' | 'secondary' | 'accent';
+
+/** Un color de la interfaz: su rol, su valor y de dónde sale. */
+export interface RoleColor {
+  key: RoleKey;
+  label: string;
+  layer: 1 | 2 | 3;
+  hex: string;
+  /** Color que se detectó (sin la edición a mano). */
+  detected: string;
+  overridden: boolean;
+  source: string;
+}
+
 export interface ColorCtx {
+  roles: RoleColor[];
   byPiece: Record<string, PieceColor>;
   /** Otros colores detectados en el proyecto, de más a menos presentes. */
   detected: string[];
@@ -17,5 +32,5 @@ export interface ColorCtx {
   palette: Palette;
 }
 
-export const ColorContext = createContext<ColorCtx>({ byPiece: {}, detected: [], palette: DEFAULT_PALETTE });
+export const ColorContext = createContext<ColorCtx>({ roles: [], byPiece: {}, detected: [], palette: DEFAULT_PALETTE });
 export const useColors = () => useContext(ColorContext);

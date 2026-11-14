@@ -60,6 +60,7 @@ export function migrateProject(input: any): Project {
     applications: raw?.applications && typeof raw.applications === 'object' ? raw.applications : {},
     patternGroups: Array.isArray(raw?.patternGroups) ? raw.patternGroups : undefined,
     layerColors: Array.isArray(raw?.layerColors) && raw.layerColors.length === 3 ? raw.layerColors : undefined,
+    roleColors: raw?.roleColors && typeof raw.roleColors === 'object' ? raw.roleColors : undefined,
     example: raw?.example ? true : undefined,
     reached: Number.isInteger(raw?.reached) ? raw.reached : undefined,
     done: Array.isArray(raw?.done) ? raw.done : undefined,

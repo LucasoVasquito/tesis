@@ -23,10 +23,10 @@ Arriba, al centro, una **línea de estado** dice siempre dónde estás, qué est
 Un lienzo infinito tipo Miro con fondo de puntos. La rueda hace zoom en el cursor, arrastrar el fondo desplaza, arrastrar una imagen la mueve y, con la imagen elegida, las manijas de las esquinas la redimensionan (⇧ la deforma). `Supr` borra, `+` / `−` zoom y `0` ajusta la vista. Se carga arrastrando archivos, pegando una URL o una imagen (Ctrl+V) o con *+ Imagen*. **Analizar** pide al menos 5 referencias; después el botón principal pasa a *Seguir en Revisar* y *Volver a analizar* pide confirmar.
 
 ### 02 · Revisar
-Una sugerencia del agente por vez: imagen, nombre, en cuántas referencias aparece y cuatro botones (Núcleo, Soporte, Acento, Descartar; el de la capa sugerida es el principal). Una mini pila 3D muestra dónde entraría. Al terminar no salta a otra etapa: muestra el resumen y las **Descartadas**, que se pueden recuperar.
+Una sugerencia por vez: imagen, nombre editable, en cuántas referencias aparece y tres tarjetas de capa (con su pregunta guía; la sugerida va marcada y se acepta con ⏎). También se puede descartar (X) o saltar por ahora (S): la saltada pasa al final de la fila y la etapa no se completa hasta decidirla. Una mini pila 3D muestra dónde entraría. Al terminar no salta a otra etapa: muestra el resumen y las **Descartadas**, que se pueden recuperar.
 
 ### 03 · Capas
-La única etapa con profundidad: un recorrido en primera persona. La rueda, ↑ ↓ o 1 · 2 · 3 mueven la cámara entre Núcleo, Soporte y Acento. Se elige una pieza con un clic, se manda a otra capa con 1 · 2 · 3, con los tres puntos de color al pasar el mouse o arrastrándola hacia arriba o abajo. La vista *General* es la pila isométrica.
+La única etapa con profundidad: un recorrido en primera persona. La rueda, ↑ ↓ o 1 · 2 · 3 mueven la cámara entre Núcleo, Soporte y Acento. Se elige una pieza con un clic, se manda a otra capa con 1 · 2 · 3, con los tres puntos de color al pasar el mouse o arrastrándola hacia arriba o abajo.
 
 ### 04 · Sistema
 Una columna de lectura de 720 px: el Núcleo titula con su imagen en 16:9, el Soporte va en tres columnas y el Acento en una fila de miniaturas. Desde la barra inferior: **Lineamientos**, **Prompt** e **Imagen**.
@@ -49,6 +49,8 @@ El peso ordena cada capa, el Sistema, los Lineamientos y la receta de Probar.
 Antes del primer análisis la interfaz usa coral, mostaza y turquesa. Después, el tono de cada capa sale de la paleta del proyecto; la luminosidad y la saturación son fijas por capa (Núcleo L 0,68 C 0,14 · Soporte L 0,80 C 0,12 · Acento L 0,74 C 0,09). El cambio se anima ~800 ms.
 
 ### Motor Camaleón: la interfaz toma los colores del proyecto
+El panel **Colores** está siempre a la vista en Capas (y en Sistema, con el botón *Colores*): muestra el primario, el secundario y el acento, de dónde sale cada uno, y se pueden cambiar con un clic (hex, selector o los otros colores del proyecto). Una pieza se puede renombrar en Capas (F2) y en Revisar antes de aceptarla.
+
 Los tres colores (primario, secundario y acento) se derivan con `derivePalette(detectados, piezas, overrides)` (`src/utils/derivePalette.ts`, con tests: `npm test`). Primero se ordenan los colores detectados por presencia (lo que sale de las referencias del usuario pesa el doble que lo inferido); después manda la jerarquía: la pieza de color de Núcleo con más frecuencia es el primario, la de Soporte el secundario y la de Acento el acento. Una capa sin pieza de color toma el siguiente color del ranking sin usar. En **Capas**, la muestra de 20px de cada pieza de color (o la tecla `C`) abre un panel para editar el color (hex, selector o los otros colores del proyecto): ese valor manda y se ve en vivo. El fondo toma el tono del primario; el texto, los marcos y los estados no se tiñen, y si un color de capa casi no contrasta con el fondo se dibuja con un contorno de 1px.
 
 ### Preguntas guía

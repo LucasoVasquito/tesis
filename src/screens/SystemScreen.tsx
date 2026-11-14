@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ColorsPanel } from '../components/ColorEditor';
+import { RoleKey } from './colorContext';
+import { useViewport } from '../hooks/useViewport';
 import { Layer, Pattern, Project } from '../types';
 import { useShortcuts } from '../hooks/useAuditShortcuts';
 import { evidenceCount } from '../utils/layers';
@@ -15,6 +18,8 @@ interface SystemScreenProps {
   onNext: () => void;
   onBlocked: (reason: string) => void;
   notify: Notify;
+  onRoleLive: (key: RoleKey, hex: string | null) => void;
+  onRoleCommit: (key: RoleKey, hex: string | null) => void;
   paletteMissing: number;
   paletteBusy: boolean;
   onCompletePalette: () => void;
@@ -47,6 +52,8 @@ function SectionHead({ layer, count }: { layer: Layer; count: number }) {
  */
 export function SystemScreen(props: SystemScreenProps) {
   const { project } = props;
+  const [colorsOpen, setColorsOpen] = useState(false);
+  const mobile = useViewport() === 'mobile';
   useShortcuts(props.enabled, { enter: () => props.onNext(), p: () => props.onNext() });
 
   const core = piecesIn(project, 1);
@@ -145,9 +152,22 @@ export function SystemScreen(props: SystemScreenProps) {
       {/* Degradé al pie: la barra inferior no tapa el texto */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-40" style={{ background: 'linear-gradient(to top, var(--color-bg) 30%, transparent)' }} />
 
+      {colorsOpen && (
+        <div className={mobile ? 'fixed inset-x-0 bottom-0 z-[63] rounded-t-[16px] p-3 pb-[calc(76px+env(safe-area-inset-bottom))]' : 'absolute bottom-24 left-1/2 z-40 w-[300px] -translate-x-1/2'} style={mobile ? { background: 'var(--cc-surface)' } : undefined}>
+          <ColorsPanel mobile={mobile} onLive={props.onRoleLive} onCommit={props.onRoleCommit} />
+          {mobile && (
+            <button type="button" onClick={() => setColorsOpen(false)} className="mt-2 min-h-[44px] w-full rounded-[10px] border border-line-strong text-[13px]">
+              Cerrar
+            </button>
+          )}
+        </div>
+      )}
       <BottomBar
         actions={
           <>
+            <BarButton active={colorsOpen} onClick={() => setColorsOpen(o => !o)}>
+              Colores
+            </BarButton>
             <ExportMenu project={project} notify={props.notify} />
             {props.paletteMissing > 0 && (
               <BarButton onClick={props.onCompletePalette} disabled={props.paletteBusy}>

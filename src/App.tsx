@@ -11,9 +11,9 @@ import { filesToReferences, makeFeedback, makeLog, migrateProject, nextReference
 import { corpusRefs } from './utils/layers';
 import { stackOrder } from './utils/layerRules';
 import { applyTheme } from './utils/camaleon';
-import { DEFAULT_PALETTE, DetectedColor, buildTheme, colorName, derivePalette } from './utils/derivePalette';
+import { DEFAULT_PALETTE, DetectedColor, buildTheme, colorName, derivePalette, oklchToHex, parseColor } from './utils/derivePalette';
 import { RefColorMap, colorPieces, detectColors, pieceBaseColor } from './utils/detectColors';
-import { ColorContext, ColorCtx } from './screens/colorContext';
+import { ColorContext, ColorCtx, RoleColor, RoleKey } from './screens/colorContext';
 import { useShortcuts } from './hooks/useAuditShortcuts';
 
 import { Button } from './components/ui';
@@ -130,6 +130,12 @@ export default function App() {
 const serverError = (text: string, status: number) =>
   Object.assign(new Error(text.trim().startsWith('<') ? 'El servidor corre una versión anterior: reiniciá iniciar.bat.' : `El servidor no respondió (HTTP ${status}).`), { detail: text.slice(0, 600) });
 
+/** Un color (hex u oklch) como hex. */
+const asHex = (c: string) => {
+  const o = c.startsWith('#') ? null : parseColor(c);
+  return o ? oklchToHex(o) : c.toUpperCase();
+};
+
 /** Agrega un elemento a una lista sin repetir. */
 const addTo = <T,>(list: T[] | undefined, v: T): T[] => (list?.includes(v) ? list : [...(list ?? []), v]);
 
@@ -244,6 +250,7 @@ function Workspace({ boot }: { boot: Boot }) {
           reviewTotal: snap.reviewTotal,
           done: snap.done,
           stale: snap.stale,
+          roleColors: snap.roleColors,
           lastAnalyzedAt: snap.lastAnalyzedAt,
           status: snap.status,
         }),
@@ -667,6 +674,8 @@ function Workspace({ boot }: { boot: Boot }) {
   const [detection, setDetection] = useState<{ pid: string; detected: DetectedColor[]; byRef: RefColorMap } | null>(null);
   /** Color que se está probando en el selector (en vivo, sin entrar al historial). */
   const [liveColors, setLiveColors] = useState<Record<string, string>>({});
+  /** Color de un rol (primario, secundario, acento) que se está probando en el selector. */
+  const [liveRoles, setLiveRoles] = useState<Partial<Record<RoleKey, string>>>({});
   const detectSig = project.references.map(r => r.id + r.image.length).join('|') + '#' + project.references.filter(r => r.breakdown).length + '#' + livePieces(project).filter(x => x.category === 'color').map(x => x.id + x.origin).join(',');
   useEffect(() => {
     let cancelled = false;
@@ -699,7 +708,28 @@ function Workspace({ boot }: { boot: Boot }) {
     const rank = det ? [...new Set(det.detected.sort((p, q) => q.weight - p.weight).map(c => c.hex))].slice(0, 8) : [];
     const saved = project.layerColors;
     const fallback = saved ? { primary: saved[0], secondary: saved[1], accent: saved[2] } : DEFAULT_PALETTE;
-    return { palette: det ? derivePalette(det.detected, pieces, overrides) : fallback, colorCtx: { byPiece, detected: rank, palette: det ? derivePalette(det.detected, pieces, overrides) : fallback } as ColorCtx };
+    const derived = det ? derivePalette(det.detected, pieces, overrides) : fallback;
+    // Los colores elegidos a mano para un rol mandan sobre lo detectado.
+    const manual = { ...(project.roleColors ?? {}), ...liveRoles };
+    const final = { primary: manual.primary ?? derived.primary, secondary: manual.secondary ?? derived.secondary, accent: manual.accent ?? derived.accent };
+    const keys: RoleKey[] = ['primary', 'secondary', 'accent'];
+    const labels = ['Primario', 'Secundario', 'Acento'];
+    const roles: RoleColor[] = keys.map((key, i) => {
+      const layer = (i + 1) as 1 | 2 | 3;
+      const piece = pieces.filter(q => q.layer === layer && (overrides[q.id] || q.hex)).sort((a, b) => b.frequency - a.frequency)[0];
+      const name = piece ? project.patterns.find(x => x.id === piece.id)?.name : undefined;
+      const overridden = !!manual[key];
+      return {
+        key,
+        label: labels[i],
+        layer,
+        hex: asHex(final[key]),
+        detected: asHex(derived[key]),
+        overridden,
+        source: overridden ? 'Elegido por vos' : name ? `De la pieza «${name}»` : det ? 'Color más presente en tus referencias' : 'Color por defecto',
+      };
+    });
+    return { palette: final, colorCtx: { roles, byPiece, detected: rank, palette: final } as ColorCtx };
   })();
   const theme = buildTheme(palette);
   const themeKey = JSON.stringify(palette);
@@ -749,6 +779,35 @@ function Workspace({ boot }: { boot: Boot }) {
       return n;
     });
   }, []);
+  const handleRoleLive = useCallback((key: RoleKey, hex: string | null) => {
+    setLiveRoles(c => {
+      const n = { ...c };
+      if (hex) n[key] = hex;
+      else delete n[key];
+      return n;
+    });
+  }, []);
+  const handleRoleCommit = (key: RoleKey, hex: string | null) => {
+    const cur = projectRef.current.roleColors?.[key] ?? null;
+    suppressPaletteNotice.current = Date.now();
+    setLiveRoles(c => {
+      const n = { ...c };
+      delete n[key];
+      return n;
+    });
+    if (cur === (hex ?? null)) return;
+    const names: Record<RoleKey, string> = { primary: 'primario', secondary: 'secundario', accent: 'acento' };
+    logEvent('color_edit', { role: key, hex });
+    mutate(
+      p => {
+        const next = { ...(p.roleColors ?? {}) };
+        if (hex) next[key] = hex;
+        else delete next[key];
+        return { ...p, roleColors: Object.keys(next).length ? next : undefined };
+      },
+      { silent: true, notice: hex ? `Cambiaste el color ${names[key]} a ${hex.toUpperCase()}.` : `Se restauró el color ${names[key]} detectado.` },
+    );
+  };
   const handleColorCommit = (id: string, hex: string | null) => {
     const x = projectRef.current.patterns.find(q => q.id === id);
     if (!x) return;
@@ -889,7 +948,7 @@ function Workspace({ boot }: { boot: Boot }) {
             />
           )}
           {screen === 'revisar' && <ReviewScreen key={project.id} project={project} enabled={enabled} apply={apply} mutate={mutate} onNext={() => go('capas')} />}
-          {screen === 'capas' && <LayersScreen key={project.id} project={project} enabled={enabled} apply={apply} onNext={() => go('sistema', 'capas')} onBlocked={notifyBlocked} onLayer={setCapaName} onColorLive={handleColorLive} onColorCommit={handleColorCommit} notify={notify} goLayer={goLayer} />}
+          {screen === 'capas' && <LayersScreen key={project.id} project={project} enabled={enabled} apply={apply} onNext={() => go('sistema', 'capas')} onBlocked={notifyBlocked} onLayer={setCapaName} onColorLive={handleColorLive} onColorCommit={handleColorCommit} onRoleLive={handleRoleLive} onRoleCommit={handleRoleCommit} notify={notify} goLayer={goLayer} />}
           {screen === 'sistema' && (
             <SystemScreen
               key={project.id}
@@ -898,6 +957,8 @@ function Workspace({ boot }: { boot: Boot }) {
               onNext={() => go('probar', 'sistema')}
               onBlocked={notifyBlocked}
               notify={notify}
+              onRoleLive={handleRoleLive}
+              onRoleCommit={handleRoleCommit}
               paletteMissing={paletteMissing.length}
               paletteBusy={paletteBusy}
               onCompletePalette={handleCompletePalette}

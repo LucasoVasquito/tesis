@@ -426,6 +426,8 @@ export interface Project {
   moment?: Moment;
   /** Patrones armados dentro de las capas (con G, por el usuario, o por el agente). */
   patternGroups?: PatternGroup[];
+  /** Colores de la interfaz elegidos a mano (manda sobre lo detectado). */
+  roleColors?: Partial<Record<'primary' | 'secondary' | 'accent', string>>;
   /** Colores de capa calculados con la paleta del proyecto (color camaleón): Núcleo, Soporte, Acento. */
   layerColors?: [string, string, string];
   /** Etapa más avanzada alcanzada (0 a 4). */
