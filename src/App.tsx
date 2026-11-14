@@ -32,6 +32,8 @@ import { SystemScreen } from './screens/SystemScreen';
 import { ExampleBanner, Guide, guideDone } from './screens/Guide';
 import { BriefPanel } from './screens/common';
 import { MutateOptions, NotifyOptions } from './screens/types';
+import { DEMO_ID, buildDemo, demoRequested } from './utils/demo';
+import { clearTestLog, downloadTestLog, logEvent, setLogStage, testMode } from './utils/testLog';
 import { STEPS, blockReason, locationText, stepIndex, stepLabel } from './utils/steps';
 
 /** Claves viejas de localStorage que ya no se usan (los proyectos pasaron a IndexedDB). */
@@ -79,6 +81,21 @@ export default function App() {
         }
       } catch {
         /* sin localStorage: no hay nada viejo que limpiar */
+      }
+      if (demoRequested()) {
+        // ?demo=badder: todos los participantes empiezan igual. Si ya hay una sesión de demo, se sigue en ella.
+        const list = projects.map(migrateProject);
+        if (!list.some(p => p.id === DEMO_ID)) {
+          try {
+            list.push(await buildDemo(await fetchExample()));
+          } catch {
+            /* sin ejemplo: se sigue con lo que haya */
+          }
+        }
+        if (list.length) {
+          setBoot({ projects: list, activeId: list.some(p => p.id === DEMO_ID) ? DEMO_ID : list[0].id });
+          return;
+        }
       }
       if (projects.length) {
         const list = projects.map(migrateProject);
@@ -173,6 +190,7 @@ function Workspace({ boot }: { boot: Boot }) {
   const [notice, setNotice] = useState<NoticeData | null>(null);
   const undoRef = useRef<() => void>(() => {});
   const notify = useCallback((text: string, o: NotifyOptions = {}) => {
+    if (o.tone === 'error') logEvent('error_shown', { message: text });
     const action = o.undo ? { label: 'Deshacer', run: () => undoRef.current() } : o.action;
     setNotice({ id: Date.now() + Math.random(), text, detail: o.detail, tone: o.tone, action });
   }, []);
@@ -188,6 +206,7 @@ function Workspace({ boot }: { boot: Boot }) {
   }, []);
   const undo = useCallback(() => {
     const fn = undoStack.current.pop();
+    logEvent('undo', { empty: !fn });
     if (!fn) {
       notify('No hay nada para deshacer.');
       return;
@@ -265,8 +284,20 @@ function Workspace({ boot }: { boot: Boot }) {
 
   /* ========== Etapas ========== */
   const screen: Moment = STEPS.some(s => s.id === project.moment) ? (project.moment as Moment) : 'referencias';
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
+  useEffect(() => {
+    setLogStage(screen);
+    logEvent('stage_enter', { from: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   /** Entra a una etapa: recuerda la más avanzada, la marca visitada y limpia su aviso de «desactualizada». */
-  const enter = (m: Moment, markDone?: Moment) =>
+  const enter = (m: Moment, markDone?: Moment) => {
+    if (m !== screenRef.current) {
+      logEvent('stage_leave', { to: m });
+      setLogStage(m);
+      logEvent('stage_enter', { from: screenRef.current });
+    }
     updateProject(p => ({
       ...p,
       moment: m,
@@ -275,6 +306,7 @@ function Workspace({ boot }: { boot: Boot }) {
       stale: (p.stale ?? []).filter(s => s !== m),
       done: markDone && (markDone === 'capas' || markDone === 'sistema') ? addTo(p.done, markDone) : p.done,
     }));
+  };
   const go = (m: Moment, markDone?: Moment) => {
     const why = blockReason(projectRef.current, m);
     if (why) {
@@ -673,6 +705,40 @@ function Workspace({ boot }: { boot: Boot }) {
       ? { mode: 'back', text: `Volviste a ${stepLabel(screen)}`, action: { label: `Seguir en ${stepLabel(STEPS[reached].id)} →`, run: () => go(STEPS[reached].id) } }
       : { mode: 'location', text: locationText(project, screen, screen === 'capas' ? capaName : screen === 'probar' ? probarType : undefined) };
 
+  /** Ctrl+Shift+R: vuelve a armar el proyecto de ejemplo (con confirmación). Ctrl+Shift+E: descarga el registro de test. */
+  const resetDemo = async () => {
+    if (!window.confirm('¿Reiniciar el proyecto de ejemplo? Se pierde todo lo hecho en él.')) return;
+    try {
+      const fresh = await buildDemo(await fetchExample());
+      deleteProjectPieces(DEMO_ID);
+      setProjectsList(list => [...list.filter(p => p.id !== DEMO_ID), fresh]);
+      setActiveProjectId(DEMO_ID);
+      resetUi();
+      clearTestLog();
+      notify('Se reinició el proyecto de ejemplo.');
+    } catch (err: any) {
+      notify(`No se pudo reiniciar el ejemplo: ${err?.message || err}`, { tone: 'error' });
+    }
+  };
+  const resetDemoRef = useRef(resetDemo);
+  resetDemoRef.current = resetDemo;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey) return;
+      const k = e.key.toLowerCase();
+      if (k === 'e' && testMode) {
+        e.preventDefault();
+        const name = downloadTestLog();
+        notify(`Se descargó ${name}`);
+      } else if (k === 'r' && demoRequested()) {
+        e.preventDefault();
+        void resetDemoRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [notify]);
+
   const enabled = !overlay && !isUploadOpen && !deleteRequest && !isLogOpen && !guideOpen && !briefOpen;
   const notifyBlocked = useCallback((reason: string) => notify(reason), [notify]);
 
@@ -696,6 +762,7 @@ function Workspace({ boot }: { boot: Boot }) {
         onOpenLog={() => setIsLogOpen(true)}
         onOpenAbout={() => setOverlay({ kind: 'about' })}
         onOpenHelp={() => {
+          logEvent('help_open');
           enter('referencias');
           setGuideOpen(true);
         }}
@@ -705,7 +772,12 @@ function Workspace({ boot }: { boot: Boot }) {
       {project.example && <ExampleBanner onStart={handleNewProject} />}
 
       <div className="flex min-h-0 flex-1">
-        <StepRail project={project} current={screen} onGo={(id, blocked) => (blocked ? notify(`${stepLabel(id)} · ${blocked}`) : enter(id))} />
+        <StepRail project={project} current={screen} onGo={(id, blocked) => {
+            if (blocked) {
+              logEvent('blocked_click', { target: id, reason: blocked });
+              notify(`${stepLabel(id)} · ${blocked}`);
+            } else enter(id);
+          }} />
 
         <main id="main" tabIndex={-1} className={`relative min-w-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
           {screen === 'referencias' && (

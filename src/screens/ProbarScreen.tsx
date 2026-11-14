@@ -13,6 +13,7 @@ import { MAX_CORE_IMAGES, MAX_DECISIONS, PIECE_TYPES, PromptInput, Selection, bu
 import { BottomBar } from '../components/shell/BottomBar';
 import { KeyButton, PieceImage } from './common';
 import { Notify } from './types';
+import { logEvent } from '../utils/testLog';
 
 interface ProbarScreenProps {
   project: Project;
@@ -369,6 +370,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     const wasApproved = approved[p.pieceType] === p.id;
     setApproved(a => ({ ...a, [p.pieceType]: wasApproved ? undefined : p.id }));
     onUndoable(() => setApproved(before));
+    if (!wasApproved) logEvent('approve', { kind: p.pieceType, variant: n });
     if (!wasApproved) onNotify(`Aprobaste ${pieceTypeInfo(p.pieceType).label.toLowerCase()} · variante ${n}.`, { undo: true });
   };
 
