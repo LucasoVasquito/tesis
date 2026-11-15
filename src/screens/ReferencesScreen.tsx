@@ -58,7 +58,23 @@ interface Props {
   briefBusy: boolean;
   /** Pide centrar el lienzo en una imagen (por ejemplo, la que no se pudo leer). */
   focus: { id: string; n: number } | null;
+  /** Modo cuentagotas: se elige un color tocando cualquier punto de una imagen del lienzo. */
+  eyedropper?: { label: string; current: string } | null;
+  /** hex elegido (o null si se cancela). `back` false = no volver a la etapa de origen. */
+  onEyedropperDone?: (hex: string | null, back?: boolean) => void;
+  onNotify?: (text: string) => void;
 }
+
+/** Lupa del cuentagotas: 9×9 píxeles ampliados alrededor del cursor. */
+const LOUPE_N = 9;
+const LOUPE_PX = 99;
+const hex2 = (n: number) => n.toString(16).padStart(2, '0');
+/** Texto legible (claro u oscuro) sobre un hex de fondo. */
+const textOnHex = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  const lum = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return lum < 0.55 ? '#F2EFE8' : '#0A0A0A';
+};
 
 export function ReferencesScreen(props: Props) {
   const { project, mutate } = props;
@@ -348,6 +364,144 @@ export function ReferencesScreen(props: Props) {
     if (touches.current.size < 2) pinch.current = null;
   };
 
+  /* ---------- Cuentagotas ---------- */
+  const ey = props.eyedropper ?? null;
+  const eyRef = useRef(ey);
+  eyRef.current = ey;
+  const propsRef = useRef(props);
+  propsRef.current = props;
+  const loupeRef = useRef<HTMLDivElement>(null);
+  const loupeCanvas = useRef<HTMLCanvasElement>(null);
+  const loupeLabel = useRef<HTMLSpanElement>(null);
+  const sampleCache = useRef(new Map<string, HTMLCanvasElement | null | 'loading'>());
+  const lastSample = useRef<string | null>(null);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
+  const warned = useRef(false);
+
+  /** Copia de la imagen en un canvas (para leer píxeles). null si el navegador no deja leerla (por ejemplo, un servidor sin CORS). */
+  const loadSample = (r: Reference) => {
+    sampleCache.current.set(r.id, 'loading');
+    const img = new Image();
+    if (!r.image.startsWith('data:') && !r.image.startsWith('blob:')) img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const k = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.naturalWidth * k));
+        c.height = Math.max(1, Math.round(img.naturalHeight * k));
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        if (!ctx) throw new Error('sin contexto');
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        ctx.getImageData(0, 0, 1, 1);
+        sampleCache.current.set(r.id, c);
+      } catch {
+        sampleCache.current.set(r.id, null);
+      }
+      // Se refresca la lupa en el último punto, sin esperar a que se mueva el cursor.
+      if (eyRef.current && lastPos.current) sampleAt(lastPos.current.x, lastPos.current.y);
+    };
+    img.onerror = () => sampleCache.current.set(r.id, null);
+    img.src = r.image;
+  };
+
+  const hideLoupe = () => {
+    if (loupeRef.current) loupeRef.current.style.display = 'none';
+    lastSample.current = null;
+    lastPos.current = null;
+  };
+
+  /** Lee el píxel bajo el cursor, mueve la lupa y devuelve el color (o null si no hay imagen/color ahí). */
+  const sampleAt = (clientX: number, clientY: number): string | null => {
+    const wrap = wrapRef.current;
+    const box = loupeRef.current;
+    if (!wrap || !box) return null;
+    lastPos.current = { x: clientX, y: clientY };
+    const el = (document.elementFromPoint(clientX, clientY) as HTMLElement | null)?.closest<HTMLElement>('[data-ref]');
+    const place = (hex: string | null, text: string) => {
+      const wr = wrap.getBoundingClientRect();
+      const x = clientX - wr.left;
+      const y = clientY - wr.top;
+      box.style.display = 'flex';
+      box.style.transform = `translate(${Math.min(Math.max(x + 22, 4), wr.width - LOUPE_PX - 8)}px, ${Math.min(Math.max(y - LOUPE_PX - 22, 4), wr.height - LOUPE_PX - 40)}px)`;
+      if (loupeLabel.current) {
+        loupeLabel.current.textContent = text;
+        loupeLabel.current.style.background = hex ?? 'var(--cc-surface)';
+        loupeLabel.current.style.color = hex ? textOnHex(hex) : 'var(--cc-text)';
+      }
+    };
+    if (!el) {
+      lastSample.current = null;
+      place(null, 'Tocá una imagen');
+      loupeCanvas.current?.getContext('2d')?.clearRect(0, 0, LOUPE_PX, LOUPE_PX);
+      return null;
+    }
+    const r = refs.find(x => x.id === el.dataset.ref);
+    if (!r) return null;
+    const src = sampleCache.current.get(r.id);
+    if (src === undefined) {
+      loadSample(r);
+      place(null, 'Leyendo…');
+      return null;
+    }
+    if (src === 'loading') {
+      place(null, 'Leyendo…');
+      return null;
+    }
+    if (src === null) {
+      lastSample.current = null;
+      place(null, 'No se puede leer');
+      if (!warned.current) {
+        warned.current = true;
+        propsRef.current.onNotify?.('No se puede leer el color de esa imagen (el sitio de origen no lo permite). Probá con otra o subí el archivo.');
+      }
+      return null;
+    }
+    const rect = el.getBoundingClientRect();
+    const s = Math.max(rect.width / src.width, rect.height / src.height);
+    const ix = Math.floor((clientX - rect.left - (rect.width - src.width * s) / 2) / s);
+    const iy = Math.floor((clientY - rect.top - (rect.height - src.height * s) / 2) / s);
+    const half = (LOUPE_N - 1) / 2;
+    const data = src.getContext('2d', { willReadFrequently: true })?.getImageData(ix - half, iy - half, LOUPE_N, LOUPE_N);
+    if (!data) return null;
+    const c = (half * LOUPE_N + half) * 4;
+    const hex = data.data[c + 3] < 8 ? null : `#${hex2(data.data[c])}${hex2(data.data[c + 1])}${hex2(data.data[c + 2])}`.toUpperCase();
+    // Lupa: los píxeles ampliados sin suavizar.
+    const lc = loupeCanvas.current;
+    const lctx = lc?.getContext('2d');
+    if (lc && lctx) {
+      const tmp = document.createElement('canvas');
+      tmp.width = LOUPE_N;
+      tmp.height = LOUPE_N;
+      tmp.getContext('2d')?.putImageData(data, 0, 0);
+      lctx.imageSmoothingEnabled = false;
+      lctx.clearRect(0, 0, LOUPE_PX, LOUPE_PX);
+      lctx.drawImage(tmp, 0, 0, LOUPE_PX, LOUPE_PX);
+    }
+    lastSample.current = hex;
+    place(hex, hex ?? 'Sin color');
+    return hex;
+  };
+
+  const pendingTouch = useRef(false);
+  const eyedropperDown = (e: React.PointerEvent): boolean => {
+    if (!eyRef.current) return false;
+    const overImage = !!(document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest('[data-ref]');
+    if (!overImage) return false; // el fondo se arrastra para desplazar
+    const hex = sampleAt(e.clientX, e.clientY);
+    if (e.pointerType === 'touch') {
+      pendingTouch.current = true; // en táctil se elige al soltar, para poder apuntar con la lupa
+    } else if (hex) {
+      propsRef.current.onEyedropperDone?.(hex);
+    }
+    return true;
+  };
+  const eyedropperUp = (e: React.PointerEvent) => {
+    if (!eyRef.current || e.pointerType !== 'touch' || !pendingTouch.current) return;
+    pendingTouch.current = false;
+    const hex = lastSample.current;
+    if (hex && touches.current.size < 2) propsRef.current.onEyedropperDone?.(hex);
+  };
+
   const onBackgroundDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.button !== 1) return;
     begin({ kind: 'pan', sx: e.clientX, sy: e.clientY, cam: camRef.current, moved: false });
@@ -422,14 +576,14 @@ export function ReferencesScreen(props: Props) {
   })();
 
   useShortcuts(props.enabled, {
-    delete: () => (selected ? (props.onDeleteRef(selected), setSelected(null)) : false),
-    backspace: () => (selected ? (props.onDeleteRef(selected), setSelected(null)) : false),
+    delete: () => (!ey && selected ? (props.onDeleteRef(selected), setSelected(null)) : false),
+    backspace: () => (!ey && selected ? (props.onDeleteRef(selected), setSelected(null)) : false),
     '+': () => zoomAt(1.25),
     '=': () => zoomAt(1.25),
     '-': () => zoomAt(0.8),
     '0': () => fit(),
-    escape: () => (busy ? props.onCancelAnalysis() : selected ? setSelected(null) : false),
-    enter: () => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick()),
+    escape: () => (ey ? props.onEyedropperDone?.(null) : busy ? props.onCancelAnalysis() : selected ? setSelected(null) : false),
+    enter: () => (ey ? false : primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick()),
   });
 
   /* ---------- Frase de intención (opcional) ---------- */
@@ -453,11 +607,24 @@ export function ReferencesScreen(props: Props) {
         aria-label="Lienzo de referencias"
         onPointerDown={e => {
           trackTouch(e);
-          if (touches.current.size < 2) onBackgroundDown(e);
+          if (touches.current.size >= 2) return;
+          if (eyedropperDown(e)) return;
+          onBackgroundDown(e);
         }}
-        onPointerMove={moveTouch}
-        onPointerUp={endTouch}
-        onPointerCancel={endTouch}
+        onPointerMove={e => {
+          moveTouch(e);
+          if (ey && (e.pointerType !== 'touch' || pendingTouch.current)) sampleAt(e.clientX, e.clientY);
+        }}
+        onPointerLeave={hideLoupe}
+        onPointerUp={e => {
+          eyedropperUp(e);
+          endTouch(e);
+          if (ey && e.pointerType === 'touch') hideLoupe();
+        }}
+        onPointerCancel={e => {
+          endTouch(e);
+          hideLoupe();
+        }}
         onDragOver={e => {
           e.preventDefault();
           setDragOver(true);
@@ -466,7 +633,7 @@ export function ReferencesScreen(props: Props) {
         onDrop={onDrop}
         className="absolute inset-0 touch-none select-none"
         style={{
-          cursor: spacePan || drag.current?.kind === 'pan' ? 'grabbing' : 'grab',
+          cursor: ey ? 'crosshair' : spacePan || drag.current?.kind === 'pan' ? 'grabbing' : 'grab',
           backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--cc-text) 9%, transparent) 1px, transparent 1.2px)',
           backgroundSize: `${dots}px ${dots}px`,
           backgroundPosition: `${cam.x}px ${cam.y}px`,
@@ -485,7 +652,7 @@ export function ReferencesScreen(props: Props) {
               <div
                 key={r.id}
                 data-ref={r.id}
-                onPointerDown={e => onImageDown(e, r)}
+                onPointerDown={e => (ey ? undefined : onImageDown(e, r))}
                 className="absolute bg-raised"
                 style={{
                   left: b.x,
@@ -493,7 +660,7 @@ export function ReferencesScreen(props: Props) {
                   width: b.w,
                   height: b.h,
                   zIndex: front[r.id] ?? 0,
-                  cursor: 'move',
+                  cursor: ey ? 'crosshair' : 'move',
                   outline: bad ? `${3 / cam.z}px solid var(--cc-error)` : isSel ? `${2 / cam.z}px solid #F2EFE8` : undefined,
                 }}
               >
@@ -510,6 +677,7 @@ export function ReferencesScreen(props: Props) {
                   </span>
                 )}
                 {isSel &&
+                  !ey &&
                   (['nw', 'ne', 'sw', 'se'] as const).map(c => (
                     <span
                       key={c}
@@ -538,10 +706,40 @@ export function ReferencesScreen(props: Props) {
             <span className="max-w-[420px] text-[14px] text-ink-2">Arrastrá archivos desde el escritorio, pegá una URL o una imagen con Ctrl+V, o usá + Imagen. Para analizar hacen falta al menos {MIN_REFS}.</span>
           </div>
         )}
+
+        {/* Lupa del cuentagotas: se mueve con el cursor y muestra los píxeles ampliados */}
+        <div ref={loupeRef} aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-40 hidden flex-col items-center gap-1" style={{ width: LOUPE_PX }}>
+          <div className="relative overflow-hidden rounded-full" style={{ width: LOUPE_PX, height: LOUPE_PX, boxShadow: '0 0 0 2px #F2EFE8, 0 4px 18px rgba(0,0,0,.6)', background: '#222' }}>
+            <canvas ref={loupeCanvas} width={LOUPE_PX} height={LOUPE_PX} className="size-full" />
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: LOUPE_PX / LOUPE_N, height: LOUPE_PX / LOUPE_N, boxShadow: '0 0 0 1.5px #0A0A0A, inset 0 0 0 1.5px #F2EFE8' }} />
+          </div>
+          <span ref={loupeLabel} className="rounded-[6px] px-2 py-[2px] font-mono text-[12px] font-bold" style={{ boxShadow: '0 0 0 1px rgba(255,255,255,.4)' }} />
+        </div>
       </div>
 
+      {/* Aviso del modo cuentagotas */}
+      {ey && (
+        <div role="status" className="absolute left-4 top-4 z-30 flex w-[min(380px,calc(100%-32px))] flex-col gap-2 rounded-[12px] border border-line-mid p-3" style={{ background: 'var(--cc-surface)' }} onPointerDown={e => e.stopPropagation()}>
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="size-6 shrink-0 rounded-[6px]" style={{ background: ey.current, boxShadow: '0 0 0 1px rgba(255,255,255,.35)' }} />
+            <span className="text-[13px] font-semibold leading-tight">Cuentagotas · color {ey.label}</span>
+          </div>
+          <p className="m-0 text-[12px] leading-snug" style={{ color: 'var(--cc-text-muted)' }}>
+            {refs.length
+              ? `${mobile ? 'Tocá' : 'Hacé clic en'} cualquier punto de una imagen para quedarte con ese color. Rueda para moverte, Ctrl + rueda para acercar y elegir con precisión.`
+              : 'Todavía no hay imágenes en el lienzo. Sumá alguna o cancelá.'}
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-[10px] tracking-[0.06em] text-ink-2">ESC PARA CANCELAR</span>
+            <button type="button" onClick={() => props.onEyedropperDone?.(null)} className="rounded-[6px] border border-line-strong px-3 py-1 text-[12px] font-semibold hover:bg-white/10" style={{ minHeight: mobile ? 44 : undefined }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Frase de intención: opcional, ayuda al agente a entender la marca */}
-      <div className="absolute left-4 top-4 z-20 flex w-[min(360px,calc(100%-32px))] flex-col gap-1" onPointerDown={e => e.stopPropagation()}>
+      <div className={`absolute left-4 top-4 z-20 flex w-[min(360px,calc(100%-32px))] flex-col gap-1 ${ey ? 'hidden' : ''}`} onPointerDown={e => e.stopPropagation()}>
         <label className="flex flex-col gap-1">
           <span className="font-mono text-[10px] tracking-[0.06em] text-ink-3">FRASE DE INTENCIÓN · OPCIONAL</span>
           <input

@@ -787,6 +787,33 @@ function Workspace({ boot }: { boot: Boot }) {
       return n;
     });
   }, []);
+  /** Cuentagotas: lleva al lienzo de Referencias a elegir un color para un rol y, al elegirlo, vuelve a donde estabas. */
+  const [eyedropper, setEyedropper] = useState<{ role: RoleKey; from: Moment } | null>(null);
+  const startEyedropper = (role: RoleKey) => {
+    const from = screenRef.current;
+    logEvent('eyedropper_start', { role, from });
+    setEyedropper({ role, from });
+    if (from !== 'referencias') enter('referencias');
+  };
+  const finishEyedropper = (hex: string | null, back = true) => {
+    const cur = eyedropper;
+    setEyedropper(null);
+    if (!cur) return;
+    if (hex) handleRoleCommit(cur.role, hex);
+    if (back && cur.from !== 'referencias') enter(cur.from);
+  };
+  // Si se sale del lienzo con el cuentagotas activo (por ejemplo desde la barra de pasos), se cancela sin volver.
+  const eyeArmed = useRef(false);
+  useEffect(() => {
+    if (!eyedropper) {
+      eyeArmed.current = false;
+    } else if (screen === 'referencias') {
+      eyeArmed.current = true;
+    } else if (eyeArmed.current) {
+      eyeArmed.current = false;
+      setEyedropper(null);
+    }
+  }, [eyedropper, screen]);
   const handleRoleCommit = (key: RoleKey, hex: string | null) => {
     const cur = projectRef.current.roleColors?.[key] ?? null;
     suppressPaletteNotice.current = Date.now();
@@ -888,7 +915,7 @@ function Workspace({ boot }: { boot: Boot }) {
   const notifyBlocked = useCallback((reason: string) => notify(reason), [notify]);
 
   return (
-    <ColorContext.Provider value={colorCtx}>
+    <ColorContext.Provider value={{ ...colorCtx, eyedrop: startEyedropper }}>
     <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink print:h-auto print:overflow-visible">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:bg-ink focus:px-3 focus:py-2 focus:text-bg">
         Saltar al contenido
@@ -945,6 +972,9 @@ function Workspace({ boot }: { boot: Boot }) {
               onSubmitIntent={handleSubmitIntent}
               briefBusy={briefBusy}
               focus={focusRef}
+              eyedropper={eyedropper ? { label: eyedropper.role === 'primary' ? 'primario' : eyedropper.role === 'secondary' ? 'secundario' : 'acento', current: colorCtx.roles.find(r => r.key === eyedropper.role)?.hex ?? '#888888' } : null}
+              onEyedropperDone={finishEyedropper}
+              onNotify={notify}
             />
           )}
           {screen === 'revisar' && <ReviewScreen key={project.id} project={project} enabled={enabled} apply={apply} mutate={mutate} onNext={() => go('capas')} />}

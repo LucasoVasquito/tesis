@@ -26,6 +26,7 @@ export type TestEvent =
   | 'drag_start'
   | 'drop'
   | 'color_edit'
+  | 'eyedropper_start'
   | 'approve'
   | 'export'
   | 'help_open';

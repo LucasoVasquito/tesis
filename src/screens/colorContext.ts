@@ -30,6 +30,8 @@ export interface ColorCtx {
   detected: string[];
   /** Paleta vigente: primario, secundario y acento. */
   palette: Palette;
+  /** Abre el lienzo de Referencias para elegir un color con el cuentagotas. */
+  eyedrop?: (key: RoleKey) => void;
 }
 
 export const ColorContext = createContext<ColorCtx>({ roles: [], byPiece: {}, detected: [], palette: DEFAULT_PALETTE });

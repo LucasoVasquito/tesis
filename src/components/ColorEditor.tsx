@@ -3,6 +3,16 @@ import { RoleKey, useColors } from '../screens/colorContext';
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
+export function EyedropperIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m2 22 1-1h3l9-9" />
+      <path d="M3 21v-3l9-9" />
+      <path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z" />
+    </svg>
+  );
+}
+
 /** Editor de un color: muestra grande, hex, selector nativo y los otros colores del proyecto. Cambia en vivo; al cerrar se confirma. */
 export function ColorEditor({
   title,
@@ -12,6 +22,7 @@ export function ColorEditor({
   onLive,
   onClose,
   onRestore,
+  onEyedropper,
   mobile,
   className,
 }: {
@@ -23,6 +34,8 @@ export function ColorEditor({
   /** hex válido si hay un cambio para confirmar; null si no. */
   onClose: (hex: string | null) => void;
   onRestore: () => void;
+  /** Si se pasa, aparece el cuentagotas: lleva al lienzo de Referencias a elegir un color. */
+  onEyedropper?: () => void;
   mobile?: boolean;
   className?: string;
 }) {
@@ -74,6 +87,18 @@ export function ColorEditor({
           className="min-w-0 flex-1 border-b-2 bg-transparent py-1 font-mono text-[14px] text-ink outline-none focus:border-bone"
           style={{ borderColor: valid ? 'var(--color-line-strong)' : 'var(--cc-error)', minHeight: min }}
         />
+        {onEyedropper && (
+          <button
+            type="button"
+            onClick={onEyedropper}
+            aria-label="Cuentagotas: elegir un color de las referencias"
+            title="Cuentagotas: elegí un color de cualquier imagen del lienzo"
+            className="flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-line-strong hover:bg-white/10"
+            style={{ minHeight: min, minWidth: min }}
+          >
+            <EyedropperIcon />
+          </button>
+        )}
         <input aria-label="Selector de color" type="color" value={valid ? hex : '#888888'} onChange={e => set(e.target.value)} className="h-9 w-12 shrink-0 cursor-pointer border-0 bg-transparent p-0" style={{ minHeight: min }} />
       </div>
       {list.length > 0 && (
@@ -166,6 +191,16 @@ export function ColorsPanel({
             setEditing(null);
             onCommit(role.key, null);
           }}
+          onEyedropper={
+            colors.eyedrop
+              ? () => {
+                  const key = role.key;
+                  setEditing(null);
+                  onLive(key, null);
+                  colors.eyedrop?.(key);
+                }
+              : undefined
+          }
         />
       )}
     </section>
