@@ -74,6 +74,13 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
   const planeRefs = useRef<(HTMLDivElement | null)[]>([null, null, null]);
   const frameRefs = useRef<(HTMLDivElement | null)[]>([]);
   const barRef = useRef<HTMLSpanElement>(null);
+  /** Desplazamiento vertical dentro de la capa activa (cuando sus piezas no entran en pantalla). */
+  const panRef = useRef<HTMLDivElement>(null);
+  const panCur = useRef(0);
+  const panTarget = useRef(0);
+  const panLayer = useRef(0);
+  const lastPan = useRef(0);
+  const metrics = useRef({ scale: 1, top: 64, reserve: 130, h: 600 });
 
   const activeLayer = (active + 1) as Layer;
   useEffect(() => onLayer(SHEET_NAME[activeLayer]), [activeLayer]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -97,7 +104,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
     } catch {
       /* sin almacenamiento: el aviso se repite */
     }
-    notify('En esta etapa la rueda te lleva hacia adentro y hacia afuera.');
+    notify('La rueda baja por las piezas de la capa; al llegar al final, pasa a la siguiente.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -125,6 +132,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
     frameRefs.current.forEach((el, k) => {
       if (el) el.style.opacity = String(fadeOf(k / 3 - d));
     });
+    if (panRef.current) panRef.current.style.transform = `translate3d(0, ${-panCur.current}px, 0)`;
     if (barRef.current) barRef.current.style.height = `${(d / 2) * 100}%`;
     const a = clamp(Math.round(d), 0, 2);
     if (a !== activeRef.current) {
@@ -143,13 +151,16 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
     if (raf.current) return;
     const step = () => {
       const diff = target.current - dRef.current;
-      if (Math.abs(diff) < 0.0008) {
+      const pdiff = panTarget.current - panCur.current;
+      if (Math.abs(diff) < 0.0008 && Math.abs(pdiff) < 0.5) {
         dRef.current = target.current;
+        panCur.current = panTarget.current;
         renderD(dRef.current);
         raf.current = 0;
         return;
       }
-      dRef.current += diff * 0.14;
+      dRef.current += Math.abs(diff) < 0.0008 ? diff : diff * 0.14;
+      panCur.current += Math.abs(pdiff) < 0.5 ? pdiff : pdiff * 0.22;
       renderD(dRef.current);
       raf.current = requestAnimationFrame(step);
     };
@@ -161,8 +172,13 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
     (v: number) => {
       target.current = clamp(v, 0, 2);
       if (snap.current) clearTimeout(snap.current);
+      if (Math.round(target.current) !== panLayer.current) {
+        panLayer.current = Math.round(target.current);
+        panTarget.current = 0;
+      }
       if (reduced()) {
         dRef.current = target.current;
+        panCur.current = panTarget.current;
         renderD(dRef.current);
         return;
       }
@@ -176,8 +192,13 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
   const scrub = useCallback(
     (delta: number) => {
       target.current = clamp(target.current + delta, 0, 2);
+      if (Math.round(target.current) !== panLayer.current) {
+        panLayer.current = Math.round(target.current);
+        panTarget.current = 0;
+      }
       if (reduced()) {
         dRef.current = target.current;
+        panCur.current = panTarget.current;
         renderD(dRef.current);
       } else loop();
       if (snap.current) clearTimeout(snap.current);
@@ -198,18 +219,56 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goLayer?.n]);
 
-  // La rueda recorre la profundidad (deltaY · 0.0016).
+  /** Cuánto se puede bajar dentro de la capa activa: lo que sobra de su alto frente a la pantalla. */
+  const maxPan = useCallback(() => {
+    const el = planeRefs.current[panLayer.current];
+    if (!el) return 0;
+    const m = metrics.current;
+    return Math.max(0, (m.top + el.offsetHeight * m.scale - (m.h - m.reserve)) / m.scale);
+  }, []);
+  /**
+   * Un gesto de desplazamiento (px, positivo = hacia abajo). Primero recorre las piezas de la capa activa;
+   * recién al llegar al final (y tras una pausa, para que la inercia del trackpad no se pase de largo)
+   * la cámara pasa a la capa siguiente.
+   */
+  const scroll = useCallback(
+    (dy: number, depthPerPx: number) => {
+      const settled = Math.abs(target.current - Math.round(target.current)) < 0.01 && Math.abs(dRef.current - target.current) < 0.05;
+      if (settled) {
+        const max = maxPan();
+        const next = clamp(panTarget.current + dy, 0, max);
+        if (next !== panTarget.current) {
+          panTarget.current = next;
+          lastPan.current = performance.now();
+          if (reduced()) {
+            panCur.current = next;
+            renderD(dRef.current);
+          } else loop();
+          return;
+        }
+        // En el borde: la inercia del gesto anterior no cambia de capa.
+        if (performance.now() - lastPan.current < 220) {
+          lastPan.current = performance.now();
+          return;
+        }
+      }
+      scrub(dy * depthPerPx);
+    },
+    [loop, maxPan, renderD, scrub],
+  );
+
+  // La rueda baja por las piezas de la capa y, al final, recorre la profundidad (deltaY · 0.0016).
   useEffect(() => {
     const el = sceneRef.current;
     if (!el || !enabled) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
-      scrub(clamp(dy, -120, 120) * 0.0016);
+      scroll(clamp(dy, -120, 120), 0.0016);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [enabled, scrub]);
+  }, [enabled, scroll]);
 
   /* ---------- Piezas ---------- */
   const byLayer = useMemo(() => LAYERS.map(l => piecesIn(project, l)), [project]);
@@ -341,7 +400,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
       if (dragRef.current?.started || !swipe.current) return;
       const dy = swipe.current.y - ev.clientY;
       swipe.current.y = ev.clientY;
-      scrub(dy * 0.004);
+      scroll(dy, 0.004);
     };
     const up = () => {
       swipe.current = null;
@@ -390,6 +449,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
   const planeW = mobile ? Math.max(260, size.w - 32) : DESKTOP_W;
   const scale = mobile ? Math.max(0.6, Math.min(1, (size.h - 150) / 440)) : Math.max(0.5, Math.min(1.2, (size.w - 500) / DESKTOP_W, (size.h - 184) / 440));
   const cols = mobile ? 2 : 3;
+  metrics.current = { scale, top: mobile ? 56 : 64, reserve: mobile ? 100 : 156, h: size.h };
 
   const card = (x: Pattern, l: Layer) => {
     const sel = selectedId === x.id;
@@ -403,7 +463,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
         className="group relative flex min-w-0 touch-none select-none flex-col gap-2 p-[5px]"
         style={{ cursor: 'grab', outline: sel ? `2px solid ${layerVar(l)}` : undefined, outlineOffset: 1, opacity: ghost?.piece.id === x.id ? 0.3 : 1 }}
       >
-        <PieceThumb piece={x} project={project} className="aspect-[16/10] w-full bg-raised" onSwatch={isColor ? () => { setSelectedId(x.id); setColorFor(x.id); } : undefined} />
+        <PieceThumb piece={x} project={project} className="aspect-[4/5] w-full rounded-[4px] bg-raised" onSwatch={isColor ? () => { setSelectedId(x.id); setColorFor(x.id); } : undefined} />
         <span className="truncate text-[15px] font-semibold leading-tight">{x.name}</span>
         <span className="truncate font-mono text-[11px] text-ink-2">
           {x.origin === 'user' ? 'TUYO' : suggestion ? 'DETECTADO · SUGERENCIA' : 'DETECTADO'} · {evidenceCount(x, project)}/{total}
@@ -549,9 +609,11 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
         style={{ perspective: 1000, perspectiveOrigin: mobile ? '50% 0%' : 'calc(50% - 120px) 0%', cursor: touchUi ? undefined : 'ns-resize' }}
       >
         <div className="absolute" style={{ left: mobile ? '50%' : 'calc(50% - 120px)', top: mobile ? 56 : 64, transformStyle: 'preserve-3d', transform: `scale3d(${scale}, ${scale}, ${scale})`, transformOrigin: '0 0' }}>
-          <div ref={camRef} style={{ transformStyle: 'preserve-3d', willChange: 'transform' }}>
-            {frames}
-            {[2, 1, 0].map(i => plane(i))}
+          <div ref={panRef} style={{ transformStyle: 'preserve-3d', willChange: 'transform' }}>
+            <div ref={camRef} style={{ transformStyle: 'preserve-3d', willChange: 'transform' }}>
+              {frames}
+              {[2, 1, 0].map(i => plane(i))}
+            </div>
           </div>
         </div>
       </div>
@@ -689,12 +751,12 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
             boxShadow: `0 20px 50px color-mix(in srgb, ${layerVar(ghost.piece.layer as Layer)} 40%, transparent)`,
           }}
         >
-          <PieceThumb piece={ghost.piece} project={project} className="aspect-[16/10] w-full" word={false} />
+          <PieceThumb piece={ghost.piece} project={project} className="aspect-[4/5] w-full rounded-[4px]" word={false} />
         </div>
       )}
 
       <BottomBar
-        help="Rueda del mouse o ↑ ↓ para recorrer las capas. Clic en una pieza para elegirla; arrastrala para cambiarla de capa."
+        help="La rueda baja por las piezas de la capa y, al llegar al final, pasa a la siguiente (o usá ↑ ↓). Clic en una pieza para elegirla; arrastrala para cambiarla de capa."
         actions={
           <>
             {mobile && <BarButton onClick={() => setRolesOpen(true)}>Colores</BarButton>}
