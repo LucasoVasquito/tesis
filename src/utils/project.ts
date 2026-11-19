@@ -2,6 +2,7 @@ import { normalizeSystemRules } from './rules';
 import { FeedbackItem, Fragment, LogItem, LogKind, Pattern, Project, Reference } from '../types';
 import { fragmentTypeFromPart, isLayer } from './layers';
 import { rankLayers } from '../pieces/model';
+import { dedupePieces } from '../pieces/dedupe';
 
 /** Esquema actual: 2 = pila de láminas; 3 = sin partes como referencias; 4 = piezas (sugerencia / confirmada); 5 = moodboard en capas (origen USUARIO / AGENTE). */
 export const SCHEMA = 5;
@@ -69,7 +70,7 @@ export function migrateProject(input: any): Project {
     reviewTotal: Number.isInteger(raw?.reviewTotal) ? raw.reviewTotal : undefined,
   };
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';
-  return migrateToPieces(migrateToStack(p, raw), raw);
+  return dedupePieces(migrateToPieces(migrateToStack(p, raw), raw)).project;
 }
 
 /**

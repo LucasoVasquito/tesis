@@ -32,8 +32,15 @@ function pieceHex(piece: Pattern, project: Project): string | null {
 export function PieceThumb({ piece, project, className, style, word, onSwatch }: { piece: Pattern; project: Project; className?: string; style?: React.CSSProperties; word?: boolean; onSwatch?: () => void }) {
   const colors = useColors();
   const fallback = useMemo(() => (piece.category === 'color' ? pieceHex(piece, project) : null), [piece.id, piece.category, piece.description, project.references]); // eslint-disable-line react-hooks/exhaustive-deps
-  const hex = piece.category === 'color' ? colors.byPiece[piece.id]?.hex ?? piece.colorOverride ?? fallback : null;
   const brand = (project.name || project.intent || '').split(/s[—–-]s/)[0].trim();
+  // Una pieza de paleta muestra sus 3 o 4 colores en franjas, no un solo hex (y menos un blanco sobre blanco).
+  const stripes = useMemo(() => {
+    if (piece.category !== 'color' || !/paleta|colores|cromátic|cromatic/i.test(piece.name)) return null;
+    const fromText = [...new Set((piece.description?.match(HEX_IN_TEXT) ?? []).map(normalizeHex).filter((h): h is string => !!h))];
+    const list = fromText.length >= 2 ? fromText : inferPalette([{ ...piece, status: 'confirmed' }], project.references, { max: 4 }).map(c => c.hex);
+    return list.length >= 2 ? list.slice(0, 4) : null;
+  }, [piece.id, piece.category, piece.name, piece.description, project.references]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hex = piece.category === 'color' && !stripes ? colors.byPiece[piece.id]?.hex ?? piece.colorOverride ?? fallback : null;
   // Las piezas de color son bloques llenos con su hex adentro; el color del texto sale del contraste real.
   const ink = hex ? bestOn(hex, INK, BONE) : BONE;
   const label = hex && <span>{hex.toUpperCase()}</span>;
@@ -41,7 +48,14 @@ export function PieceThumb({ piece, project, className, style, word, onSwatch }:
   const typo = word !== false && piece.category === 'typography' && !!brand;
   return (
     <div className={`relative overflow-hidden ${className ?? ''}`} style={{ ...style, background: hex ? hex : typo ? 'var(--cc-surface)' : undefined, boxShadow: hex ? 'inset 0 0 0 1px var(--cc-line)' : undefined }}>
-      {!hex && !typo && <PieceImage piece={piece} project={project} className="absolute inset-0 size-full" />}
+      {stripes && (
+        <span aria-hidden="true" className="absolute inset-0 flex">
+          {stripes.map(c => (
+            <span key={c} className="flex-1" style={{ background: c }} />
+          ))}
+        </span>
+      )}
+      {!hex && !typo && !stripes && <PieceImage piece={piece} project={project} className="absolute inset-0 size-full" />}
       {hex &&
         (onSwatch ? (
           <button
@@ -54,13 +68,13 @@ export function PieceThumb({ piece, project, className, style, word, onSwatch }:
               e.stopPropagation();
               onSwatch();
             }}
-            className="absolute bottom-[6px] left-[8px] flex items-center gap-2 py-[2px] font-mono text-[12px] font-bold leading-none underline-offset-4 hover:underline"
+            className="absolute bottom-[6px] left-[8px] flex items-center gap-2 py-[2px] font-mono text-[0.875rem] font-bold leading-none underline-offset-4 hover:underline"
             style={labelStyle}
           >
             {label}
           </button>
         ) : (
-          <span className="absolute bottom-[6px] left-[8px] flex items-center gap-2 py-[2px] font-mono text-[12px] font-bold leading-none" style={labelStyle}>
+          <span className="absolute bottom-[6px] left-[8px] flex items-center gap-2 py-[2px] font-mono text-[0.875rem] font-bold leading-none" style={labelStyle}>
             {label}
           </span>
         ))}
@@ -105,9 +119,9 @@ export function KeyButton({
         e.stopPropagation();
         onClick();
       }}
-      className={`type-label inline-flex items-center gap-[6px] whitespace-nowrap px-3 py-[6px] text-[11px] transition-colors duration-120 disabled:cursor-not-allowed disabled:opacity-75 ${tones[tone]}`}
+      className={`type-label inline-flex items-center gap-[6px] whitespace-nowrap px-3 py-[6px] text-[0.75rem] transition-colors duration-120 disabled:cursor-not-allowed disabled:opacity-75 ${tones[tone]}`}
     >
-      {k && <kbd className="font-mono text-[11px] font-medium opacity-80">[{k}]</kbd>}
+      {k && <kbd className="font-mono text-[0.875rem] font-medium opacity-80">[{k}]</kbd>}
       {label}
     </button>
   );
@@ -121,12 +135,12 @@ export function BigButton({ k, label, onClick, disabled, hint }: { k?: string; l
         type="button"
         onClick={onClick}
         disabled={disabled}
-        className="flex h-[52px] items-center gap-3 rounded-full bg-bone px-7 text-[15px] font-bold text-void transition-colors duration-150 hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)] disabled:cursor-not-allowed disabled:bg-raised disabled:text-ink-3"
+        className="flex h-[52px] items-center gap-3 rounded-full bg-bone px-7 text-[0.9375rem] font-bold text-void transition-colors duration-150 hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)] disabled:cursor-not-allowed disabled:bg-raised disabled:text-ink-3"
       >
         {label}
-        {k && <kbd className="font-mono text-[14px] font-medium opacity-75">[{k}]</kbd>}
+        {k && <kbd className="font-mono text-[0.875rem] font-medium opacity-75">[{k}]</kbd>}
       </button>
-      {hint && <span className="text-[13px] text-ink-2">{hint}</span>}
+      {hint && <span className="text-[0.875rem] text-ink-2">{hint}</span>}
     </div>
   );
 }
@@ -136,9 +150,9 @@ export function NoticeStrip({ notice, onAction, onDismiss }: { notice: Notice; o
   return (
     <div className="no-print flex min-h-[40px] shrink-0 items-center gap-3 bg-void px-5" role="status" aria-live="polite">
       <span className="layer-tag layer-3 shrink-0">AVISO</span>
-      <span className="min-w-0 flex-1 truncate text-[14px]">{notice.text}</span>
+      <span className="min-w-0 flex-1 truncate text-[0.875rem]">{notice.text}</span>
       {notice.action && onAction && <KeyButton label={notice.action.label} tone="accent" onClick={onAction} />}
-      <button type="button" aria-label="Cerrar aviso" onClick={onDismiss} className="type-label px-2 text-[14px] text-ink-2 hover:text-ink">
+      <button type="button" aria-label="Cerrar aviso" onClick={onDismiss} className="type-label px-2 text-[0.875rem] text-ink-2 hover:text-ink">
         ×
       </button>
     </div>
@@ -149,7 +163,7 @@ export function NoticeStrip({ notice, onAction, onDismiss }: { notice: Notice; o
 export function Toast({ text }: { text: string }) {
   return (
     <div className="no-print flex h-[38px] shrink-0 items-center gap-3 bg-void px-5" role="status" aria-live="polite">
-      <span className="truncate text-[14px]">{text}</span>
+      <span className="truncate text-[0.875rem]">{text}</span>
     </div>
   );
 }
@@ -167,7 +181,7 @@ export function BriefPanel({ brief, onSave, onClose }: { brief: string; onSave: 
     <div className="absolute left-10 top-6 z-40 flex w-[min(520px,calc(100%-40px))] flex-col gap-3 rounded-[4px] bg-surface p-4" role="dialog" aria-label="Brief">
       <div className="flex items-center justify-between">
         <span className="layer-tag">BRIEF</span>
-        <span className="font-mono text-[11px] text-ink-2">borrador automático · editalo</span>
+        <span className="font-mono text-[0.875rem] text-ink-2">borrador automático · editalo</span>
       </div>
       <textarea
         ref={ref}
@@ -175,7 +189,7 @@ export function BriefPanel({ brief, onSave, onClose }: { brief: string; onSave: 
         rows={9}
         onChange={e => setValue(e.target.value)}
         onKeyDown={e => e.key === 'Escape' && close()}
-        className="w-full resize-y bg-transparent text-[15px] leading-[1.5] text-ink outline-none"
+        className="w-full resize-y bg-transparent text-[0.9375rem] leading-[1.5] text-ink outline-none"
       />
       <div className="self-end">
         <KeyButton k="ESC" label="Guardar y cerrar" tone="bone" onClick={close} />

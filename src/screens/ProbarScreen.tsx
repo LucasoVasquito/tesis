@@ -56,11 +56,11 @@ function directionLabel(p: { direction: string; pieceType: PieceType }) {
 }
 
 function OriginTag({ piece }: { piece: Pattern }) {
-  if (piece.origin === 'user') return <span className="type-label shrink-0 bg-bone px-1 text-[10px] text-void">TUYO</span>;
-  return <span className="type-label shrink-0 text-[10px] text-ink-2">Detectado</span>;
+  if (piece.origin === 'user') return <span className="type-label shrink-0 bg-bone px-1 text-[0.75rem] text-void">TUYO</span>;
+  return <span className="type-label shrink-0 text-[0.75rem] text-ink-2">Detectado</span>;
 }
 
-const StepLabel = ({ children }: { children: React.ReactNode }) => <span className="font-mono text-[11px] tracking-[0.08em] text-ink-2">{children}</span>;
+const StepLabel = ({ children }: { children: React.ReactNode }) => <span className="type-label text-[0.75rem] text-ink-2">{children}</span>;
 
 /**
  * 05 · PROBAR. Aplica el sistema a una pieza concreta. Dos columnas: a la izquierda la pieza (paso 1) y la receta
@@ -394,13 +394,13 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
   const layerBlock = (layer: Layer, note: string, items: Pattern[], body: (x: Pattern) => React.ReactNode, emptyText: string) => (
     <section className={`layer-${layer} flex flex-col gap-2`} aria-label={sheetLabel(layer)}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="type-label text-[12px] tracking-[0.08em]" style={{ color: 'var(--layer-text)' }}>
+        <span className="type-label text-[0.75rem] tracking-[0.08em]" style={{ color: 'var(--layer-text)' }}>
           {sheetLabel(layer)}
         </span>
-        <span className="type-label text-[10px] text-ink-2">{note}</span>
+        <span className="type-label text-[0.75rem] text-ink-2">{note}</span>
       </div>
       <div className="layer-rule" />
-      {items.length === 0 && <span className="text-[13px] text-ink-3">{emptyText}</span>}
+      {items.length === 0 && <span className="text-[0.875rem] text-ink-3">{emptyText}</span>}
       <ul className="m-0 flex list-none flex-col gap-2 p-0">{items.map(x => body(x))}</ul>
     </section>
   );
@@ -409,10 +409,10 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     <li key={x.id} className="flex items-center gap-3 p-1" style={{ opacity: state === 'off' ? 0.75 : 1, outline: state === 'on' ? '1px solid color-mix(in oklab, var(--layer-color) 55%, transparent)' : undefined }}>
       <PieceImage piece={x} project={project} className="size-[44px] shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="type-name text-[18px] leading-[0.95]">{x.name}</span>
+        <span className="type-name text-[1.125rem] leading-[0.95]">{x.name}</span>
         <span className="flex items-center gap-2">
           <OriginTag piece={x} />
-          {state === 'out' && <span className="font-mono text-[10px] text-ink-2">{`FUERA DEL PEDIDO · LÍMITE ${MAX_DECISIONS}`}</span>}
+          {state === 'out' && <span className="font-mono text-[0.875rem] text-ink-2">{`FUERA DEL PEDIDO · LÍMITE ${MAX_DECISIONS}`}</span>}
         </span>
       </div>
       {control}
@@ -426,7 +426,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
       aria-checked={on}
       aria-label={label}
       onClick={onClick}
-      className="flex size-[24px] shrink-0 items-center justify-center rounded-[3px] border-2 text-[15px] leading-none"
+      className="flex size-[24px] shrink-0 items-center justify-center rounded-[3px] border-2 text-[0.9375rem] leading-none"
       style={{ borderColor: 'var(--layer-color)', background: on ? 'var(--layer-color)' : 'transparent', color: 'var(--layer-ink)' }}
     >
       {on ? '✓' : ''}
@@ -440,36 +440,46 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
       <span aria-hidden="true" className="mt-[7px] size-2 shrink-0 rounded-full" style={{ background: 'var(--layer-color)' }} />
       <span className="flex min-w-0 flex-1 flex-col gap-[2px]">
         <span className="flex items-baseline justify-between gap-2">
-          <span className="text-[14px] font-semibold">{SHEET_NAME[layer]}</span>
-          <span className="font-mono text-[10px] tracking-[0.06em] text-ink-2">{tag}</span>
+          <span className="text-[0.875rem] font-semibold">{SHEET_NAME[layer]}</span>
+          <span className="font-mono text-[0.75rem] tracking-[0.06em] text-ink-2">{tag}</span>
         </span>
-        <span className="text-[13px] leading-snug text-ink-2">{names.length ? names.join(' · ') : 'Nada de esta capa'}</span>
+        <span className="text-[0.875rem] leading-snug text-ink-2">{names.length ? names.join(' · ') : 'Nada de esta capa'}</span>
       </span>
     </li>
   );
+
+  /** Proporción de la pieza elegida: los marcos de las variantes la respetan. */
+  const ratio = info.format === 'auto' ? '1 / 1' : info.format.replace(':', ' / ');
+  const palettePreview = (refPalette ? refPalette.colors : systemPalette).slice(0, 5);
+  const approvedPiece = byId(approved[pieceType]);
 
   const variantCard = (slot: number) => {
     const id = slots[slot];
     const p = byId(id);
     const err = slotErrs[slot];
     const generating = busySlots.includes(slot);
+    const letter = slot === 0 ? 'A' : 'B';
+    const frame = 'relative w-full overflow-hidden rounded-[4px] bg-surface';
+    const frameStyle: React.CSSProperties = { aspectRatio: ratio, maxHeight: 'calc(100vh - 330px)' };
+
+    let body: React.ReactNode;
+    let caption: React.ReactNode = null;
+
     if (generating) {
-      return (
-        <li key={slot} className="flex flex-col gap-2 rounded-[4px] bg-surface p-2 max-md:min-w-full max-md:snap-center" aria-busy="true">
-          <div className="flex aspect-square w-full items-center justify-center bg-raised">
-            <span className="spinner text-core" />
-          </div>
-          <span className="px-1 text-[12px] text-ink-2">Variante {slot + 1}</span>
-        </li>
+      // Esqueleto: el punto del agente late y se dice qué se está componiendo.
+      body = (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center" role="status" aria-busy="true">
+          <span aria-hidden="true" className="size-3 rounded-full motion-safe:animate-pulse" style={{ background: 'var(--cc-l0)' }} />
+          <span className="text-[1.0625rem] font-semibold">{direct ? 'Componiendo con tu pedido…' : 'Componiendo con el Núcleo…'}</span>
+        </div>
       );
-    }
-    if (err) {
-      return (
-        <li key={slot} className="flex flex-col gap-3 rounded-[4px] bg-surface p-3 max-md:min-w-full max-md:snap-center" style={{ outline: "1px solid var(--cc-error)" }} role="alert">
-          <span className="text-[14px] font-semibold">No pudimos generar la variante {slot + 1}.</span>
-          <span className="text-[12px] leading-snug text-ink-2">{err.message}</span>
+    } else if (err) {
+      body = (
+        <div className="absolute inset-0 flex flex-col justify-center gap-3 overflow-y-auto p-5" role="alert" style={{ outline: '1px solid var(--cc-error)', outlineOffset: -1 }}>
+          <span className="text-[1rem] font-semibold">No pudimos generar la variante {letter}.</span>
+          <span className="text-[0.875rem] leading-snug text-ink-2">{err.message}</span>
           {err.detail && (
-            <details className="text-[11px] text-ink-2">
+            <details className="text-[0.875rem] text-ink-2">
               <summary className="cursor-pointer">Detalle técnico</summary>
               <pre className="m-0 mt-1 max-h-32 overflow-auto whitespace-pre-wrap font-mono">{err.detail}</pre>
             </details>
@@ -477,80 +487,88 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
           <div>
             <KeyButton label="Reintentar" tone="bone" disabled={busy} onClick={() => void generate([slot])} />
           </div>
-        </li>
+        </div>
       );
-    }
-    if (!p) return null;
-    const c = checks[p.id];
-    const isApproved = approved[p.pieceType] === p.id;
-    const coreOf = (cid: string) => project.patterns.find(x => x.id === cid);
-    return (
-      <li key={p.id} className="flex flex-col gap-2 rounded-[4px] bg-surface p-2 max-md:min-w-full max-md:snap-center" style={{ outline: isApproved ? `2px solid ${GREEN}` : undefined }}>
-        <button type="button" onClick={() => setZoomId(p.id)} aria-label={`Ampliar variante ${slot + 1}`} className="block p-0">
+    } else if (p) {
+      const c = checks[p.id];
+      const isApproved = approved[p.pieceType] === p.id;
+      const dim = !!approvedPiece && !isApproved;
+      const coreOf = (cid: string) => project.patterns.find(x => x.id === cid);
+      body = (
+        <button type="button" onClick={() => setZoomId(p.id)} aria-label={`Ampliar variante ${letter}`} className="absolute inset-0 block p-0">
           <img
             src={p.imageUrl || undefined}
-            alt={`${info.label}, ${directionLabel(p) || `variante ${slot + 1}`}`}
-            className={`max-h-[46vh] w-full object-contain ${p.pieceType === 'logo' && transparent ? 'bg-[repeating-conic-gradient(#222_0_25%,#2c2c2c_0_50%)] bg-[length:16px_16px]' : 'bg-raised'}`}
+            alt={`${info.label}, ${directionLabel(p) || `variante ${letter}`}`}
+            className={`size-full object-contain transition-[filter] duration-300 ${p.pieceType === 'logo' && transparent ? 'bg-[repeating-conic-gradient(#222_0_25%,#2c2c2c_0_50%)] bg-[length:16px_16px]' : ''}`}
+            style={{ filter: dim ? 'grayscale(0.7)' : undefined }}
           />
         </button>
-        <span className="flex flex-wrap items-center gap-x-2 px-1 text-[12px] text-ink-2">
-          <span className="text-ink">{directionLabel(p) || `Variante ${slot + 1}`}</span>
-          <span className="font-mono">· {p.mode === 'direct' ? 'directo' : 'con el sistema'}</span>
-        </span>
-
-        {/* El Núcleo, pieza por pieza */}
-        {p.mode === 'direct' ? (
-          <span className="px-1 text-[12px] text-ink-3">Modo directo: sin control del Núcleo.</span>
-        ) : c === 'loading' ? (
-          <span className="flex items-center gap-2 px-1 text-[12px] text-ink-2">
-            <span className="spinner text-core" /> Revisando si respeta el Núcleo…
+      );
+      caption = (
+        <div className="flex flex-col gap-2" style={{ opacity: dim ? 0.75 : 1 }}>
+          <span className="flex flex-wrap items-center gap-x-2 text-[0.875rem] text-ink-2">
+            <span className="font-semibold text-ink">Variante {letter}</span>
+            <span>· {directionLabel(p) || (p.mode === 'direct' ? 'directo' : 'con el sistema')}</span>
           </span>
-        ) : c === 'error' ? (
-          <span className="flex items-center gap-2 px-1 text-[12px] text-ink-2">
-            No se pudo evaluar el Núcleo.
-            <KeyButton label="Reintentar" tone="ghost" onClick={() => void checkCore(p, recipe.core)} />
-          </span>
-        ) : Array.isArray(c) ? (
-          <ul className="m-0 flex list-none flex-col gap-1 p-0 px-1" aria-label="Núcleo respetado">
-            {c.map(k => (
-              <li key={k.id} className="flex items-start gap-2 text-[12px]" title={k.note}>
-                <span className={`type-label shrink-0 ${k.respected ? 'text-confirmed-ink' : 'text-error-ink'}`} aria-label={k.respected ? 'respetada' : 'no respetada'}>
-                  {k.respected ? '✓' : '✕'}
-                </span>
-                <span className="min-w-0">
-                  <span className="text-ink">{coreOf(k.id)?.name ?? k.id}</span>
-                  {k.note && <span className="text-ink-2"> · {k.note}</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => toggleApprove(p, slot + 1)}
-            className="inline-flex h-10 items-center rounded-full px-5 text-[13px] font-bold"
-            style={isApproved ? { background: GREEN, color: 'var(--cc-bg)' } : { background: 'var(--cc-text)', color: 'var(--cc-bg)' }}
-          >
-            {isApproved ? '✓ Aprobada' : 'Aprobar'}
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                const file = await downloadPiecePng(project, p.imageUrl, p.pieceType, slot + 1);
-                logEvent('export', { type: 'png', kind: p.pieceType });
-                onNotify(`Se descargó ${file}`);
-              } catch (e: any) {
-                onNotify('No se pudo descargar la imagen.', { tone: 'error', detail: e?.message });
-              }
-            }}
-            className="inline-flex h-10 items-center px-3 text-[13px] font-medium text-ink underline-offset-4 hover:underline"
-          >
-            Descargar
-          </button>
+          {p.mode === 'direct' ? (
+            <span className="text-[0.875rem] text-ink-2">Modo directo: sin control del Núcleo.</span>
+          ) : c === 'loading' ? (
+            <span className="flex items-center gap-2 text-[0.875rem] text-ink-2">
+              <span className="spinner text-core" /> Revisando si respeta el Núcleo…
+            </span>
+          ) : c === 'error' ? (
+            <span className="flex items-center gap-2 text-[0.875rem] text-ink-2">
+              No se pudo evaluar el Núcleo.
+              <KeyButton label="Reintentar" tone="ghost" onClick={() => void checkCore(p, recipe.core)} />
+            </span>
+          ) : Array.isArray(c) ? (
+            <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Núcleo respetado">
+              {c.map(k => (
+                <li key={k.id} className="flex items-start gap-2 text-[0.875rem]" title={k.note}>
+                  <span className={`type-label shrink-0 ${k.respected ? 'text-confirmed-ink' : 'text-error-ink'}`} aria-label={k.respected ? 'respetada' : 'no respetada'}>
+                    {k.respected ? '✓' : '✕'}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="text-ink">{coreOf(k.id)?.name ?? k.id}</span>
+                    {k.note && <span className="text-ink-2"> · {k.note}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => toggleApprove(p, slot + 1)}
+              className="inline-flex h-11 items-center rounded-full px-6 text-[0.875rem] font-bold"
+              style={isApproved ? { background: GREEN, color: 'var(--cc-bg)' } : { background: 'var(--cc-text)', color: 'var(--cc-bg)' }}
+            >
+              {isApproved ? '✓ Aprobada' : 'Aprobar esta'}
+            </button>
+          </div>
         </div>
+      );
+    } else {
+      // Vacío: los marcos anticipan lo que se va a usar (colores y tipografía) en lugar de verse rotos.
+      body = (
+        <div aria-hidden="true" className="absolute inset-0 flex flex-col justify-between p-5">
+          <div className="flex h-[34%] gap-2">
+            {palettePreview.length ? palettePreview.map(c => <span key={c.hex} className="flex-1 rounded-[3px]" style={{ background: c.hex, opacity: 0.4 }} />) : <span className="flex-1 rounded-[3px] bg-ink/10" />}
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="type-name line-clamp-2 text-[clamp(2rem,3.6vw,3.5rem)] leading-[0.9] text-ink-2">{brandText.trim() || 'Aa'}</span>
+            <span className="text-[0.875rem] text-ink-2">Variante {letter}</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <li key={slot} className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className={frame} style={frameStyle}>
+          {body}
+        </div>
+        {caption}
       </li>
     );
   };
@@ -558,64 +576,42 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
   const progress = busy ? Math.min(0.94, 1 - Math.exp(-elapsed / 35)) : 0;
   const noun = info.label.toLowerCase();
 
-  return (
-    <div className="relative h-full">
-      <div className="grid h-full min-h-0 grid-cols-1 max-md:block max-md:overflow-y-auto min-[880px]:grid-cols-[minmax(0,1fr)_380px]">
-        {/* Izquierda: la pieza y la receta */}
-        <div className="flex min-h-0 flex-col gap-8 overflow-y-auto p-6 pb-8 max-md:overflow-visible min-[880px]:order-2 min-[880px]:px-10 md:pb-40">
-          <section aria-label="Paso 1 · La pieza" className="flex flex-col gap-4">
-            <StepLabel>PASO 1 · LA PIEZA</StepLabel>
-            <h2 className="m-0 text-[22px] font-bold leading-tight">¿Qué querés probar?</h2>
-            <div role="radiogroup" aria-label="Tipo de pieza" className="flex gap-2 max-md:-mx-6 max-md:flex-nowrap max-md:overflow-x-auto max-md:px-6 md:flex-wrap">
-              {CHIPS.map(id => {
-                const t = pieceTypeInfo(id);
-                const on = pieceType === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => setPieceType(id)}
-                    className={`h-9 shrink-0 rounded-[4px] px-4 text-[13px] font-medium transition-colors duration-120 max-md:h-11 ${on ? 'bg-bone text-void' : 'bg-ink/10 text-ink-2 hover:text-ink'}`}
-                  >
-                    {t.label}
-                    {approved[id] && <span aria-label="aprobada"> ✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-[10px] tracking-[0.06em] text-ink-2">TEXTO QUE APARECE · OPCIONAL</span>
-              <input value={brandText} onChange={e => setBrandText(e.target.value)} className="field-input" />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-[10px] tracking-[0.06em] text-ink-2">PEDIDO LIBRE · OPCIONAL</span>
-              <textarea
-                rows={3}
-                placeholder={info.placeholder}
-                value={details}
-                onChange={e => setRequests(r => ({ ...r, [pieceType]: e.target.value }))}
-                className="field-input resize-y"
-              />
-            </label>
-          </section>
+  const primaryBtn = (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        data-primary
+        aria-disabled={primary.blocked ? true : undefined}
+        onClick={() => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick())}
+        className={`inline-flex h-[48px] items-center justify-center gap-3 whitespace-nowrap rounded-full px-[26px] text-[1rem] font-bold transition-colors duration-150 ${primary.blocked ? 'cursor-not-allowed bg-white/10 text-ink-3' : 'bg-bone text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]'}`}
+      >
+        {primary.blocked ? primary.blockedLabel ?? primary.label : primary.label}
+        {primary.kbd && !primary.blocked && !mobile && <kbd className="text-[0.875rem] font-medium opacity-75">{primary.kbd}</kbd>}
+      </button>
+      {primary.blocked && !busy && <span className="text-[0.875rem] leading-snug text-ink-2">{primary.blocked}</span>}
+    </div>
+  );
 
-          <section aria-label="Paso 2 · La receta" className="flex flex-col gap-3">
+  return (
+    <div className="stage-enter relative h-full">
+      <div className="grid h-full min-h-0 grid-cols-1 gap-y-10 max-[1099px]:overflow-y-auto max-[1099px]:pb-16 min-[1100px]:grid-cols-[300px_minmax(0,1fr)_340px] min-[1100px]:gap-x-8">
+        {/* Izquierda: la receta */}
+        <aside className="order-3 flex min-h-0 flex-col gap-8 px-4 py-6 min-[1100px]:order-1 min-[1100px]:overflow-y-auto min-[1100px]:pb-10 min-[1100px]:pl-10 min-[1100px]:pr-0">
+          <section aria-label="La receta" className="flex flex-col gap-3">
             <div className="flex items-baseline justify-between gap-3">
-              <StepLabel>PASO 2 · LA RECETA</StepLabel>
-              <button type="button" onClick={() => setEditing(v => !v)} aria-expanded={editing} className="text-[12px] text-ink-2 underline underline-offset-2 hover:text-ink">
+              <StepLabel>LA RECETA</StepLabel>
+              <button type="button" onClick={() => setEditing(v => !v)} aria-expanded={editing} className="text-[0.875rem] text-ink-2 underline underline-offset-2 hover:text-ink">
                 {editing ? 'Listo' : 'Editar'}
               </button>
             </div>
-            <p className="m-0 text-[13px] text-ink-2">Sale sola de tus capas.</p>
+            <p className="m-0 text-[0.875rem] text-ink-2">Sale sola de tus capas.</p>
             {mobile && !recipeOpen && !editing ? (
-              <button type="button" onClick={() => setRecipeOpen(true)} className="flex min-h-[44px] items-center justify-between rounded-[4px] px-3 text-left text-[13px] text-ink-2">
+              <button type="button" onClick={() => setRecipeOpen(true)} className="flex min-h-[44px] items-center justify-between rounded-[4px] px-3 text-left text-[0.875rem] text-ink-2">
                 <span>Receta automática</span>
                 <span className="text-ink underline underline-offset-2">Ver</span>
               </button>
             ) : direct ? (
-              <p className="m-0 text-[13px] text-ink-2">Modo directo: no usa el sistema, solo el pedido, el texto y la paleta.</p>
+              <p className="m-0 text-[0.875rem] text-ink-2">Modo directo: no usa el sistema, solo el pedido, el texto y la paleta.</p>
             ) : (
               <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
                 {recipeRow(1, 'OBLIGATORIO', sel.core.map(x => x.name))}
@@ -639,13 +635,13 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                       role="radio"
                       aria-checked={direct === v}
                       onClick={() => setDirect(v)}
-                      className={`type-label px-3 py-1 text-[11px] ${direct === v ? 'bg-bone text-void' : 'text-ink-2 hover:text-ink'}`}
+                      className={`type-label px-3 py-1 text-[0.75rem] ${direct === v ? 'bg-bone text-void' : 'text-ink-2 hover:text-ink'}`}
                     >
                       {label}
                     </button>
                   ))}
                 </div>
-                <p className="m-0 text-[12px] text-ink-2">
+                <p className="m-0 text-[0.875rem] text-ink-2">
                   {limitNote ? `Ya hay ${MAX_DECISIONS} decisiones, el máximo: desmarcá una para sumar otra.` : `Marcá o desmarcá lo que entra. ${decisions} de ${MAX_DECISIONS} decisiones.`}
                 </p>
                 <div className="flex flex-col gap-5" style={{ opacity: direct ? 0.75 : 1, pointerEvents: direct ? 'none' : undefined }}>
@@ -656,27 +652,27 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
 
                 {/* Paleta del pedido: la del sistema o la de una imagen de referencia */}
                 <div className="flex flex-col gap-2">
-                  <span className="font-mono text-[10px] tracking-[0.06em] text-ink-2">PALETA DEL PEDIDO</span>
+                  <span className="font-mono text-[0.75rem] tracking-[0.06em] text-ink-2">PALETA DEL PEDIDO</span>
                   <div className="flex h-[22px] overflow-hidden bg-ink/10" aria-label="Colores de la paleta">
                     {(refPalette ? refPalette.colors : systemPalette).map(c => (
                       <span key={c.hex} title={c.hex.toUpperCase()} style={{ background: c.hex, flexGrow: Math.max(0.05, c.share ?? 0.1) }} />
                     ))}
-                    {!(refPalette ? refPalette.colors : systemPalette).length && <span className="px-2 text-[11px] text-ink-3">sin colores todavía</span>}
+                    {!(refPalette ? refPalette.colors : systemPalette).length && <span className="px-2 text-[0.875rem] text-ink-3">sin colores todavía</span>}
                   </div>
-                  <span className="text-[11px] leading-snug text-ink-2">{refPalette ? `De la imagen «${refPalette.name}».` : 'La del sistema (se lee en Sistema con «Completar paleta»).'}</span>
+                  <span className="text-[0.875rem] leading-snug text-ink-2">{refPalette ? `De la imagen «${refPalette.name}».` : 'La del sistema (se lee en Sistema con «Completar paleta»).'}</span>
                   <div className="flex flex-wrap gap-2">
                     <KeyButton label={refPalette ? 'Cambiar imagen' : 'Usar la de una imagen'} onClick={() => setPickerOpen(o => !o)} />
                     {refPalette && <KeyButton label="Volver a la del sistema" tone="ghost" onClick={() => setRefPalette(null)} />}
                   </div>
                   {paletteError && (
-                    <span role="alert" className="text-[12px] text-error-ink">
+                    <span role="alert" className="text-[0.875rem] text-error-ink">
                       {paletteError}
                     </span>
                   )}
                   {pickerOpen && (
                     <div className="flex flex-col gap-2 p-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-ink-2">Elegí una referencia o subí una imagen</span>
+                        <span className="text-[0.875rem] text-ink-2">Elegí una referencia o subí una imagen</span>
                         <KeyButton label="Subir imagen" tone="bone" onClick={() => uploadRef.current?.click()} />
                       </div>
                       <div className="grid max-h-48 grid-cols-4 gap-1 overflow-y-auto">
@@ -686,7 +682,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                           </button>
                         ))}
                       </div>
-                      {paletteBusy && <span className="text-[11px] text-ink-2">Analizando colores…</span>}
+                      {paletteBusy && <span className="text-[0.875rem] text-ink-2">Analizando colores…</span>}
                     </div>
                   )}
                   <input
@@ -706,21 +702,21 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                 </div>
 
                 {pieceType === 'logo' ? (
-                  <label className="flex cursor-pointer items-center gap-3 text-[13px]">
+                  <label className="flex cursor-pointer items-center gap-3 text-[0.875rem]">
                     <input type="checkbox" className="size-4 accent-[var(--cc-text)]" checked={transparent} onChange={e => setTransparent(e.target.checked)} />
                     Fondo transparente (PNG)
                   </label>
                 ) : approvedLogo ? (
-                  <label className="flex cursor-pointer items-center gap-3 p-2 text-[13px]">
+                  <label className="flex cursor-pointer items-center gap-3 p-2 text-[0.875rem]">
                     <input type="checkbox" className="size-4 shrink-0 accent-[var(--cc-text)]" checked={useLogo} onChange={e => setUseLogo(e.target.checked)} />
                     <img src={approvedLogo.imageUrl || undefined} alt="" className="size-10 shrink-0 bg-raised object-contain" />
                     <span className="flex flex-col">
                       Usar el logo aprobado
-                      <span className="text-[11px] text-ink-2">Se reproduce tal cual, sin rediseñarlo.</span>
+                      <span className="text-[0.875rem] text-ink-2">Se reproduce tal cual, sin rediseñarlo.</span>
                     </span>
                   </label>
                 ) : (
-                  <p className="m-0 text-[12px] text-ink-2">
+                  <p className="m-0 text-[0.875rem] text-ink-2">
                     Sin logo aprobado: el modelo dibuja la marca desde cero.{' '}
                     <button type="button" className="text-ink underline underline-offset-2" onClick={() => setPieceType('logo')}>
                       Empezar por el logo
@@ -729,42 +725,106 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                 )}
 
                 <details open={promptOpen} onToggle={e => setPromptOpen((e.currentTarget as HTMLDetailsElement).open)} className="rounded-[4px] bg-surface">
-                  <summary className="type-label flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[11px] text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
+                  <summary className="type-label flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[0.75rem] text-ink-2 hover:text-ink [&::-webkit-details-marker]:hidden">
                     <span>VER PEDIDO COMPLETO</span>
                     <span className="font-mono">{promptOpen ? '−' : '+'}</span>
                   </summary>
-                  <pre className="m-0 max-h-72 overflow-auto whitespace-pre-wrap border-t border-line p-3 font-mono text-[11px] leading-[1.5] text-ink-2">{prompt}</pre>
+                  <pre className="m-0 max-h-72 overflow-auto whitespace-pre-wrap border-t border-line p-3 font-mono text-[0.875rem] leading-[1.5] text-ink-2">{prompt}</pre>
                 </details>
               </div>
             )}
           </section>
-        </div>
+        </aside>
 
-        {/* Derecha: el resultado */}
-        <section aria-label="Paso 3 · Resultado" aria-busy={busy} className="flex min-h-0 flex-col gap-4 overflow-y-auto p-6 pb-40 max-md:overflow-visible min-[880px]:order-1 min-[880px]:px-10">
-          <StepLabel>PASO 3 · RESULTADO</StepLabel>
+        {/* Centro: el resultado, dos marcos lado a lado */}
+        <section aria-label="Resultado" aria-busy={busy} className="relative order-2 flex min-h-0 min-w-0 flex-col gap-5 px-4 py-6 min-[1100px]:overflow-y-auto min-[1100px]:px-2 min-[1100px]:pb-10">
+          <div aria-hidden="true" className="glow" style={{ width: '60%', left: '50%', top: '42%', transform: 'translate(-50%, -50%)', opacity: 0.2 }} />
+          <div className="relative flex flex-col gap-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <StepLabel>RESULTADO</StepLabel>
+              {hasResult && <span className="text-[0.875rem] text-ink-2">Aprobá la que mejor respete el Núcleo{pieceType === 'logo' ? ': el logo aprobado se usa en las demás piezas' : ''}.</span>}
+            </div>
+            {!hasResult && !busy && !slotErrs.some(Boolean) && <h2 className="m-0 text-[clamp(1.5rem,2.4vw,2rem)] font-semibold leading-tight">Generá dos variantes de tu {noun}</h2>}
 
-          {busy && (
-            <div className="flex flex-col gap-2" role="status">
-              <div className="h-[3px] w-full overflow-hidden bg-white/10">
-                <div className="h-full bg-bone transition-[width] duration-500" style={{ width: `${progress * 100}%` }} />
+            {busy && (
+              <div className="flex flex-col gap-2" role="status">
+                <div className="h-[3px] w-full overflow-hidden bg-white/10">
+                  <div className="h-full bg-bone transition-[width] duration-500" style={{ width: `${progress * 100}%` }} />
+                </div>
+                <span className="text-[0.875rem] text-ink-2">Puede tardar entre 30 y 90 segundos. No cierres la pestaña.</span>
               </div>
-              <span className="text-[12px] text-ink-2">Puede tardar entre 30 y 90 segundos. No cierres la pestaña.</span>
-            </div>
-          )}
+            )}
 
-          {!busy && !hasResult && !slotErrs.some(Boolean) && (
-            <div className="flex min-h-[280px] flex-col items-center justify-center gap-2 rounded-[4px] bg-surface p-6 text-center">
-              <span className="type-name text-[44px]">Generá dos variantes de tu {noun}</span>
-              <span className="max-w-[380px] text-[13px] text-ink-2">Aprobá la que mejor respete el Núcleo{pieceType === 'logo' ? ': el logo aprobado se usa en las demás piezas' : ''}.</span>
-            </div>
-          )}
+            <ul className="m-0 flex list-none gap-5 p-0 max-md:flex-col">{[0, 1].map(variantCard)}</ul>
 
-          {(busy || hasResult || slotErrs.some(Boolean)) && <ul className="m-0 grid list-none gap-4 p-0 max-md:flex max-md:snap-x max-md:snap-mandatory max-md:overflow-x-auto xl:grid-cols-2">{[0, 1].map(variantCard)}</ul>}
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <button
+                type="button"
+                disabled={!approvedPiece}
+                onClick={async () => {
+                  if (!approvedPiece) return;
+                  try {
+                    const n = (slots.indexOf(approvedPiece.id) as number) + 1 || 1;
+                    const file = await downloadPiecePng(project, approvedPiece.imageUrl, approvedPiece.pieceType, n);
+                    logEvent('export', { type: 'png', kind: approvedPiece.pieceType });
+                    onNotify(`Se descargó ${file}`);
+                  } catch (e: any) {
+                    onNotify('No se pudo descargar la imagen.', { tone: 'error', detail: e?.message });
+                  }
+                }}
+                title={approvedPiece ? undefined : 'Aprobá una variante para exportarla'}
+                className="inline-flex h-11 items-center rounded-full bg-bone px-6 text-[0.875rem] font-bold text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-ink-3"
+              >
+                Exportar PNG
+              </button>
+              <ExportMenu project={project} notify={onNotify} />
+            </div>
+          </div>
         </section>
+
+        {/* Derecha: la pieza y el pedido */}
+        <aside className="order-1 flex min-h-0 flex-col gap-8 px-4 pt-6 min-[1100px]:order-3 min-[1100px]:overflow-y-auto min-[1100px]:pb-10 min-[1100px]:pl-0 min-[1100px]:pr-10">
+          <section aria-label="Pieza y pedido" className="flex flex-col gap-4">
+            <StepLabel>PIEZA Y PEDIDO</StepLabel>
+            <h2 className="m-0 text-[1.375rem] font-bold leading-tight">¿Qué querés probar?</h2>
+            <div role="radiogroup" aria-label="Tipo de pieza" className="flex gap-2 max-md:-mx-6 max-md:flex-nowrap max-md:overflow-x-auto max-md:px-6 md:flex-wrap">
+              {CHIPS.map(id => {
+                const t = pieceTypeInfo(id);
+                const on = pieceType === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setPieceType(id)}
+                    className={`h-9 shrink-0 rounded-[4px] px-4 text-[0.875rem] font-medium transition-colors duration-120 max-md:h-11 ${on ? 'bg-bone text-void' : 'bg-ink/10 text-ink-2 hover:text-ink'}`}
+                  >
+                    {t.label}
+                    {approved[id] && <span aria-label="aprobada"> ✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <label className="flex flex-col gap-1">
+              <span className="font-mono text-[0.75rem] tracking-[0.06em] text-ink-2">TEXTO QUE APARECE · OPCIONAL</span>
+              <input value={brandText} onChange={e => setBrandText(e.target.value)} className="field-input" />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-mono text-[0.75rem] tracking-[0.06em] text-ink-2">PEDIDO LIBRE · OPCIONAL</span>
+              <textarea
+                rows={3}
+                placeholder={info.placeholder}
+                value={details}
+                onChange={e => setRequests(r => ({ ...r, [pieceType]: e.target.value }))}
+                className="field-input resize-y"
+              />
+            </label>
+          </section>
+          {primaryBtn}
+        </aside>
       </div>
 
-      <BottomBar actions={<ExportMenu project={project} notify={onNotify} />} primary={primary} />
       <LightboxModal
         reference={zoomPiece ? { id: zoomPiece.id, name: `${pieceTypeInfo(zoomPiece.pieceType).label} · ${zoomPiece.mode === 'direct' ? 'directo' : 'con el sistema'}`, image: zoomPiece.imageUrl, createdAt: '' } : null}
         onClose={() => setZoomId(null)}

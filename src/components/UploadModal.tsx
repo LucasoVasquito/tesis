@@ -227,7 +227,7 @@ export function UploadModal({ isOpen, onClose, existing, onAddFiles, onAddRefere
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="text-13 font-medium text-ink">{pack.label}</span>
-                <span className="font-mono text-xs text-ink-2">{pack.images.length} referencias</span>
+                <span className="font-mono text-[0.875rem] text-ink-2">{pack.images.length} referencias</span>
               </span>
             </button>
           ))}

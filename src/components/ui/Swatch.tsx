@@ -29,10 +29,10 @@ export function Swatch({ hex, name, source, role }: SwatchProps) {
     >
       <span className="block h-16" style={{ background: hex }} />
       <span className="flex flex-col gap-0.5 px-3 py-2">
-        <span className="font-mono text-xs font-medium text-ink">{copied ? 'Copiado' : hex.toUpperCase()}</span>
-        {name && <span className="text-xs text-ink-2">{name}</span>}
-        {role && <span className="text-xs text-ink-2">{role}</span>}
-        {source && <span className="font-mono text-xs text-ink-2">← {source}</span>}
+        <span className="font-mono text-[0.875rem] font-medium text-ink">{copied ? 'Copiado' : hex.toUpperCase()}</span>
+        {name && <span className="text-[0.875rem] text-ink-2">{name}</span>}
+        {role && <span className="text-[0.875rem] text-ink-2">{role}</span>}
+        {source && <span className="font-mono text-[0.875rem] text-ink-2">← {source}</span>}
       </span>
     </button>
   );

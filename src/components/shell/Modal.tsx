@@ -31,7 +31,7 @@ export function Modal({ open, title, meta, onClose, width = 520, children }: Mod
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-3">
           <div className="flex min-w-0 flex-col">
-            {meta && <span className="font-mono text-xs text-ink-2">{meta}</span>}
+            {meta && <span className="font-mono text-[0.875rem] text-ink-2">{meta}</span>}
             <h2 id={titleId} className="m-0 truncate text-15 font-medium text-ink">
               {title}
             </h2>

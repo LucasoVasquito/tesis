@@ -95,6 +95,19 @@ export function ReferencesScreen(props: Props) {
     camCache.set(project.id, cam);
   }, [cam, project.id]);
 
+  // Franja fija arriba (título + frase de intención): el lienzo empieza debajo y nada lo tapa.
+  // Al moverse o hacer zoom, el título baja a 32 px y la franja se achica; el contenido no se mueve de lugar.
+  const stripH = mobile ? 132 : 160;
+  const stripC = mobile ? 76 : 88;
+  const [collapsed, setCollapsed] = useState(() => camCache.has(project.id));
+  const collapsedRef = useRef(collapsed);
+  const collapse = useCallback(() => {
+    if (collapsedRef.current) return;
+    collapsedRef.current = true;
+    setCollapsed(true);
+    setCam(c => ({ ...c, y: c.y + (stripH - stripC) }));
+  }, [stripH, stripC]);
+
   const [selected, setSelected] = useState<string | null>(null);
   /** Orden en el frente: lo último seleccionado va arriba. */
   const [front, setFront] = useState<Record<string, number>>({});
@@ -139,6 +152,7 @@ export function ReferencesScreen(props: Props) {
   );
 
   const zoomAt = useCallback((factor: number, px?: number, py?: number) => {
+    collapse();
     setCam(c => {
       const z = clamp(c.z * factor, MIN_Z, MAX_Z);
       const mx = px ?? size.w / 2;
@@ -147,7 +161,7 @@ export function ReferencesScreen(props: Props) {
       const wy = (my - c.y) / c.z;
       return { z, x: mx - wx * z, y: my - wy * z };
     });
-  }, [size.w, size.h]);
+  }, [size.w, size.h, collapse]);
 
   // Convención Figma/Miro: la rueda o el trackpad desplazan el lienzo; Ctrl/Cmd + rueda (o el pellizco del trackpad) hace zoom en el cursor.
   useEffect(() => {
@@ -157,11 +171,14 @@ export function ReferencesScreen(props: Props) {
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * (Math.abs(e.deltaY) >= 50 ? 0.002 : 0.01)), e.clientX - rect.left, e.clientY - rect.top);
-      else setCam(c => ({ ...c, x: c.x - e.deltaX, y: c.y - e.deltaY }));
+      else {
+        collapse();
+        setCam(c => ({ ...c, x: c.x - e.deltaX, y: c.y - e.deltaY }));
+      }
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [props.enabled, zoomAt]);
+  }, [props.enabled, zoomAt, collapse]);
 
   /* ---------- Ubicar lo que todavía no tiene lugar en el lienzo ---------- */
   const placing = useRef(false);
@@ -243,7 +260,13 @@ export function ReferencesScreen(props: Props) {
       if (!cur.moved && Math.hypot(dx, dy) < 3) return;
       cur.moved = true;
       const z = camRef.current.z;
-      if (cur.kind === 'pan') setCam({ ...cur.cam, x: cur.cam.x + dx, y: cur.cam.y + dy });
+      if (cur.kind === 'pan') {
+        if (!collapsedRef.current) {
+          collapse();
+          cur.cam = { ...cur.cam, y: cur.cam.y + (stripH - stripC) };
+        }
+        setCam({ ...cur.cam, x: cur.cam.x + dx, y: cur.cam.y + dy });
+      }
       else if (cur.kind === 'move') setLive({ id: cur.id, box: { ...cur.box, x: cur.box.x + dx / z, y: cur.box.y + dy / z } });
       else {
         const b = cur.box;
@@ -341,6 +364,7 @@ export function ReferencesScreen(props: Props) {
     if (e.pointerType !== 'touch' || !touches.current.has(e.pointerId)) return;
     touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (touches.current.size !== 2 || !pinch.current) return;
+    collapse();
     const [a, b] = [...touches.current.values()];
     const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
     const mx = (a.x + b.x) / 2;
@@ -631,8 +655,9 @@ export function ReferencesScreen(props: Props) {
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
-        className="absolute inset-0 touch-none select-none"
+        className="absolute inset-x-0 bottom-0 touch-none select-none"
         style={{
+          top: collapsed ? stripC : stripH,
           cursor: ey ? 'crosshair' : spacePan || drag.current?.kind === 'pan' ? 'grabbing' : 'grab',
           backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--cc-text) 9%, transparent) 1px, transparent 1.2px)',
           backgroundSize: `${dots}px ${dots}px`,
@@ -702,8 +727,8 @@ export function ReferencesScreen(props: Props) {
 
         {!refs.length && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 pb-24 text-center">
-            <span className="type-name text-[40px] text-ink-2">Soltá imágenes acá</span>
-            <span className="max-w-[420px] text-[14px] text-ink-2">Arrastrá archivos desde el escritorio, pegá una URL o una imagen con Ctrl+V, o usá + Imagen. Para analizar hacen falta al menos {MIN_REFS}.</span>
+            <span className="type-name text-[2.5rem] text-ink-2">Soltá imágenes acá</span>
+            <span className="max-w-[420px] text-[0.875rem] text-ink-2">Arrastrá archivos desde el escritorio, pegá una URL o una imagen con Ctrl+V, o usá + Imagen. Para analizar hacen falta al menos {MIN_REFS}.</span>
           </div>
         )}
 
@@ -713,7 +738,7 @@ export function ReferencesScreen(props: Props) {
             <canvas ref={loupeCanvas} width={LOUPE_PX} height={LOUPE_PX} className="size-full" />
             <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: LOUPE_PX / LOUPE_N, height: LOUPE_PX / LOUPE_N, boxShadow: '0 0 0 1.5px #0A0A0A, inset 0 0 0 1.5px #F2EFE8' }} />
           </div>
-          <span ref={loupeLabel} className="rounded-[3px] px-2 py-[2px] font-mono text-[12px] font-bold" style={{ boxShadow: '0 0 0 1px rgba(255,255,255,.4)' }} />
+          <span ref={loupeLabel} className="rounded-[3px] px-2 py-[2px] font-mono text-[0.875rem] font-bold" style={{ boxShadow: '0 0 0 1px rgba(255,255,255,.4)' }} />
         </div>
       </div>
 
@@ -722,43 +747,48 @@ export function ReferencesScreen(props: Props) {
         <div role="status" className="absolute left-4 top-4 z-30 flex w-[min(380px,calc(100%-32px))] flex-col gap-2 rounded-[4px] p-3 lg:left-10 lg:top-6" style={{ background: 'var(--cc-surface)' }} onPointerDown={e => e.stopPropagation()}>
           <div className="flex items-center gap-2">
             <span aria-hidden="true" className="size-6 shrink-0 rounded-[3px]" style={{ background: ey.current, boxShadow: '0 0 0 1px rgba(255,255,255,.35)' }} />
-            <span className="text-[13px] font-semibold leading-tight">Cuentagotas · color {ey.label}</span>
+            <span className="text-[0.875rem] font-semibold leading-tight">Cuentagotas · color {ey.label}</span>
           </div>
-          <p className="m-0 text-[12px] leading-snug" style={{ color: 'var(--cc-text-muted)' }}>
+          <p className="m-0 text-[0.875rem] leading-snug" style={{ color: 'var(--cc-text-muted)' }}>
             {refs.length
               ? `${mobile ? 'Tocá' : 'Hacé clic en'} cualquier punto de una imagen para quedarte con ese color. Rueda para moverte, Ctrl + rueda para acercar y elegir con precisión.`
               : 'Todavía no hay imágenes en el lienzo. Sumá alguna o cancelá.'}
           </p>
           <div className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[10px] tracking-[0.06em] text-ink-2">ESC PARA CANCELAR</span>
-            <button type="button" onClick={() => props.onEyedropperDone?.(null)} className="rounded-[3px] bg-ink/10 px-3 py-1 text-[12px] font-semibold hover:bg-white/10" style={{ minHeight: mobile ? 44 : undefined }}>
+            <span className="font-mono text-[0.75rem] tracking-[0.06em] text-ink-2">ESC PARA CANCELAR</span>
+            <button type="button" onClick={() => props.onEyedropperDone?.(null)} className="rounded-[3px] bg-ink/10 px-3 py-1 text-[0.875rem] font-semibold hover:bg-white/10" style={{ minHeight: mobile ? 44 : undefined }}>
               Cancelar
             </button>
           </div>
         </div>
       )}
 
-      {/* Frase de intención: opcional, ayuda al agente a entender la marca */}
-      {/* Título de etapa: fijo arriba a la izquierda; se desvanece al acercar el lienzo */}
+      {/* Franja fija: título de etapa y frase de intención (opcional, ayuda al agente a entender la marca) */}
       {!ey && (
-        <h1 data-headline className="type-stage pointer-events-none absolute left-4 top-3 z-10 m-0 text-ink lg:left-10 lg:top-5" style={{ opacity: clamp(1.6 - cam.z, 0, 1), transition: 'opacity 200ms ease-out' }}>
-          Referencias
-        </h1>
+        <header
+          className={`absolute inset-x-0 top-0 z-20 flex gap-3 px-4 pb-3 lg:px-10 ${mobile ? 'flex-col justify-end' : 'items-end justify-between gap-6'}`}
+          style={{ height: collapsed ? stripC : stripH, transition: 'height 200ms ease-out' }}
+          onPointerDown={e => e.stopPropagation()}
+        >
+          <h1 data-headline className="type-stage m-0 text-ink" style={collapsed ? { fontSize: 32, lineHeight: 1 } : mobile ? { fontSize: 44 } : undefined}>
+            Referencias
+          </h1>
+          <label className={`flex flex-col gap-1 ${mobile ? 'w-full' : 'w-[min(440px,45%)]'}`}>
+            {!collapsed && <span className="type-label text-[0.75rem] tracking-[0.06em] text-ink-2">Frase de intención · opcional</span>}
+            <input
+              value={intent}
+              onChange={e => setIntent(e.target.value)}
+              onBlur={submitIntent}
+              onKeyDown={e => e.key === 'Enter' && (e.currentTarget.blur(), e.preventDefault())}
+              placeholder="Frase de intención. Ej: hamburguesería cruda, de barrio"
+              aria-label="Frase de intención (opcional)"
+              className="field-input"
+              style={{ height: 40 }}
+            />
+            {props.briefBusy && <span className="text-[0.875rem] text-ink-2">Redactando el brief…</span>}
+          </label>
+        </header>
       )}
-      <div className={`absolute left-4 z-20 flex w-[min(360px,calc(100%-32px))] flex-col gap-1 ${mobile ? 'top-[72px]' : 'top-[92px] lg:left-10 lg:top-[110px]'} ${ey ? 'hidden' : ''}`} onPointerDown={e => e.stopPropagation()}>
-        <label className="flex flex-col gap-1">
-          <span className="type-label text-[11px] text-ink-2">Frase de intención · opcional</span>
-          <input
-            value={intent}
-            onChange={e => setIntent(e.target.value)}
-            onBlur={submitIntent}
-            onKeyDown={e => e.key === 'Enter' && (e.currentTarget.blur(), e.preventDefault())}
-            placeholder="Ej: hamburguesería cruda, de barrio"
-            className="field-input" style={{ height: 40 }}
-          />
-        </label>
-        {props.briefBusy && <span className="font-mono text-[11px] text-ink-2">Redactando el brief…</span>}
-      </div>
 
       <input
         ref={fileInput}
@@ -785,7 +815,7 @@ export function ReferencesScreen(props: Props) {
               −
             </BarButton>
             <BarButton onClick={() => zoomAt(1 / camRef.current.z)} title="Volver al 100%">
-              <span className="min-w-[40px] text-center font-mono text-[12px]">{Math.round(cam.z * 100)}%</span>
+              <span className="min-w-[40px] text-center font-mono text-[0.875rem]">{Math.round(cam.z * 100)}%</span>
             </BarButton>
             <BarButton onClick={() => zoomAt(1.25)} ariaLabel="Acercar" title="Acercar (+)">
               +

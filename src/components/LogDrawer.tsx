@@ -72,7 +72,7 @@ export function LogDrawer({ open, project, onClose, onAddRule }: LogDrawerProps)
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-3">
           <div className="flex flex-col">
-            <span className="font-mono text-xs text-ink-2">{entries.length} entradas</span>
+            <span className="font-mono text-[0.875rem] text-ink-2">{entries.length} entradas</span>
             <h2 id={titleId} className="m-0 text-15 font-medium text-ink">
               Bitácora
             </h2>

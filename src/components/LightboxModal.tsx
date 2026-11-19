@@ -28,7 +28,7 @@ export function LightboxModal({ reference, onClose }: LightboxModalProps) {
     >
       <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-3">
         <div className="flex min-w-0 flex-col">
-          <span className="font-mono text-xs text-ink-2">{reference.id}</span>
+          <span className="font-mono text-[0.875rem] text-ink-2">{reference.id}</span>
           <h2 id={titleId} className="m-0 truncate text-15 font-medium text-ink">
             {reference.name}
           </h2>

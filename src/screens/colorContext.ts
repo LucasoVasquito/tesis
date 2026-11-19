@@ -21,6 +21,8 @@ export interface RoleColor {
   detected: string;
   overridden: boolean;
   source: string;
+  /** Pieza de la que sale el color (si sale de una). */
+  pieceId?: string;
 }
 
 export interface ColorCtx {

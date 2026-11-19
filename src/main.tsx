@@ -43,10 +43,10 @@ class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex h-screen w-screen items-center justify-center bg-bg p-6 text-ink">
           <div role="alert" className="flex w-full max-w-md flex-col gap-3 rounded-card border border-discarded/35 bg-discarded/5 p-5">
-            <span className="font-mono text-xs font-medium text-discarded-ink">ERROR DE INTERFAZ</span>
+            <span className="font-mono text-[0.875rem] font-medium text-discarded-ink">ERROR DE INTERFAZ</span>
             <h1 className="m-0 text-15 font-medium">Se produjo un error en la aplicación</h1>
             <p className="m-0 text-13 text-ink-2">Tus proyectos siguen guardados en este navegador.</p>
-            <pre className="m-0 max-h-40 overflow-auto whitespace-pre-wrap rounded-ctrl border border-line bg-bg p-3 font-mono text-xs text-ink-2">
+            <pre className="m-0 max-h-40 overflow-auto whitespace-pre-wrap rounded-ctrl border border-line bg-bg p-3 font-mono text-[0.875rem] text-ink-2">
               {this.state.error?.message || 'Error inesperado de renderizado.'}
             </pre>
             <div className="flex flex-wrap gap-2">

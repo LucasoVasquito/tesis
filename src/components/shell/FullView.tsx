@@ -55,8 +55,8 @@ export function FullView({ title, meta, onBack, backLabel = 'Volver', actions, c
           </>
         )}
         <div className="flex min-w-0 flex-1 flex-col">
-          {meta && <span className="truncate font-mono text-xs text-ink-2">{meta}</span>}
-          <h1 id={titleId} ref={headingRef} tabIndex={-1} className="m-0 truncate text-sm font-medium text-ink outline-none">
+          {meta && <span className="truncate font-mono text-[0.875rem] text-ink-2">{meta}</span>}
+          <h1 id={titleId} ref={headingRef} tabIndex={-1} className="m-0 truncate text-[0.875rem] font-medium text-ink outline-none">
             {title}
           </h1>
         </div>

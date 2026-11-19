@@ -16,7 +16,7 @@ export function LogEntry({ time, target, action, reason, tone }: LogEntryProps) 
       <span className="absolute -left-1 top-1.5">
         <StatusDot tone={tone} size={7} />
       </span>
-      <span className="font-mono text-xs text-ink-2">
+      <span className="font-mono text-[0.875rem] text-ink-2">
         {time} · {target}
       </span>
       <span className="text-13 font-medium text-ink">{action}</span>

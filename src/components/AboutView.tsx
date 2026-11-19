@@ -14,7 +14,7 @@ export function AboutView({ onBack }: { onBack: () => void }) {
     <FullView title="Acerca del método" meta="Diseño Multimedial · UNLP · Interacción humano–agente" onBack={onBack}>
       <article className="mx-auto flex max-w-[640px] flex-col gap-12 px-4 py-12 lg:py-[72px]">
         <header className="flex flex-col gap-4">
-          <span className="font-mono text-xs text-ink-2">Marco conceptual</span>
+          <span className="font-mono text-[0.875rem] text-ink-2">Marco conceptual</span>
           <h2 className="m-0 text-4xl font-medium leading-[1.1] tracking-[-0.02em] text-ink">Patrones emergentes, verificables</h2>
           <p className="m-0 font-serif text-lg leading-normal text-ink-2">
             Durante la construcción de una identidad visual, el diseñador acumula referencias y, de manera no necesariamente consciente, empieza a repetir
@@ -32,7 +32,7 @@ export function AboutView({ onBack }: { onBack: () => void }) {
           </h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-2 rounded-card bg-surface p-5">
-              <span className="font-mono text-xs text-discarded-ink">El agente no</span>
+              <span className="font-mono text-[0.875rem] text-discarded-ink">El agente no</span>
               <ul className="m-0 flex list-disc flex-col gap-1 pl-[18px] text-13 text-ink">
                 <li>reemplaza el criterio del diseñador;</li>
                 <li>decide cuál es la identidad “correcta”;</li>
@@ -40,7 +40,7 @@ export function AboutView({ onBack }: { onBack: () => void }) {
               </ul>
             </div>
             <div className="flex flex-col gap-2 rounded-card bg-surface p-5">
-              <span className="font-mono text-xs text-confirmed-ink">El instrumento sí</span>
+              <span className="font-mono text-[0.875rem] text-confirmed-ink">El instrumento sí</span>
               <ul className="m-0 flex list-disc flex-col gap-1 pl-[18px] text-13 text-ink">
                 <li>detecta recurrencias observables;</li>
                 <li>vincula cada patrón a su evidencia visual;</li>
@@ -57,7 +57,7 @@ export function AboutView({ onBack }: { onBack: () => void }) {
           <ol className="m-0 flex list-none flex-col border-t border-line p-0">
             {STEPS.map(([n, label, text]) => (
               <li key={n} className="grid grid-cols-[48px_120px_minmax(0,1fr)] items-baseline gap-4 border-b border-line py-4 max-sm:grid-cols-[40px_minmax(0,1fr)]">
-                <span className="font-mono text-xs text-ink-2">{n}</span>
+                <span className="font-mono text-[0.875rem] text-ink-2">{n}</span>
                 <span className="text-15 font-medium text-ink">{label}</span>
                 <span className="text-13 text-ink-2 max-sm:col-span-2">{text}</span>
               </li>

@@ -71,8 +71,8 @@ export function ColorEditor({
       style={{ background: 'var(--cc-surface)' }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-[13px] font-semibold">{title}</span>
-        <button type="button" onClick={() => onClose(valid ? hex : null)} className="rounded-[3px] bg-bone px-3 py-1 text-[12px] font-bold text-void" style={{ minHeight: min }}>
+        <span className="truncate text-[0.875rem] font-semibold">{title}</span>
+        <button type="button" onClick={() => onClose(valid ? hex : null)} className="rounded-[3px] bg-bone px-3 py-1 text-[0.875rem] font-bold text-void" style={{ minHeight: min }}>
           Listo
         </button>
       </div>
@@ -84,7 +84,7 @@ export function ColorEditor({
           onChange={e => set(e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`)}
           maxLength={7}
           spellCheck={false}
-          className="min-w-0 flex-1 border-b-2 bg-transparent py-1 font-mono text-[14px] text-ink outline-none focus:border-bone"
+          className="min-w-0 flex-1 border-b-2 bg-transparent py-1 font-mono text-[0.875rem] text-ink outline-none focus:border-bone"
           style={{ borderColor: valid ? 'var(--color-line-strong)' : 'var(--cc-error)', minHeight: min }}
         />
         {onEyedropper && (
@@ -103,7 +103,7 @@ export function ColorEditor({
       </div>
       {list.length > 0 && (
         <div>
-          <span className="font-mono text-[10px] tracking-[0.06em] text-ink-2">OTROS COLORES DEL PROYECTO</span>
+          <span className="font-mono text-[0.75rem] tracking-[0.06em] text-ink-2">OTROS COLORES DEL PROYECTO</span>
           <div className="mt-2 flex flex-wrap gap-2">
             {list.map(c => (
               <button key={c} type="button" aria-label={`Usar ${c}`} title={c} onClick={() => set(c)} className="size-6 rounded-full p-0" style={{ background: c, boxShadow: '0 0 0 1px color-mix(in srgb, var(--cc-text) 40%, transparent)', minWidth: mobile ? 32 : undefined, minHeight: mobile ? 32 : undefined }} />
@@ -112,7 +112,7 @@ export function ColorEditor({
         </div>
       )}
       {overridden && (
-        <button type="button" onClick={onRestore} className="self-start text-[12px] text-ink-2 underline underline-offset-2 hover:text-ink" style={{ minHeight: min }}>
+        <button type="button" onClick={onRestore} className="self-start text-[0.875rem] text-ink-2 underline underline-offset-2 hover:text-ink" style={{ minHeight: min }}>
           Restaurar color detectado
         </button>
       )}
@@ -144,7 +144,7 @@ export function ColorsPanel({
   const edge = (layer: number) => `var(--cc-l${layer - 1}-edge)`;
   return (
     <section aria-label="Colores de la interfaz" className={`${className ?? ''} relative flex flex-col gap-2 ${flat ? 'p-1' : 'rounded-[4px] p-3'}`} style={flat ? undefined : { background: 'var(--cc-surface)' }}>
-      <span className="type-label text-[11px] text-ink-2">Colores</span>
+      <span className="type-label text-[0.75rem] text-ink-2">Colores</span>
       <ul className="m-0 flex list-none flex-col gap-1 p-0">
         {colors.roles.map(r => (
           <li key={r.key}>
@@ -159,12 +159,12 @@ export function ColorsPanel({
               <span aria-hidden="true" className="size-6 shrink-0 rounded-[3px]" style={{ background: r.hex, boxShadow: `0 0 0 1px ${edge(r.layer)}, 0 0 0 1px color-mix(in srgb, var(--cc-text) 25%, transparent)` }} />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="text-[13px] font-semibold leading-tight">
+                  <span className="text-[0.875rem] font-semibold leading-tight">
                     {r.layer} · {r.label}
                   </span>
-                  <span className="font-mono text-[11px] text-ink-2">{r.hex.toUpperCase()}</span>
+                  <span className="font-mono text-[0.875rem] text-ink-2">{r.hex.toUpperCase()}</span>
                 </span>
-                <span className="line-clamp-2 text-[11px] leading-tight" style={{ color: 'var(--cc-text-muted)' }}>
+                <span className="line-clamp-2 text-[0.875rem] leading-tight" style={{ color: 'var(--cc-text-muted)' }}>
                   {r.source}
                 </span>
               </span>
@@ -172,7 +172,7 @@ export function ColorsPanel({
           </li>
         ))}
       </ul>
-      <p className="m-0 text-[11px] leading-snug" style={{ color: 'var(--cc-text-muted)' }}>
+      <p className="m-0 text-[0.875rem] leading-snug" style={{ color: 'var(--cc-text-muted)' }}>
         La interfaz usa estos colores. Tocá uno para cambiarlo.
       </p>
       {role && (

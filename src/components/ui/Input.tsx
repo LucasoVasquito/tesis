@@ -21,11 +21,11 @@ function FieldShell({ id, label, required, optional, error, hint, className, chi
       </label>
       {children}
       {error ? (
-        <span id={`${id}-error`} className="text-xs text-error-ink">
+        <span id={`${id}-error`} className="text-[0.875rem] text-error-ink">
           {error}
         </span>
       ) : hint ? (
-        <span id={`${id}-hint`} className="text-xs text-ink-2">
+        <span id={`${id}-hint`} className="text-[0.875rem] text-ink-2">
           {hint}
         </span>
       ) : null}

@@ -1,4 +1,5 @@
 import { CropBox, Layer, LayerPosition, LogKind, Pattern, PatternGroup, Project, Reference } from '../types';
+import { dedupePieces } from './dedupe';
 import { corpusRefs, evidenceCount, isLayer, layerInfo } from '../utils/layers';
 
 /**
@@ -324,6 +325,8 @@ export function mergeAnalysis(p: Project, detected: any[]): { project: Project; 
   // Lo que la IA no ubicó se ubica por evidencia, siempre como sugerencia.
   const ranks = rankLayers(project);
   project = { ...project, patterns: project.patterns.map(x => (x.status !== 'discarded' && !x.isGroup && !isLayer(x.layer) ? { ...x, layer: ranks.get(x.id) ?? 3, confirmed: false } : x)) };
+  // Dos sugerencias con el mismo título en la misma capa son una sola pieza (con la suma de sus referencias).
+  project = dedupePieces(project).project;
   project = assignAgentRefs(project);
   return { project, added, updated: updates.size };
 }

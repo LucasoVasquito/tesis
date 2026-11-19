@@ -118,12 +118,12 @@ export default function App() {
   }, []);
   if (error) {
     return (
-      <div role="alert" className="flex h-full items-center justify-center p-6 text-center text-[15px]">
+      <div role="alert" className="flex h-full items-center justify-center p-6 text-center text-[0.9375rem]">
         No se pudieron leer los proyectos guardados en este navegador ({error}).
       </div>
     );
   }
-  if (!boot) return <div className="type-label flex h-full items-center justify-center text-[13px] text-ink-2">CARGANDO…</div>;
+  if (!boot) return <div className="type-label flex h-full items-center justify-center text-[0.8125rem] text-ink-2">CARGANDO…</div>;
   return <Workspace boot={boot} />;
 }
 
@@ -304,8 +304,14 @@ function Workspace({ boot }: { boot: Boot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /** Entra a una etapa: recuerda la más avanzada, la marca visitada y limpia su aviso de «desactualizada». */
+  /** Etapa desde la que se saltó hacia atrás (si se saltó): solo entonces aparece «Seguir en…». */
+  const [jumpedFrom, setJumpedFrom] = useState<Moment | null>(null);
+  useEffect(() => setJumpedFrom(null), [project.id]);
   const enter = (m: Moment, markDone?: Moment) => {
     if (m !== screenRef.current) {
+      const ci = stepIndex(screenRef.current);
+      const mi = stepIndex(m);
+      setJumpedFrom(prev => (mi < ci ? (prev && stepIndex(prev) > ci ? prev : screenRef.current) : prev && mi >= stepIndex(prev) ? null : prev));
       logEvent('stage_leave', { to: m });
       setLogStage(m);
       logEvent('stage_enter', { from: screenRef.current });
@@ -721,6 +727,7 @@ function Workspace({ boot }: { boot: Boot }) {
       const overridden = !!manual[key];
       return {
         key,
+        pieceId: piece?.id,
         label: labels[i],
         layer,
         hex: asHex(final[key]),
@@ -731,6 +738,23 @@ function Workspace({ boot }: { boot: Boot }) {
     });
     return { palette: final, colorCtx: { roles, byPiece, detected: rank, palette: final } as ColorCtx };
   })();
+  // Si se descarta la pieza de la que salía un color, el color se recalcula con las aceptadas y se avisa.
+  const roleSrc = useRef<{ pid: string; roles: Record<string, { id?: string; hex: string }> }>({ pid: '', roles: {} });
+  const roleSig = project.id + '|' + colorCtx.roles.map(r => r.key + r.hex + (r.pieceId ?? '') + r.overridden).join('|');
+  useEffect(() => {
+    const prev = roleSrc.current.pid === project.id ? roleSrc.current.roles : {};
+    const next: Record<string, { id?: string; hex: string }> = {};
+    const names: Record<string, string> = { primary: 'primario', secondary: 'secundario', accent: 'acento' };
+    for (const r of colorCtx.roles) {
+      next[r.key] = { id: r.pieceId, hex: r.hex };
+      const was = prev[r.key];
+      if (was?.id && !r.overridden && was.hex !== r.hex && project.patterns.find(x => x.id === was.id)?.status === 'discarded') {
+        notify(`El ${names[r.key]} cambió porque descartaste su pieza de origen.`, { undo: true });
+      }
+    }
+    roleSrc.current = { pid: project.id, roles: next };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleSig]);
   const theme = buildTheme(palette);
   const themeKey = JSON.stringify(palette);
   useEffect(() => {
@@ -873,8 +897,8 @@ function Workspace({ boot }: { boot: Boot }) {
   const reached = project.reached ?? 0;
   const status: StatusLine = activity
     ? { mode: 'activity', text: activity }
-    : stepIndex(screen) < reached
-      ? { mode: 'back', text: `Volviste a ${stepLabel(screen)}`, action: { label: `Seguir en ${stepLabel(STEPS[reached].id)} →`, run: () => go(STEPS[reached].id) } }
+    : jumpedFrom && stepIndex(screen) < stepIndex(jumpedFrom)
+      ? { mode: 'back', text: `Volviste a ${stepLabel(screen)}`, action: { label: `Seguir en ${stepLabel(jumpedFrom)} →`, run: () => go(jumpedFrom) } }
       : { mode: 'location', text: locationText(project, screen, screen === 'capas' ? capaName : screen === 'probar' ? probarType : undefined) };
 
   /** Ctrl+Shift+R: vuelve a armar el proyecto de ejemplo (con confirmación). Ctrl+Shift+E: descarga el registro de test. */
@@ -929,7 +953,7 @@ function Workspace({ boot }: { boot: Boot }) {
       <div aria-hidden="true" className="no-print pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div
           className="glow"
-          data-neutral={screen === 'referencias' && !isAnalyzed(project)}
+          data-neutral={(screen === 'referencias' && !isAnalyzed(project)) || screen === 'probar'}
           style={
             screen === 'revisar'
               ? { left: '-22vmax', bottom: '-30vmax' }

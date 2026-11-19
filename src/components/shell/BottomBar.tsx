@@ -23,7 +23,7 @@ export function BarButton({ children, onClick, active, disabled, title, ariaLabe
       title={title}
       aria-label={ariaLabel}
       aria-pressed={active}
-      className={`inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-[4px] px-3 text-[13px] font-medium transition-colors duration-120 disabled:cursor-not-allowed disabled:opacity-75 ${active ? 'bg-bone text-void' : 'text-ink-2 underline-offset-4 hover:text-ink hover:underline'}`}
+      className={`inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-[4px] px-3 text-[0.875rem] font-medium transition-colors duration-120 disabled:cursor-not-allowed disabled:opacity-75 ${active ? 'bg-bone text-void' : 'text-ink-2 underline-offset-4 hover:text-ink hover:underline'}`}
     >
       {children}
     </button>
@@ -48,10 +48,10 @@ export function BottomBar({ help, actions, primary }: { help?: string; actions?:
       data-primary
       aria-disabled={primary.blocked ? true : undefined}
       onClick={() => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick())}
-      className={`group/primary inline-flex items-center justify-center gap-3 whitespace-nowrap rounded-full px-[22px] text-[14px] font-bold transition-colors duration-150 ${mobile ? 'h-12 flex-1' : viewport === 'tablet' ? 'h-12' : 'h-[46px]'} ${primary.blocked ? 'cursor-not-allowed bg-white/10 text-ink-3' : 'bg-bone text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]'}`}
+      className={`group/primary inline-flex items-center justify-center gap-3 whitespace-nowrap rounded-full px-[22px] text-[0.875rem] font-bold transition-colors duration-150 ${mobile ? 'h-12 flex-1' : viewport === 'tablet' ? 'h-12' : 'h-[46px]'} ${primary.blocked ? 'cursor-not-allowed bg-white/10 text-ink-3' : 'bg-bone text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]'}`}
     >
       {primary.blocked ? primary.blockedLabel ?? primary.label : primary.label}
-      {primary.kbd && !primary.blocked && !mobile && <kbd className="text-[12px] font-medium opacity-75">{primary.kbd}</kbd>}
+      {primary.kbd && !primary.blocked && !mobile && <kbd className="text-[0.875rem] font-medium opacity-75">{primary.kbd}</kbd>}
     </button>
   );
 
@@ -75,7 +75,7 @@ export function BottomBar({ help, actions, primary }: { help?: string; actions?:
         <div className="no-print absolute inset-x-0 bottom-0 z-30 flex items-center gap-2 border-t border-line-mid px-3 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2" style={{ background: 'var(--cc-surface)' }}>
           {primaryBtn}
           {actions && (
-            <button type="button" aria-label="Más acciones" aria-haspopup="dialog" onClick={() => setMore(true)} className="flex size-12 shrink-0 items-center justify-center rounded-[4px] bg-ink/10 text-[20px] text-ink">
+            <button type="button" aria-label="Más acciones" aria-haspopup="dialog" onClick={() => setMore(true)} className="flex size-12 shrink-0 items-center justify-center rounded-[4px] bg-ink/10 text-[1.25rem] text-ink">
               ⋯
             </button>
           )}
@@ -87,7 +87,7 @@ export function BottomBar({ help, actions, primary }: { help?: string; actions?:
   return (
     <div className="no-print pointer-events-none absolute inset-x-0 bottom-6 z-30 flex flex-col items-center gap-2 px-4">
       {help && (
-        <p className="pointer-events-none m-0 max-w-[640px] rounded-[4px] px-3 py-1 text-center text-[12px] leading-snug text-ink-2" style={{ background: 'color-mix(in srgb, var(--cc-bg) 80%, transparent)' }}>
+        <p className="pointer-events-none m-0 max-w-[640px] rounded-[4px] px-3 py-1 text-center text-[0.875rem] leading-snug text-ink-2" style={{ background: 'color-mix(in srgb, var(--cc-bg) 80%, transparent)' }}>
           {help}
         </p>
       )}

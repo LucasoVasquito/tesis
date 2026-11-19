@@ -30,8 +30,8 @@ export function Notices({ notice, onClose }: { notice: NoticeData | null; onClos
     >
       <span aria-hidden="true" className="mt-[6px] size-2 shrink-0 rounded-full" style={{ background: notice.tone === 'error' ? 'var(--cc-error)' : 'var(--cc-l0)' }} />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="text-[14px] leading-snug text-ink">{notice.text}</span>
-        {notice.detail && <span className="text-[12px] leading-snug text-ink-2">{notice.detail}</span>}
+        <span className="text-[0.875rem] leading-snug text-ink">{notice.text}</span>
+        {notice.detail && <span className="text-[0.875rem] leading-snug text-ink-2">{notice.detail}</span>}
         {notice.action && (
           <button
             type="button"
@@ -39,13 +39,13 @@ export function Notices({ notice, onClose }: { notice: NoticeData | null; onClos
               notice.action!.run();
               onClose();
             }}
-            className="self-start text-[13px] font-bold text-ink underline underline-offset-4 hover:no-underline" style={{ minHeight: mobile ? 44 : undefined }}
+            className="self-start text-[0.875rem] font-bold text-ink underline underline-offset-4 hover:no-underline" style={{ minHeight: mobile ? 44 : undefined }}
           >
             {notice.action.label}
           </button>
         )}
       </div>
-      <button type="button" aria-label="Cerrar aviso" onClick={onClose} className="shrink-0 px-1 text-[16px] leading-none text-ink-2 hover:text-ink" style={{ minWidth: mobile ? 44 : undefined, minHeight: mobile ? 44 : undefined }}>
+      <button type="button" aria-label="Cerrar aviso" onClick={onClose} className="shrink-0 px-1 text-[1rem] leading-none text-ink-2 hover:text-ink" style={{ minWidth: mobile ? 44 : undefined, minHeight: mobile ? 44 : undefined }}>
         ✕
       </button>
     </div>

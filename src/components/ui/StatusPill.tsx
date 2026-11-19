@@ -43,7 +43,7 @@ export const STATUS_TONE: Record<PatternStatus, Tone> = {
 
 export function StatusPill({ status }: { status: PatternStatus }) {
   return (
-    <span className="inline-flex h-6 items-center gap-2 rounded-[4px] bg-surface px-[9px] text-xs text-ink">
+    <span className="inline-flex h-6 items-center gap-2 rounded-[4px] bg-surface px-[9px] text-[0.875rem] text-ink">
       <StatusDot tone={STATUS_TONE[status]} />
       {STATUS_LABEL[status]}
     </span>
@@ -60,7 +60,7 @@ const TREND_TEXT: Record<PatternTrend, string> = {
 export function TrendTag({ trend }: { trend?: PatternTrend }) {
   if (!trend) return null;
   return (
-    <span className="inline-flex h-6 items-center rounded-tag bg-white/5 px-2 font-mono text-xs text-ink-2">
+    <span className="inline-flex h-6 items-center rounded-tag bg-white/5 px-2 font-mono text-[0.875rem] text-ink-2">
       {TREND_TEXT[trend]}
     </span>
   );

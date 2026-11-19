@@ -47,11 +47,11 @@ export function StatusBar({ status, small, className }: { status: StatusLine; sm
   return (
     <div role="status" aria-live="polite" className={`flex min-w-0 items-center gap-3 ${className ?? ''}`}>
       <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${status.mode === 'activity' ? 'motion-safe:animate-pulse' : ''}`} style={dot} />
-      <span className={`truncate text-ink ${small ? 'text-[12px]' : 'text-[14px]'}`} style={{ textShadow: '0 0 14px var(--cc-bg), 0 0 4px var(--cc-bg)' }}>
+      <span className={`truncate text-ink ${small ? 'text-[0.875rem]' : 'text-[0.875rem]'}`} style={{ textShadow: '0 0 14px var(--cc-bg), 0 0 4px var(--cc-bg)' }}>
         {status.text}
       </span>
       {status.action && (
-        <button type="button" onClick={status.action.run} className="shrink-0 text-[13px] font-bold text-ink underline underline-offset-4 hover:no-underline">
+        <button type="button" onClick={status.action.run} className="shrink-0 text-[0.875rem] font-bold text-ink underline underline-offset-4 hover:no-underline">
           {status.action.label}
         </button>
       )}
@@ -68,14 +68,14 @@ function SaveIndicator({ state, dot }: { state: SaveState; dot?: boolean }) {
   const text = state === 'saving' ? 'Guardando…' : state === 'saved' ? '✓ Guardado' : 'No se guardó';
   const color = state === 'saving' ? 'var(--cc-text)' : state === 'saved' ? 'color-mix(in srgb, var(--cc-text) 75%, transparent)' : 'var(--cc-error)';
   return (
-    <span aria-live="polite" className="whitespace-nowrap text-[12px]" style={{ color }}>
+    <span aria-live="polite" className="whitespace-nowrap text-[0.875rem]" style={{ color }}>
       {text}
     </span>
   );
 }
 
 const MenuLabel = ({ children }: { children: React.ReactNode }) => (
-  <li role="presentation" className="px-3 pb-1 pt-3 font-mono text-xs text-ink-2">
+  <li role="presentation" className="px-3 pb-1 pt-3 font-mono text-[0.875rem] text-ink-2">
     {children}
   </li>
 );
@@ -92,7 +92,7 @@ function MenuItem({ children, onSelect, current, hint }: { children: React.React
       >
         <span className="flex size-4 shrink-0 items-center justify-center">{current && <Check aria-hidden="true" className="size-4 stroke-[1.5]" />}</span>
         <span className="min-w-0 flex-1 truncate">{children}</span>
-        {hint && <span className="shrink-0 font-mono text-xs text-ink-2">{hint}</span>}
+        {hint && <span className="shrink-0 font-mono text-[0.875rem] text-ink-2">{hint}</span>}
       </button>
     </li>
   );
@@ -148,7 +148,7 @@ export function TopBar(props: TopBarProps) {
     <header className={`no-print relative z-10 flex shrink-0 items-center px-3 lg:gap-6 lg:px-10 ${mobile ? 'min-h-14 flex-wrap gap-x-2 pb-1 pt-1' : 'h-14 gap-3'}`}>
       {/* Proyecto */}
       <div className="relative flex min-w-0 flex-1 basis-0 items-center gap-3" ref={wrapRef}>
-        <span className={`type-name shrink-0 whitespace-nowrap tracking-[0.04em] text-ink ${mobile ? 'text-[18px]' : 'text-[22px]'}`}>CAMALEÓN CORPUS</span>
+        <span className={`type-name shrink-0 whitespace-nowrap tracking-[0.04em] text-ink ${mobile ? 'text-[1.125rem]' : 'text-[1.375rem]'}`}>CAMALEÓN CORPUS</span>
         <button
           ref={buttonRef}
           type="button"
@@ -159,7 +159,7 @@ export function TopBar(props: TopBarProps) {
           onClick={() => setOpen(o => !o)}
         >
           <span className="sr-only">Proyecto: </span>
-          <span className="truncate text-[13px]">{name}</span>
+          <span className="truncate text-[0.875rem]">{name}</span>
           <ChevronDown aria-hidden="true" />
         </button>
         {open && (
@@ -227,11 +227,11 @@ export function TopBar(props: TopBarProps) {
       <div className="flex min-w-0 flex-1 basis-0 items-center justify-end gap-4 max-[1100px]:flex-none">
         <SaveIndicator state={props.save} dot={mobile} />
         {!mobile && props.onUndo && (
-          <button type="button" onClick={props.onUndo} disabled={!props.canUndo} className="whitespace-nowrap rounded-[4px] px-2 py-2 text-[13px] font-medium text-ink-2 underline-offset-4 hover:text-ink hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:hover:text-ink-2" style={{ minHeight: viewport === 'desktop' ? undefined : 44 }}>
+          <button type="button" onClick={props.onUndo} disabled={!props.canUndo} className="whitespace-nowrap rounded-[4px] px-2 py-2 text-[0.875rem] font-medium text-ink-2 underline-offset-4 hover:text-ink hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:hover:text-ink-2" style={{ minHeight: viewport === 'desktop' ? undefined : 44 }}>
             ↶ Deshacer
           </button>
         )}
-        <button type="button" onClick={props.onOpenHelp} className="rounded-[4px] px-2 py-2 text-[13px] font-medium text-ink-2 underline-offset-4 hover:text-ink hover:underline" style={{ minHeight: viewport === 'desktop' ? undefined : 44 }}>
+        <button type="button" onClick={props.onOpenHelp} className="rounded-[4px] px-2 py-2 text-[0.875rem] font-medium text-ink-2 underline-offset-4 hover:text-ink hover:underline" style={{ minHeight: viewport === 'desktop' ? undefined : 44 }}>
           ? Ayuda
         </button>
       </div>

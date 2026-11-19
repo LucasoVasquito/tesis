@@ -28,7 +28,7 @@ export function CategoryTag({ category, palette }: { category: PatternCategory |
   const f = familyOf(category);
   return (
     <span
-      className="inline-flex h-6 items-center gap-2 rounded-tag border px-2 font-mono text-xs"
+      className="inline-flex h-6 items-center gap-2 rounded-tag border px-2 font-mono text-[0.875rem]"
       style={{ borderColor: familyTint(f, 0.3), color: f.ink, background: familyTint(f, 0.06) }}
       title={`${label} · familia ${f.label}`}
     >

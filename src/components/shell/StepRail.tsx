@@ -8,33 +8,50 @@ import { Viewport } from '../../hooks/useViewport';
 const MUSTARD = 'var(--cc-warn)';
 
 /** Las 5 etapas en la barra superior (escritorio): la actual con subrayado de 2 px, las completadas con ✓. */
+/** Qué quedó pendiente en una etapa marcada con «!». */
+const STALE_WHY: Partial<Record<Moment, string>> = {
+  revisar: 'Cambiaste piezas después de revisar. Pasá de nuevo para confirmar que todo siga bien.',
+  capas: 'Cambiaste piezas después de ordenar las capas. Revisá que cada una siga en su lugar.',
+  sistema: 'Cambiaste piezas o colores después de armar el Sistema. Entrá para ver el resultado actualizado.',
+  probar: 'Cambiaste piezas o colores después de probar. Las variantes ya generadas pueden no reflejarlo.',
+};
+
 export function StageNav({ project, current, onGo }: { project: Project; current: Moment; onGo: (id: Moment, blocked: string | null) => void }) {
   const items = railItems(project, current);
+  const [tip, setTip] = useState<Moment | null>(null);
   return (
     <nav aria-label="Etapas" className="no-print min-w-0">
       <ol className="m-0 flex list-none items-center gap-6 p-0 xl:gap-8">
         {items.map(it => {
           const cur = it.state === 'current';
           return (
-            <li key={it.id}>
+            <li key={it.id} className="relative" onMouseEnter={() => it.state === 'stale' && setTip(it.id)} onMouseLeave={() => setTip(null)}>
               <button
                 type="button"
                 aria-current={cur ? 'step' : undefined}
                 aria-disabled={it.blocked ? true : undefined}
-                title={it.blocked ?? it.line}
+                aria-describedby={it.state === 'stale' ? `stale-${it.id}` : undefined}
+                title={it.blocked ?? (it.state === 'stale' ? undefined : it.line)}
+                onFocus={() => it.state === 'stale' && setTip(it.id)}
+                onBlur={() => setTip(null)}
                 onClick={() => onGo(it.id, it.blocked)}
-                className={`group relative flex h-14 items-center gap-[6px] whitespace-nowrap text-[13px] ${cur ? 'font-bold text-ink' : 'font-medium text-ink-2 hover:text-ink'} ${it.blocked ? 'cursor-not-allowed' : ''}`}
+                className={`group relative flex h-14 items-center gap-[6px] whitespace-nowrap text-[0.875rem] ${cur ? 'font-bold text-ink' : 'font-medium text-ink-2 hover:text-ink'} ${it.blocked ? 'cursor-not-allowed' : ''}`}
               >
                 <span className="type-data">{it.num}</span>
                 <span>{it.label}</span>
-                {it.state === 'done' && <span aria-label="completada" className="text-[11px]">✓</span>}
+                {it.state === 'done' && <span aria-label="completada" className="text-[0.875rem]">✓</span>}
                 {it.state === 'stale' && (
-                  <span aria-label="desactualizada" title="Cambiaste algo antes: revisalo" className="flex size-4 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: MUSTARD, color: 'var(--cc-bg)' }}>
+                  <span aria-label="desactualizada" title="Cambiaste algo antes: revisalo" className="flex size-4 items-center justify-center rounded-full text-[0.875rem] font-bold" style={{ background: MUSTARD, color: 'var(--cc-bg)' }}>
                     !
                   </span>
                 )}
                 <span aria-hidden="true" className="absolute inset-x-0 bottom-[10px] h-[2px] transition-opacity duration-200" style={{ background: 'var(--cc-l0-head)', opacity: cur ? 1 : 0 }} />
               </button>
+              {it.state === 'stale' && (
+                <span id={`stale-${it.id}`} role="tooltip" className={`absolute left-1/2 top-[calc(100%-6px)] z-50 w-[270px] -translate-x-1/2 rounded-[4px] bg-raised p-3 text-[0.875rem] leading-snug text-ink ${tip === it.id ? '' : 'sr-only'}`}>
+                  {STALE_WHY[it.id] ?? 'Cambiaste algo antes. Revisalo.'}
+                </span>
+              )}
             </li>
           );
         })}
@@ -44,7 +61,7 @@ export function StageNav({ project, current, onGo }: { project: Project; current
 }
 
 function Marker({ item, size = 22 }: { item: RailItem; size?: number }) {
-  const base = 'relative z-10 flex shrink-0 items-center justify-center rounded-full font-mono text-[11px] leading-none';
+  const base = 'relative z-10 flex shrink-0 items-center justify-center rounded-full font-mono text-[0.875rem] leading-none';
   const st = { width: size, height: size };
   switch (item.state) {
     case 'current':
@@ -109,8 +126,8 @@ function RailList({ project, current, onGo, onGoLayer, touch }: ListProps) {
           >
             <Marker item={it} />
             <span className="flex min-w-0 flex-col gap-[2px]">
-              <span className={`text-[14px] font-semibold leading-[22px] ${it.state === 'current' || it.state === 'done' || it.state === 'stale' || it.state === 'here' ? 'text-ink' : it.blocked ? 'text-ink-3' : 'text-ink-2'}`}>{it.label}</span>
-              <span className="text-[12px] leading-[1.35]" style={{ color: it.warn ? MUSTARD : it.state === 'current' ? 'color-mix(in srgb, var(--cc-text) 75%, transparent)' : 'color-mix(in srgb, var(--cc-text) 75%, transparent)' }}>
+              <span className={`text-[0.875rem] font-semibold leading-[22px] ${it.state === 'current' || it.state === 'done' || it.state === 'stale' || it.state === 'here' ? 'text-ink' : it.blocked ? 'text-ink-3' : 'text-ink-2'}`}>{it.label}</span>
+              <span className="text-[0.875rem] leading-[1.35]" style={{ color: it.warn ? MUSTARD : it.state === 'current' ? 'color-mix(in srgb, var(--cc-text) 75%, transparent)' : 'color-mix(in srgb, var(--cc-text) 75%, transparent)' }}>
                 {it.line}
               </span>
             </span>
@@ -122,10 +139,10 @@ function RailList({ project, current, onGo, onGoLayer, touch }: ListProps) {
                   <button type="button" onClick={() => onGoLayer(l)} className={`layer-${l} flex w-full items-start gap-2 text-left`} style={{ minHeight: touch ? 44 : undefined }}>
                     <span aria-hidden="true" className="layer-dot mt-[5px] size-[7px] shrink-0 rounded-full" style={{ background: 'var(--layer-color)' }} />
                     <span className="flex flex-col">
-                      <span className="text-[12px] font-semibold leading-tight text-ink-2">
+                      <span className="text-[0.875rem] font-semibold leading-tight text-ink-2">
                         {l} · {SHEET_NAME[l]}
                       </span>
-                      <span className="text-[11px] leading-tight" style={{ color: 'var(--cc-text-muted)' }}>
+                      <span className="text-[0.875rem] leading-tight" style={{ color: 'var(--cc-text-muted)' }}>
                         {LAYER_QUESTION[l]}
                       </span>
                     </span>
@@ -209,7 +226,7 @@ export function StepBar({ project, current, onGo, onGoLayer }: { project: Projec
             <Marker key={it.id} item={it} size={20} />
           ))}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">
+        <span className="min-w-0 flex-1 truncate text-[0.875rem] font-semibold">
           {cur.num}. {cur.label}
         </span>
         <span aria-hidden="true" className="text-ink-2">

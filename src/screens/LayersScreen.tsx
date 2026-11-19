@@ -104,7 +104,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
     } catch {
       /* sin almacenamiento: el aviso se repite */
     }
-    notify('La rueda baja por las piezas de la capa; al llegar al final, pasa a la siguiente.');
+    notify('La rueda baja por las piezas de la capa; al llegar al final, pasa a la siguiente. Arrastrá una pieza para cambiarla de capa. Más ayuda en «? Ayuda».');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -124,7 +124,11 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
       const alpha = rel <= 0 ? 1 : 1 - Math.min(1, rel) * 0.2;
       const on = Math.abs(rel) < 0.5;
       el.style.opacity = String(fadeOf(rel));
-      el.style.background = `color-mix(in oklab, var(--cc-surface) ${alpha * 100}%, transparent)`;
+      // Las capas de atrás no muestran su contenido (solo se ve su pestaña, arriba): se encienden al llegar.
+      const bgPct = rel <= 0.05 ? alpha * 100 : Math.max(0, 100 - rel * 400);
+      el.style.background = `color-mix(in oklab, var(--cc-surface) ${bgPct}%, transparent)`;
+      const body = el.firstElementChild as HTMLElement | null;
+      if (body) body.style.opacity = String(rel <= 0.05 ? 1 : clamp(1 - rel * 5, 0, 1));
       el.style.pointerEvents = rel < -0.45 ? 'none' : 'auto';
       el.style.cursor = on ? '' : 'pointer';
       el.dataset.active = on ? 'true' : 'false';
@@ -446,10 +450,11 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
   }, [selectedId]);
 
   /* ---------- Dibujo ---------- */
-  const planeW = mobile ? Math.max(260, size.w - 32) : DESKTOP_W;
-  const scale = mobile ? Math.max(0.6, Math.min(1, (size.h - 150) / 440)) : Math.max(0.5, Math.min(1.2, (size.w - 500) / DESKTOP_W, (size.h - 184) / 440));
-  const cols = mobile ? 2 : 3;
-  metrics.current = { scale, top: mobile ? 56 : 64, reserve: mobile ? 100 : 156, h: size.h };
+  const deskW = size.w >= 1600 ? 1100 : size.w >= 1280 ? 820 : DESKTOP_W;
+  const planeW = mobile ? Math.max(260, size.w - 32) : deskW;
+  const scale = mobile ? Math.max(0.6, Math.min(1, (size.h - 150) / 440)) : Math.max(0.5, Math.min(1.2, (size.w - 500) / deskW, (size.h - 184) / 440));
+  const cols = mobile ? 2 : size.w >= 1600 ? 4 : 3;
+  metrics.current = { scale, top: mobile ? 56 : 64, reserve: mobile ? 104 : 112, h: size.h };
 
   const card = (x: Pattern, l: Layer) => {
     const sel = selectedId === x.id;
@@ -464,8 +469,8 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
         style={{ cursor: 'grab', outline: sel ? `2px solid ${layerVar(l)}` : undefined, outlineOffset: 1, opacity: ghost?.piece.id === x.id ? 0.3 : 1 }}
       >
         <PieceThumb piece={x} project={project} className="aspect-[4/5] w-full rounded-[4px] bg-raised" onSwatch={isColor ? () => { setSelectedId(x.id); setColorFor(x.id); } : undefined} />
-        <span className="truncate text-[15px] font-semibold leading-tight">{x.name}</span>
-        <span className="truncate font-mono text-[11px] text-ink-2">
+        <span className="line-clamp-2 text-[1rem] font-semibold leading-tight">{x.name}</span>
+        <span className="truncate font-mono text-[0.875rem] text-ink-2">
           {x.origin === 'user' ? 'TUYO' : suggestion ? 'DETECTADO · SUGERENCIA' : 'DETECTADO'} · {evidenceCount(x, project)}/{total}
         </span>
         {/* Tres puntos para enviarla directo a otra capa */}
@@ -518,22 +523,24 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
           willChange: 'opacity',
         }}
       >
+        <div data-plane-body>
         <div className="flex items-end justify-between gap-3">
           <span data-headline className="layer-headline" style={{ fontSize: l === 1 ? 84 : l === 2 ? 50 : 34 }}>
             {SHEET_NAME[l]}
           </span>
-          <span className="type-data pb-1 text-[12px] text-ink-2">{items.length} {items.length === 1 ? 'pieza' : 'piezas'}</span>
+          <span className="type-data pb-1 text-[0.875rem] text-ink-2">{items.length} {items.length === 1 ? 'pieza' : 'piezas'}</span>
         </div>
         <p className="m-0 mb-5 mt-3 font-medium" style={{ color: 'var(--cc-text-muted)', fontSize: l === 1 ? 22 : l === 2 ? 16 : 15 }}>
           {LAYER_QUESTION[l]}
         </p>
         {items.length === 0 ? (
-          <p className="m-0 rounded-[4px] bg-ink/5 p-6 text-center text-[13px] text-ink-2">Sin piezas. Mandá una desde otra capa o arrastrala hasta acá.</p>
+          <p className="m-0 rounded-[4px] bg-ink/5 p-6 text-center text-[0.875rem] text-ink-2">Sin piezas. Mandá una desde otra capa o arrastrala hasta acá.</p>
         ) : (
           <div className="grid gap-3 group-data-[active=false]/plane:pointer-events-none" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
             {items.map(x => card(x, l))}
           </div>
         )}
+        </div>
       </div>
     );
   };
@@ -587,9 +594,9 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
               <span className="layer-headline" style={{ fontSize: 30, fontWeight: 700, color: hot ? 'var(--layer-head)' : 'var(--cc-text-muted)', textDecoration: hot ? undefined : 'none' }}>
                 {SHEET_NAME[l]}
               </span>
-              {here && <span className="ml-auto text-[11px] font-medium text-ink-2">Está acá</span>}
+              {here && <span className="ml-auto text-[0.875rem] font-medium text-ink-2">Está acá</span>}
             </span>
-            <span className="text-[12px]" style={{ color: 'var(--cc-text-muted)' }}>
+            <span className="text-[0.875rem]" style={{ color: 'var(--cc-text-muted)' }}>
               {LAYER_QUESTION[l]}
             </span>
           </div>
@@ -618,6 +625,22 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
         </div>
       </div>
 
+      {/* Pestañas de las capas que quedan atrás: solo nombre y cantidad, sin su contenido */}
+      <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center gap-2" style={{ paddingRight: mobile ? 0 : 240 }}>
+        {LAYERS.filter(l => l - 1 > active).map(l => (
+          <button
+            key={l}
+            type="button"
+            onClick={() => goTo(l - 1)}
+            className="pointer-events-auto flex h-9 items-center gap-2 rounded-[4px] bg-surface px-3 text-[0.75rem] font-bold tracking-[0.06em] text-ink hover:bg-raised"
+            style={{ minHeight: touchUi ? 44 : undefined }}
+          >
+            <span aria-hidden="true" className="layer-dot size-2 rounded-full" style={{ background: layerVar(l), boxShadow: `0 0 0 1px ${edgeVar(l)}` }} />
+            {SHEET_NAME[l].toUpperCase()} · {byLayer[l - 1].length} →
+          </button>
+        ))}
+      </div>
+
       {/* Chips de capa (móvil) o columna derecha: «Estás en» y los colores (escritorio y tablet) */}
       {mobile ? (
         <div className="absolute inset-x-0 top-0 z-20 flex gap-2 px-4 py-2" role="tablist" aria-label="Capas">
@@ -628,7 +651,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
               role="tab"
               aria-selected={active === l - 1}
               onClick={() => goTo(l - 1)}
-              className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-[4px] px-2 text-[13px] font-semibold"
+              className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-[4px] px-2 text-[0.875rem] font-semibold"
               style={{ borderColor: active === l - 1 ? layerVar(l) : 'var(--cc-line)', background: active === l - 1 ? `color-mix(in oklab, ${layerVar(l)} 20%, transparent)` : 'var(--cc-surface)' }}
             >
               <span aria-hidden="true" className="layer-dot size-2 rounded-full" style={{ background: layerVar(l), boxShadow: `0 0 0 1px ${edgeVar(l)}` }} />
@@ -637,9 +660,9 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
           ))}
         </div>
       ) : (
-        <div className="absolute right-6 top-6 z-20 flex max-h-[calc(100%-120px)] w-[220px] flex-col gap-3 overflow-y-auto">
+        <div className="absolute right-6 top-6 z-20 flex max-h-[calc(100%-120px)] w-[280px] flex-col gap-8 overflow-y-auto">
           <aside className="flex flex-col gap-3 p-1" aria-label="Estás en">
-            <span className="type-label text-[11px] text-ink-2">Estás en</span>
+            <span className="type-label text-[0.75rem] text-ink-2">Estás en</span>
             <div className="relative flex gap-3">
               <div aria-hidden="true" className="relative w-[3px] shrink-0 rounded-full bg-white/10">
                 <span ref={barRef} className="absolute left-0 top-0 w-full rounded-full bg-bone" style={{ minHeight: 6 }} />
@@ -651,28 +674,28 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
                       type="button"
                       onClick={() => goTo(l - 1)}
                       aria-current={active === l - 1 ? 'true' : undefined}
-                      className="flex w-full items-center gap-2 rounded-[4px] px-2 py-[7px] text-left text-[13px] hover:bg-white/5"
+                      className="flex w-full items-center gap-2 rounded-[4px] px-2 py-[7px] text-left text-[0.875rem] hover:bg-white/5"
                       style={{ ...(active === l - 1 ? { background: `color-mix(in oklab, ${layerVar(l)} 20%, transparent)` } : {}), minHeight: touchUi ? 44 : undefined }}
                     >
                       <span aria-hidden="true" className="layer-dot size-2 shrink-0 rounded-full" style={{ background: layerVar(l), boxShadow: `0 0 0 1px ${edgeVar(l)}` }} />
                       <span className={`flex-1 ${active === l - 1 ? 'font-semibold text-ink' : 'text-ink-2'}`}>
                         {l} · {SHEET_NAME[l]}
                       </span>
-                      <span className="font-mono text-[11px] text-ink-2">{byLayer[l - 1].length}</span>
+                      <span className="font-mono text-[0.875rem] text-ink-2">{byLayer[l - 1].length}</span>
                     </button>
                   </li>
                 ))}
               </ul>
             </div>
             <div className="flex gap-2">
-              <button type="button" disabled={active === 0} onClick={() => goTo(active - 1)} className="flex-1 rounded-[4px] bg-ink/10 px-2 py-[6px] text-[12px] text-ink hover:bg-white/10 disabled:opacity-75" style={{ minHeight: touchUi ? 44 : undefined }}>
+              <button type="button" disabled={active === 0} onClick={() => goTo(active - 1)} className="flex-1 rounded-[4px] bg-ink/10 px-2 py-[6px] text-[0.875rem] text-ink hover:bg-white/10 disabled:opacity-75" style={{ minHeight: touchUi ? 44 : undefined }}>
                 ↑ Más cerca
               </button>
-              <button type="button" disabled={active === 2} onClick={() => goTo(active + 1)} className="flex-1 rounded-[4px] bg-ink/10 px-2 py-[6px] text-[12px] text-ink hover:bg-white/10 disabled:opacity-75" style={{ minHeight: touchUi ? 44 : undefined }}>
+              <button type="button" disabled={active === 2} onClick={() => goTo(active + 1)} className="flex-1 rounded-[4px] bg-ink/10 px-2 py-[6px] text-[0.875rem] text-ink hover:bg-white/10 disabled:opacity-75" style={{ minHeight: touchUi ? 44 : undefined }}>
                 ↓ Más lejos
               </button>
             </div>
-            <p className="m-0 text-[11px] leading-snug text-ink-2">También con la rueda del mouse o las flechas.</p>
+            <p className="m-0 text-[0.875rem] leading-snug text-ink-2">También con la rueda del mouse o las flechas.</p>
           </aside>
           <ColorsPanel flat onLive={onRoleLive} onCommit={onRoleCommit} />
         </div>
@@ -684,7 +707,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
           <div className="absolute inset-0 bg-black/50" />
           <div className="absolute inset-x-0 bottom-0 rounded-t-[4px] p-3 pb-[calc(16px+env(safe-area-inset-bottom))]" style={{ background: 'var(--cc-surface)' }} onClick={e => e.stopPropagation()}>
             <ColorsPanel mobile onLive={onRoleLive} onCommit={onRoleCommit} />
-            <button type="button" onClick={() => setRolesOpen(false)} className="mt-2 min-h-[44px] w-full rounded-[4px] bg-ink/10 text-[13px]">
+            <button type="button" onClick={() => setRolesOpen(false)} className="mt-2 min-h-[44px] w-full rounded-[4px] bg-ink/10 text-[0.875rem]">
               Cerrar
             </button>
           </div>
@@ -728,10 +751,10 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
             defaultValue={selected.name}
             autoFocus
             onKeyDown={e => e.key === 'Escape' && setRenaming(null)}
-            className="min-w-0 flex-1 border-b-2 border-line-strong bg-transparent py-1 text-[15px] text-ink outline-none focus:border-bone"
+            className="min-w-0 flex-1 border-b-2 border-line-strong bg-transparent py-1 text-[0.9375rem] text-ink outline-none focus:border-bone"
             style={{ minHeight: touchUi ? 44 : undefined }}
           />
-          <button type="submit" className="rounded-[4px] bg-bone px-4 text-[13px] font-bold text-void" style={{ minHeight: touchUi ? 44 : 36 }}>
+          <button type="submit" className="rounded-[4px] bg-bone px-4 text-[0.875rem] font-bold text-void" style={{ minHeight: touchUi ? 44 : 36 }}>
             Guardar
           </button>
         </form>
@@ -756,29 +779,28 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
       )}
 
       <BottomBar
-        help="La rueda baja por las piezas de la capa y, al llegar al final, pasa a la siguiente (o usá ↑ ↓). Clic en una pieza para elegirla; arrastrala para cambiarla de capa."
         actions={
           <>
             {mobile && <BarButton onClick={() => setRolesOpen(true)}>Colores</BarButton>}
             {selected && (
               <BarButton onClick={() => setRenaming(selected.id)}>
-                Renombrar <kbd className="font-mono text-[11px] opacity-75">F2</kbd>
+                Renombrar <kbd className="font-mono text-[0.875rem] opacity-75">F2</kbd>
               </BarButton>
             )}
             {selected && selected.category === 'color' && (
               <BarButton onClick={() => setColorFor(selected.id)}>
-                Color <kbd className="font-mono text-[11px] opacity-75">C</kbd>
+                Color <kbd className="font-mono text-[0.875rem] opacity-75">C</kbd>
               </BarButton>
             )}
             {selected && isLayer(selected.layer) && (
               <>
                 {!mobile && <BarSep />}
-                <span className="px-1 text-[12px] text-ink-2">Mover a</span>
+                <span className="px-1 text-[0.875rem] text-ink-2">Mover a</span>
                 {LAYERS.map(l => (
                   <BarButton key={l} disabled={selected.layer === l} onClick={() => moveToLayer(selected, l)}>
                     <span aria-hidden="true" className="layer-dot size-2 rounded-full" style={{ background: layerVar(l), boxShadow: `0 0 0 1px ${edgeVar(l)}` }} />
                     {SHEET_NAME[l]}
-                    <kbd className="font-mono text-[11px] opacity-75">{l}</kbd>
+                    <kbd className="font-mono text-[0.875rem] opacity-75">{l}</kbd>
                   </BarButton>
                 ))}
               </>

@@ -67,9 +67,9 @@ export function pieceBaseColor(x: Pattern, byRef: RefColorMap): string | null {
   return [...sums.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
 
-/** Las piezas de color en capas, con su frecuencia, para derivePalette. */
+/** Las piezas de color en capas, con su frecuencia, para derivePalette. Solo cuentan las aceptadas (del usuario o confirmadas): nunca las descartadas ni las sugerencias sin revisar. */
 export function colorPieces(p: Project, byRef: RefColorMap): ColorPiece[] {
   return livePieces(p)
-    .filter(x => x.category === 'color' && isLayer(x.layer))
+    .filter(x => x.category === 'color' && isLayer(x.layer) && (x.origin === 'user' || x.confirmed))
     .map(x => ({ id: x.id, layer: x.layer as LayerNo, hex: pieceBaseColor(x, byRef), frequency: evidenceCount(x, p) }));
 }

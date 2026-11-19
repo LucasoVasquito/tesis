@@ -11,7 +11,7 @@ import { logEvent } from '../utils/testLog';
  * Botón «Exportar» de la barra inferior (Sistema y Probar): PNG de la pieza aprobada, PDF del sistema
  * y Prompt / JSON para otra IA. Toda exportación avisa «Se descargó {archivo}».
  */
-export function ExportMenu({ project, notify, mobile }: { project: Project; notify: Notify; mobile?: boolean }) {
+export function ExportMenu({ project, notify, mobile, inline }: { project: Project; notify: Notify; mobile?: boolean; /** Las tres opciones a la vista (ficha de Sistema), sin desplegable. */ inline?: boolean }) {
   const colors = useColors();
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState(false);
@@ -75,35 +75,47 @@ export function ExportMenu({ project, notify, mobile }: { project: Project; noti
   };
 
   const item = 'flex min-h-[44px] w-full flex-col items-start gap-[2px] rounded-[4px] px-3 py-2 text-left hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-75';
+  const role = inline ? undefined : 'menuitem';
+  const options = (
+    <>
+      <button role={role} type="button" className={item} onClick={png} disabled={!approved.length}>
+        <span className="text-[0.875rem] font-semibold">PNG de la pieza aprobada</span>
+        <span className="text-[0.875rem] text-ink-2">{approved.length ? '2048 px, lado mayor' : 'Aprobá una variante en Probar'}</span>
+      </button>
+      <button role={role} type="button" className={item} onClick={pdf}>
+        <span className="text-[0.875rem] font-semibold">PDF del sistema</span>
+        <span className="text-[0.875rem] text-ink-2">A4 vertical: portada, paleta, capas y piezas aprobadas</span>
+      </button>
+      <button
+        role={role}
+        type="button"
+        className={item}
+        onClick={() => {
+          setOpen(false);
+          setModal(true);
+          logEvent('export', { type: 'prompt-json' });
+        }}
+      >
+        <span className="text-[0.875rem] font-semibold">Prompt / JSON para otra IA</span>
+        <span className="text-[0.875rem] text-ink-2">Copiar o descargar</span>
+      </button>
+    </>
+  );
   return (
     <div ref={wrap} className="relative">
-      <BarButton active={open} onClick={() => setOpen(o => !o)} ariaLabel="Exportar">
-        {busy ? 'Exportando…' : 'Exportar'} <span aria-hidden="true">▴</span>
-      </BarButton>
-      {open && (
-        <div role="menu" aria-label="Exportar" className={`absolute z-40 flex w-[280px] flex-col gap-1 rounded-[4px] p-2 ${mobile ? 'bottom-full left-0 mb-3' : 'bottom-full left-0 mb-3'}`} style={{ background: 'var(--cc-surface)' }}>
-          <button role="menuitem" type="button" className={item} onClick={png} disabled={!approved.length}>
-            <span className="text-[13px] font-semibold">PNG de la pieza aprobada</span>
-            <span className="text-[11px] text-ink-2">{approved.length ? '2048 px, lado mayor' : 'Aprobá una variante en Probar'}</span>
-          </button>
-          <button role="menuitem" type="button" className={item} onClick={pdf}>
-            <span className="text-[13px] font-semibold">PDF del sistema</span>
-            <span className="text-[11px] text-ink-2">A4 vertical: portada, paleta, capas y piezas aprobadas</span>
-          </button>
-          <button
-            role="menuitem"
-            type="button"
-            className={item}
-            onClick={() => {
-              setOpen(false);
-              setModal(true);
-              logEvent('export', { type: 'prompt-json' });
-            }}
-          >
-            <span className="text-[13px] font-semibold">Prompt / JSON para otra IA</span>
-            <span className="text-[11px] text-ink-2">Copiar o descargar</span>
-          </button>
-        </div>
+      {inline ? (
+        <div className="flex flex-col gap-1 rounded-[4px] bg-surface p-1">{options}</div>
+      ) : (
+        <>
+          <BarButton active={open} onClick={() => setOpen(o => !o)} ariaLabel="Exportar">
+            {busy ? 'Exportando…' : 'Exportar'} <span aria-hidden="true">▴</span>
+          </BarButton>
+          {open && (
+            <div role="menu" aria-label="Exportar" className="absolute bottom-full left-0 z-40 mb-3 flex w-[280px] flex-col gap-1 rounded-[4px] p-2" style={{ background: 'var(--cc-surface)' }}>
+              {options}
+            </div>
+          )}
+        </>
       )}
 
       <Modal open={modal} title="Prompt / JSON para otra IA" meta="Exportar" width={640} onClose={() => setModal(false)}>
@@ -115,14 +127,14 @@ export function ExportMenu({ project, notify, mobile }: { project: Project; noti
               </button>
             ))}
           </div>
-          <pre className="m-0 max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-[4px] p-3 font-mono text-[12px] leading-[1.5] text-ink-2">{tab === 'json' ? jsonText : promptText}</pre>
+          <pre className="m-0 max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-[4px] p-3 font-mono text-[0.875rem] leading-[1.5] text-ink-2">{tab === 'json' ? jsonText : promptText}</pre>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="rounded-[4px] bg-bone px-4 py-2 text-[13px] font-bold text-void" style={{ minHeight: 44 }} onClick={() => copy(tab === 'json' ? jsonText : promptText)}>
+            <button type="button" className="rounded-[4px] bg-bone px-4 py-2 text-[0.875rem] font-bold text-void" style={{ minHeight: 44 }} onClick={() => copy(tab === 'json' ? jsonText : promptText)}>
               Copiar
             </button>
             <button
               type="button"
-              className="rounded-[4px] bg-ink/10 px-4 py-2 text-[13px] font-medium text-ink hover:bg-white/10"
+              className="rounded-[4px] bg-ink/10 px-4 py-2 text-[0.875rem] font-medium text-ink hover:bg-white/10"
               style={{ minHeight: 44 }}
               onClick={() => {
                 const name = tab === 'json' ? downloadJson(project, json!) : downloadPrompt(project, promptText);
