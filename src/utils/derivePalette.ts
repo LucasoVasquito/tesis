@@ -155,8 +155,8 @@ export function derivePalette(detected: DetectedColor[], pieces: ColorPiece[], o
 
 /* ---------- Tema ---------- */
 
-const BONE = '#F2EFE8';
-const INK = '#141210';
+export const BONE = '#F4F1EC';
+export const INK = '#141210';
 
 /** Texto sobre un fondo: hueso si es oscuro (L < 0.6), tinta si es claro. */
 export const textOn = (L: number) => (L < 0.6 ? BONE : INK);
@@ -166,27 +166,67 @@ const rgba = (hex: string, a: number) => {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 };
 
+/** Luminancia relativa (WCAG) de un hex. */
+export function relLuminance(hex: string): number {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const f = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * f((n >> 16) & 255) + 0.7152 * f((n >> 8) & 255) + 0.0722 * f(n & 255);
+}
+
+/** Relación de contraste WCAG (1 a 21) entre dos hex. */
+export function contrastRatio(a: string, b: string): number {
+  const la = relLuminance(a);
+  const lb = relLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+/** De dos candidatos, el que más contrasta con el fondo (es el que se usa si ninguno llega al mínimo). */
+export function bestOn(bg: string, a: string, b: string): string {
+  return contrastRatio(bg, a) >= contrastRatio(bg, b) ? a : b;
+}
+
+const asHex = (o: Oklch) => oklchToHex(o);
+
 export type Theme = Record<string, string>;
 
+export interface ThemeOptions {
+  /** Fondo elegido por el diseñador (hex). Se respeta tal cual; tinta, superficies, filetes y brillo se recalculan desde él. */
+  bg?: string;
+}
+
 /**
- * Variables CSS de la interfaz a partir de la paleta. El primario tiñe el fondo (tono del primario con L 0.165 y
- * croma ≤ 0.02; neutro si es gris o negro); superficies = fondo + 0.06 de L.
+ * Variables CSS de la interfaz a partir de la paleta («Editorial oscuro»).
+ *  --cc-bg       tono del Núcleo con L 0.14 y croma 0.012 (neutro si el Núcleo es gris o negro)
+ *  --cc-surface  fondo + 0.06 de L · --cc-raised fondo + 0.10
+ *  --cc-text     blanco cálido con el tono del Núcleo (croma 0.01); sobre fondos claros, tinta oscura
+ *  texto secundario al 75 % como mínimo · filetes al 12 %
+ *  Por cada capa: -on (texto sobre el bloque, el que más contrasta), -ink (texto de 4.5:1 o más sobre el fondo),
+ *  -head (titular grande: alcanza con 3:1), -under (subrayado de 4 px cuando el titular no llega y pasa a tinta).
  */
-export function buildTheme(p: Palette): Theme {
+export function buildTheme(p: Palette, opts: ThemeOptions = {}): Theme {
   const prim = parseColor(p.primary) ?? parseColor(DEFAULT_PALETTE.primary)!;
   const sec = parseColor(p.secondary) ?? parseColor(DEFAULT_PALETTE.secondary)!;
   const acc = parseColor(p.accent) ?? parseColor(DEFAULT_PALETTE.accent)!;
 
-  const bgL = Math.min(0.165, prim[0]);
+  const forced = opts.bg ? hexToOklch(opts.bg) : null;
   const neutral = prim[1] < 0.01;
-  const bg: Oklch = neutral ? [bgL, 0, 0] : [bgL, Math.min(prim[1], 0.02), prim[2]];
-  const surface: Oklch = [bg[0] + 0.06, bg[1], bg[2]];
-  const raised: Oklch = [bg[0] + 0.1, bg[1], bg[2]];
+  const hue = neutral ? 0 : prim[2];
+  const bg: Oklch = forced ?? [Math.min(0.14, prim[0]), neutral ? 0 : 0.012, hue];
+  const light = bg[0] >= 0.6;
+  const bgHex = asHex(bg);
+  const step = light ? -0.06 : 0.06;
+  const surface: Oklch = [Math.min(1, Math.max(0, bg[0] + step)), bg[1], bg[2]];
+  const raised: Oklch = [Math.min(1, Math.max(0, bg[0] + step * (10 / 6))), bg[1], bg[2]];
 
-  const text = textOn(bg[0]);
-  const edge = (c: Oklch) => (Math.abs(c[0] - bg[0]) < 0.08 ? rgba(text, 0.4) : 'transparent');
-  /** Texto en el color de la capa: si casi no contrasta con el fondo, va en el color de texto (la capa se distingue por su punto, nombre y número). */
-  const ink = (c: Oklch, css: string) => (Math.abs(c[0] - bg[0]) < 0.25 ? text : css);
+  const text = light ? INK : asHex([0.955, neutral ? 0 : 0.01, hue]);
+  const edge = (c: Oklch) => (contrastRatio(bgHex, asHex(c)) < 1.6 ? rgba(text, 0.4) : 'transparent');
+  const on = (c: Oklch) => bestOn(asHex(c), bgHex, text);
+  /** Texto en el color de la capa: si no llega al contraste pedido contra el fondo, va en el color de texto. */
+  const ink = (c: Oklch, min: number) => (contrastRatio(bgHex, asHex(c)) >= min ? fmtOklch(c) : text);
+  const under = (c: Oklch) => (contrastRatio(bgHex, asHex(c)) >= 3 ? 'transparent' : fmtOklch(c));
 
   return {
     '--cc-bg': fmtOklch(bg),
@@ -196,20 +236,26 @@ export function buildTheme(p: Palette): Theme {
     '--cc-l1': fmtOklch(sec),
     '--cc-l2': fmtOklch(acc),
     '--cc-primary': fmtOklch(prim),
-    '--cc-on-primary': textOn(prim[0]),
+    '--cc-on-primary': on(prim),
     '--cc-text': text,
-    '--cc-text-muted': rgba(text, 0.65),
-    '--cc-line': rgba(text, 0.1),
-    '--cc-line-hover': rgba(text, 0.14),
+    '--cc-text-muted': rgba(text, 0.75),
+    '--cc-line': rgba(text, 0.12),
+    '--cc-line-hover': rgba(text, 0.2),
     '--cc-l0-edge': edge(prim),
     '--cc-l1-edge': edge(sec),
     '--cc-l2-edge': edge(acc),
-    '--cc-l0-on': textOn(prim[0]),
-    '--cc-l1-on': textOn(sec[0]),
-    '--cc-l2-on': textOn(acc[0]),
-    '--cc-l0-ink': ink(prim, fmtOklch(prim)),
-    '--cc-l1-ink': ink(sec, fmtOklch(sec)),
-    '--cc-l2-ink': ink(acc, fmtOklch(acc)),
+    '--cc-l0-on': on(prim),
+    '--cc-l1-on': on(sec),
+    '--cc-l2-on': on(acc),
+    '--cc-l0-ink': ink(prim, 4.5),
+    '--cc-l1-ink': ink(sec, 4.5),
+    '--cc-l2-ink': ink(acc, 4.5),
+    '--cc-l0-head': ink(prim, 3),
+    '--cc-l1-head': ink(sec, 3),
+    '--cc-l2-head': ink(acc, 3),
+    '--cc-l0-under': under(prim),
+    '--cc-l1-under': under(sec),
+    '--cc-l2-under': under(acc),
   };
 }
 

@@ -27,21 +27,20 @@ interface SystemScreenProps {
 
 /** Quién ubicó la pieza. */
 function Origin({ piece, suggestion }: { piece: Pattern; suggestion: boolean }) {
-  if (piece.origin === 'user') return <span className="type-label self-start bg-bone px-1 text-[10px] text-void">TUYO</span>;
-  return <span className="type-label self-start border border-ink-3 px-1 text-[10px] text-ink-2">{suggestion ? 'DETECTADO · SUGERENCIA' : 'DETECTADO'}</span>;
+  if (piece.origin === 'user') return <span className="type-label self-start rounded-[3px] bg-bone px-[6px] py-[1px] text-[10px] text-void">Tuyo</span>;
+  return <span className="type-label self-start text-[10px] text-ink-2">{suggestion ? 'Detectado · sugerencia' : 'Detectado'}</span>;
 }
 
-/** Rótulo de capa del color de la capa, con su filete. */
+/** Titular de capa a escala (Núcleo 132 px, Soporte 64, Acento 40): la jerarquía se lee por el tamaño. */
 function SectionHead({ layer, count }: { layer: Layer; count: number }) {
   return (
-    <div className={`layer-${layer} flex flex-col gap-2`}>
-      <div className="flex items-baseline justify-between">
-        <span className="type-label text-[13px] tracking-[0.08em]" style={{ color: 'var(--layer-text)' }}>
-          CAPA {layer} · {SHEET_NAME[layer].toUpperCase()}
-        </span>
-        <span className="font-mono text-[11px] text-ink-2">{count}</span>
-      </div>
-      <div className="layer-rule" />
+    <div className={`layer-${layer} flex items-end justify-between gap-3 pt-6`}>
+      <h2 data-headline className="layer-headline m-0">
+        {SHEET_NAME[layer]}
+      </h2>
+      <span className="type-data pb-1 text-[12px] text-ink-2">
+        {count} {count === 1 ? 'pieza' : 'piezas'}
+      </span>
     </div>
   );
 }
@@ -70,10 +69,12 @@ export function SystemScreen(props: SystemScreenProps) {
   return (
     <div className="relative h-full">
       <div className="h-full overflow-y-auto">
-        <div id="front-page" className="system-page mx-auto flex max-w-[720px] flex-col gap-12 bg-void px-4 pb-48 pt-8 text-ink md:px-8 md:pt-10">
-          <header className="flex flex-wrap items-baseline justify-between gap-3">
-            <span className="type-name text-[22px] text-ink-2">{title}</span>
-            <span className="type-label text-[11px] tracking-[0.1em] text-ink-3">SISTEMA VISUAL · CAMALEÓN CORPUS</span>
+        <div id="front-page" className="stage-enter mx-auto flex max-w-[840px] flex-col gap-14 px-4 pb-48 pt-8 text-ink md:px-10 md:pt-10">
+          <header className="flex flex-col gap-3">
+            <h1 data-headline className="type-stage m-0">
+              Sistema
+            </h1>
+            <span className="text-[22px] font-medium leading-snug text-ink-2">{title}</span>
           </header>
 
           {/* Capa 1 · Núcleo */}
@@ -85,13 +86,13 @@ export function SystemScreen(props: SystemScreenProps) {
                   <PieceThumb
                     piece={lead}
                     project={project}
-                    className="aspect-video bg-raised"
-                    style={{ width: 'min(100%, calc(46vh * 16 / 9))', opacity: suggestion(lead) ? 0.85 : 1 }}
+                    className="aspect-video rounded-[4px] bg-raised"
+                    style={{ width: 'min(100%, calc(46vh * 16 / 9))', opacity: suggestion(lead) ? 0.85 : 1, boxShadow: '0 30px 80px color-mix(in srgb, var(--cc-l0) 33%, transparent)' }}
                   />
                   <Origin piece={lead} suggestion={suggestion(lead)} />
-                  <h2 className="type-name m-0 text-[48px] leading-[0.9]">{lead.name}</h2>
-                  <p className="m-0 max-w-[62ch] text-[16px] leading-[1.5] text-ink">{fullRule(lead) || 'Todavía sin regla redactada.'}</p>
-                  <span className="font-mono text-[11px] tracking-[0.06em] text-ink-2">EN {evidenceText(lead, project).toUpperCase()}</span>
+                  <h3 className="type-name m-0 text-[44px]">{lead.name}</h3>
+                  <p className="m-0 max-w-[62ch] text-[16px] leading-[1.6] text-ink">{fullRule(lead) || 'Todavía sin regla redactada.'}</p>
+                  <span className="type-data text-[12px] text-ink-2">En {evidenceText(lead, project)}</span>
                 </div>
                 {moreCore.length > 0 && (
                   <div className="grid grid-cols-3 gap-5 pt-2 max-md:grid-cols-2">
@@ -99,7 +100,7 @@ export function SystemScreen(props: SystemScreenProps) {
                       <div key={x.id} className="flex min-w-0 flex-col gap-2">
                         <PieceThumb piece={x} project={project} className="aspect-[16/10] w-full bg-raised" style={{ opacity: suggestion(x) ? 0.85 : 1 }} />
                         <Origin piece={x} suggestion={suggestion(x)} />
-                        <span className="type-name text-[26px] leading-[0.9]">{x.name}</span>
+                        <span className="type-name text-[28px]">{x.name}</span>
                         <span className="text-[13px] leading-[1.4] text-ink-2">{shortRule(x)}</span>
                       </div>
                     ))}
@@ -120,7 +121,7 @@ export function SystemScreen(props: SystemScreenProps) {
                 <div key={x.id} className="flex min-w-0 flex-col gap-2">
                   <PieceThumb piece={x} project={project} className="aspect-[16/10] w-full bg-raised" style={{ opacity: suggestion(x) ? 0.85 : 1 }} />
                   <Origin piece={x} suggestion={suggestion(x)} />
-                  <span className="type-name text-[22px] leading-[0.92]">{x.name}</span>
+                  <span className="type-name text-[22px]" style={{ fontWeight: 700 }}>{x.name}</span>
                   <span className="text-[13px] leading-[1.4] text-ink-2">{shortRule(x)}</span>
                 </div>
               ))}
@@ -137,7 +138,7 @@ export function SystemScreen(props: SystemScreenProps) {
                   <PieceThumb piece={x} project={project} className="size-16 shrink-0 bg-raised" word={false} style={{ opacity: suggestion(x) ? 0.85 : 1 }} />
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="flex items-center gap-2">
-                      <span className="type-name text-[20px] leading-[0.95]">{x.name}</span>
+                      <span className="type-name text-[20px]" style={{ fontWeight: 700 }}>{x.name}</span>
                       <Origin piece={x} suggestion={suggestion(x)} />
                     </span>
                     <span className="text-[13px] leading-[1.4] text-ink-2">{oneLine(x)}</span>
@@ -153,10 +154,10 @@ export function SystemScreen(props: SystemScreenProps) {
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-40" style={{ background: 'linear-gradient(to top, var(--color-bg) 30%, transparent)' }} />
 
       {colorsOpen && (
-        <div className={mobile ? 'fixed inset-x-0 bottom-0 z-[63] rounded-t-[16px] p-3 pb-[calc(76px+env(safe-area-inset-bottom))]' : 'absolute bottom-24 left-1/2 z-40 w-[300px] -translate-x-1/2'} style={mobile ? { background: 'var(--cc-surface)' } : undefined}>
+        <div className={mobile ? 'fixed inset-x-0 bottom-0 z-[63] rounded-t-[4px] p-3 pb-[calc(76px+env(safe-area-inset-bottom))]' : 'absolute bottom-24 left-1/2 z-40 w-[300px] -translate-x-1/2'} style={mobile ? { background: 'var(--cc-surface)' } : undefined}>
           <ColorsPanel mobile={mobile} onLive={props.onRoleLive} onCommit={props.onRoleCommit} />
           {mobile && (
-            <button type="button" onClick={() => setColorsOpen(false)} className="mt-2 min-h-[44px] w-full rounded-[10px] border border-line-strong text-[13px]">
+            <button type="button" onClick={() => setColorsOpen(false)} className="mt-2 min-h-[44px] w-full rounded-[4px] bg-ink/10 text-[13px]">
               Cerrar
             </button>
           )}

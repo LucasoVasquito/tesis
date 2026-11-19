@@ -177,8 +177,9 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
   if (!win) throw new Error('El navegador bloqueó la ventana. Permití las ventanas emergentes para exportar el PDF.');
   win.document.write('<title>Preparando PDF…</title><body style="font:16px sans-serif;padding:32px">Preparando el PDF…</body>');
   try {
-    const theme = buildTheme(palette);
-    const bg = theme['--cc-bg'];
+    // En papel el fondo es blanco y tinta, filetes y titulares de capa se recalculan por contraste (buildTheme con fondo forzado).
+    const theme = buildTheme(palette, { bg: '#FFFFFF' });
+    const bg = '#FFFFFF';
     const text = theme['--cc-text'];
     const muted = theme['--cc-text-muted'];
     const name = project.name || project.intent || 'Sistema visual';
@@ -188,7 +189,7 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
       ['Secundario', palette.secondary],
       ['Acento', palette.accent],
     ];
-    const swatch = (c: string, big = false) => `<span style="display:inline-block;width:${big ? 56 : 28}px;height:${big ? 56 : 28}px;background:${c};border:1px solid ${muted}"></span>`;
+    const swatch = (c: string, big = false) => `<span style="display:inline-block;width:${big ? 56 : 28}px;height:${big ? 56 : 28}px;background:${c};border-radius:4px;box-shadow:inset 0 0 0 1px rgba(20,18,16,.25)"></span>`;
 
     const layerPages: string[] = [];
     for (const l of [1, 2, 3] as Layer[]) {
@@ -201,7 +202,10 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
           return `<div class="card">${img ? `<img src="${img}">` : ''}${hex ? `<div class="hex">${swatch(hex)} ${esc(hex.toUpperCase())}</div>` : ''}<b>${esc(x.name)}</b><p>${esc(rule)}</p><small>${evidenceCount(x, project)} de ${total} referencias</small></div>`;
         }),
       );
-      layerPages.push(`<section class="page"><small>CAPA ${l} · ${SHEET_NAME[l].toUpperCase()}</small><h2>${esc(LAYER_QUESTION[l])}</h2><div class="grid">${cards.join('') || '<p>Sin piezas.</p>'}</div></section>`);
+      const head = theme[`--cc-l${l - 1}-head`];
+      const under = theme[`--cc-l${l - 1}-under`];
+      const size = l === 1 ? 88 : l === 2 ? 52 : 34;
+      layerPages.push(`<section class="page"><small>CAPA ${l}</small><div class="head" style="font-size:${size}pt;font-weight:${l === 1 ? 900 : 700};color:${head};${under !== 'transparent' ? `text-decoration:underline 3px ${under};text-underline-offset:5px;` : ''}">${esc(SHEET_NAME[l])}</div><h2>${esc(LAYER_QUESTION[l])}</h2><div class="grid">${cards.join('') || '<p>Sin piezas.</p>'}</div></section>`);
     }
 
     const approved = approvedPieces(project);
@@ -216,20 +220,22 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
       )
     ).join('');
 
-    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(name)} · sistema</title><style>
+    const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(name)} · sistema</title><link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Manrope:wght@400;500;700&display=swap" rel="stylesheet"><style>
       @page { size: A4 portrait; margin: 0 }
       * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact }
-      body { margin: 0; font-family: Archivo, Arial, sans-serif; background: ${bg}; color: ${text} }
+      body { margin: 0; font-family: Manrope, Arial, sans-serif; background: ${bg}; color: ${text} }
       .page { width: 210mm; height: 297mm; padding: 18mm; page-break-after: always; overflow: hidden; background: ${bg} }
-      h1 { font-size: 54pt; line-height: .95; margin: 0 0 12mm; text-transform: uppercase; font-stretch: 70% }
-      h2 { font-size: 20pt; margin: 4mm 0 8mm }
+      h1, .head { font-family: 'Big Shoulders Display', 'Arial Narrow', Impact, sans-serif; text-transform: uppercase; letter-spacing: -0.01em; line-height: .84 }
+      h1 { font-size: 64pt; font-weight: 900; margin: 0 0 12mm }
+      .head { margin: 3mm 0 0 }
+      h2 { font-size: 16pt; font-weight: 500; margin: 5mm 0 8mm }
       small { color: ${muted}; letter-spacing: .06em; font-size: 8pt }
       .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm }
       .card img { width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block; margin-bottom: 2mm }
       .card b { display: block; font-size: 10pt } .card p { margin: 1mm 0; font-size: 8pt; color: ${muted} }
-      .hex { font: 8pt monospace; margin: -9mm 0 2mm 2mm; position: relative; background: ${bg}; display: inline-flex; gap: 6px; align-items: center; padding: 1mm }
+      .hex { font: 700 8pt Manrope, Arial, sans-serif; margin: -9mm 0 2mm 2mm; position: relative; background: ${bg}; display: inline-flex; gap: 6px; align-items: center; padding: 1mm }
       .roles { display: flex; flex-direction: column; gap: 6mm; margin-top: 10mm }
-      .role { display: flex; gap: 6mm; align-items: center } .role b { font-size: 14pt } .role code { font: 9pt monospace; color: ${muted} }
+      .role { display: flex; gap: 6mm; align-items: center } .role b { font-size: 14pt } .role code { font: 500 9pt Manrope, Arial, sans-serif; color: ${muted} }
     </style></head><body>
       <section class="page"><small>SISTEMA VISUAL · CAMALEÓN CORPUS</small><h1 style="margin-top:80mm">${esc(name)}</h1>
         <div style="display:flex;gap:4mm">${roles.map(([, c]) => swatch(c, true)).join('')}</div></section>

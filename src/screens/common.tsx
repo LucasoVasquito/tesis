@@ -4,6 +4,7 @@ import { useColors } from './colorContext';
 import { Pattern, Project } from '../types';
 import { Crop } from '../space/Crop';
 import { Notice } from '../pieces/model';
+import { bestOn, BONE, INK } from '../utils/derivePalette';
 
 /** Imagen de una pieza: su recorte o, si no tiene, su primera referencia entera. */
 export function PieceImage({ piece, project, className, style }: { piece: Pattern; project: Project; className?: string; style?: React.CSSProperties }) {
@@ -33,16 +34,14 @@ export function PieceThumb({ piece, project, className, style, word, onSwatch }:
   const fallback = useMemo(() => (piece.category === 'color' ? pieceHex(piece, project) : null), [piece.id, piece.category, piece.description, project.references]); // eslint-disable-line react-hooks/exhaustive-deps
   const hex = piece.category === 'color' ? colors.byPiece[piece.id]?.hex ?? piece.colorOverride ?? fallback : null;
   const brand = (project.name || project.intent || '').split(/s[—–-]s/)[0].trim();
-  const label = hex && (
-    <>
-      <span aria-hidden="true" className="size-5 shrink-0" style={{ background: hex, boxShadow: '0 0 0 1px color-mix(in srgb, var(--cc-text) 40%, transparent)' }} />
-      <span>{hex.toUpperCase()}</span>
-    </>
-  );
-  const labelStyle: React.CSSProperties = { background: 'color-mix(in srgb, var(--cc-bg) 78%, transparent)', borderLeft: `3px solid ${hex}` };
+  // Las piezas de color son bloques llenos con su hex adentro; el color del texto sale del contraste real.
+  const ink = hex ? bestOn(hex, INK, BONE) : BONE;
+  const label = hex && <span>{hex.toUpperCase()}</span>;
+  const labelStyle: React.CSSProperties = { color: ink };
+  const typo = word !== false && piece.category === 'typography' && !!brand;
   return (
-    <div className={`relative overflow-hidden ${className ?? ''}`} style={style}>
-      <PieceImage piece={piece} project={project} className="absolute inset-0 size-full" />
+    <div className={`relative overflow-hidden ${className ?? ''}`} style={{ ...style, background: hex ? hex : typo ? 'var(--cc-surface)' : undefined, boxShadow: hex ? 'inset 0 0 0 1px var(--cc-line)' : undefined }}>
+      {!hex && !typo && <PieceImage piece={piece} project={project} className="absolute inset-0 size-full" />}
       {hex &&
         (onSwatch ? (
           <button
@@ -55,18 +54,18 @@ export function PieceThumb({ piece, project, className, style, word, onSwatch }:
               e.stopPropagation();
               onSwatch();
             }}
-            className="absolute bottom-[6px] left-[6px] flex items-center gap-2 py-[2px] pl-[2px] pr-2 font-mono text-[11px] leading-none text-ink hover:brightness-125"
+            className="absolute bottom-[6px] left-[8px] flex items-center gap-2 py-[2px] font-mono text-[12px] font-bold leading-none underline-offset-4 hover:underline"
             style={labelStyle}
           >
             {label}
           </button>
         ) : (
-          <span className="absolute bottom-[6px] left-[6px] flex items-center gap-2 py-[2px] pl-[2px] pr-2 font-mono text-[11px] leading-none text-ink" style={labelStyle}>
+          <span className="absolute bottom-[6px] left-[8px] flex items-center gap-2 py-[2px] font-mono text-[12px] font-bold leading-none" style={labelStyle}>
             {label}
           </span>
         ))}
-      {word !== false && piece.category === 'typography' && brand && (
-        <span className="type-name pointer-events-none absolute inset-x-2 bottom-1 truncate text-[clamp(18px,3.4vw,34px)] leading-none text-bone" style={{ textShadow: '0 1px 8px rgba(0,0,0,.7)' }}>
+      {typo && (
+        <span className="type-name pointer-events-none absolute inset-x-2 bottom-1 truncate text-[clamp(22px,4vw,44px)] leading-[0.9] text-ink">
           {brand}
         </span>
       )}
@@ -91,11 +90,11 @@ export function KeyButton({
   title?: string;
 }) {
   const tones: Record<string, string> = {
-    line: 'border-2 border-bone/60 text-ink hover:border-bone hover:bg-bone hover:text-void',
-    core: 'border-2 border-core bg-core text-void hover:bg-bone hover:border-bone',
-    bone: 'border-2 border-bone bg-bone text-void hover:bg-core hover:border-core',
-    accent: 'border-2 border-accent bg-accent text-bone hover:bg-bone hover:text-void hover:border-bone',
-    ghost: 'border-2 border-transparent text-ink-2 hover:text-ink hover:border-line-strong',
+    line: 'rounded-[4px] bg-ink/10 text-ink hover:bg-ink/20',
+    core: 'rounded-full bg-bone text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]',
+    bone: 'rounded-full bg-bone text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]',
+    accent: 'rounded-[4px] bg-ink/10 text-ink hover:bg-ink/20',
+    ghost: 'rounded-[4px] text-ink-2 underline-offset-4 hover:text-ink hover:underline',
   };
   return (
     <button
@@ -106,7 +105,7 @@ export function KeyButton({
         e.stopPropagation();
         onClick();
       }}
-      className={`type-label inline-flex items-center gap-[6px] whitespace-nowrap px-2 py-[5px] text-[11px] transition-colors duration-120 disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone]}`}
+      className={`type-label inline-flex items-center gap-[6px] whitespace-nowrap px-3 py-[6px] text-[11px] transition-colors duration-120 disabled:cursor-not-allowed disabled:opacity-75 ${tones[tone]}`}
     >
       {k && <kbd className="font-mono text-[11px] font-medium opacity-80">[{k}]</kbd>}
       {label}
@@ -122,10 +121,10 @@ export function BigButton({ k, label, onClick, disabled, hint }: { k?: string; l
         type="button"
         onClick={onClick}
         disabled={disabled}
-        className="type-label flex h-[52px] items-center gap-3 bg-core px-6 text-[18px] text-void transition-colors duration-120 hover:bg-bone disabled:cursor-not-allowed disabled:bg-raised disabled:text-ink-3"
+        className="flex h-[52px] items-center gap-3 rounded-full bg-bone px-7 text-[15px] font-bold text-void transition-colors duration-150 hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)] disabled:cursor-not-allowed disabled:bg-raised disabled:text-ink-3"
       >
         {label}
-        {k && <kbd className="font-mono text-[14px] font-medium opacity-70">[{k}]</kbd>}
+        {k && <kbd className="font-mono text-[14px] font-medium opacity-75">[{k}]</kbd>}
       </button>
       {hint && <span className="text-[13px] text-ink-2">{hint}</span>}
     </div>
@@ -135,7 +134,7 @@ export function BigButton({ k, label, onClick, disabled, hint }: { k?: string; l
 /** Franja "El agente notó": una sola línea, con acción opcional, que se puede cerrar. Nunca bloquea. */
 export function NoticeStrip({ notice, onAction, onDismiss }: { notice: Notice; onAction?: () => void; onDismiss: () => void }) {
   return (
-    <div className="no-print flex min-h-[40px] shrink-0 items-center gap-3 border-t-2 border-accent bg-void px-5" role="status" aria-live="polite">
+    <div className="no-print flex min-h-[40px] shrink-0 items-center gap-3 bg-void px-5" role="status" aria-live="polite">
       <span className="layer-tag layer-3 shrink-0">AVISO</span>
       <span className="min-w-0 flex-1 truncate text-[14px]">{notice.text}</span>
       {notice.action && onAction && <KeyButton label={notice.action.label} tone="accent" onClick={onAction} />}
@@ -149,7 +148,7 @@ export function NoticeStrip({ notice, onAction, onDismiss }: { notice: Notice; o
 /** Aviso breve de la app (lo que acaba de pasar). */
 export function Toast({ text }: { text: string }) {
   return (
-    <div className="no-print flex h-[38px] shrink-0 items-center gap-3 border-t-2 border-bone bg-void px-5" role="status" aria-live="polite">
+    <div className="no-print flex h-[38px] shrink-0 items-center gap-3 bg-void px-5" role="status" aria-live="polite">
       <span className="truncate text-[14px]">{text}</span>
     </div>
   );
@@ -165,7 +164,7 @@ export function BriefPanel({ brief, onSave, onClose }: { brief: string; onSave: 
     onClose();
   };
   return (
-    <div className="absolute left-10 top-6 z-40 flex w-[min(520px,calc(100%-40px))] flex-col gap-3 border-2 border-bone bg-void p-4" role="dialog" aria-label="Brief">
+    <div className="absolute left-10 top-6 z-40 flex w-[min(520px,calc(100%-40px))] flex-col gap-3 rounded-[4px] bg-surface p-4" role="dialog" aria-label="Brief">
       <div className="flex items-center justify-between">
         <span className="layer-tag">BRIEF</span>
         <span className="font-mono text-[11px] text-ink-2">borrador automático · editalo</span>

@@ -67,16 +67,16 @@ export function ColorEditor({
       role="dialog"
       aria-label={`Color: ${title}`}
       onPointerDown={e => e.stopPropagation()}
-      className={`${className ?? ''} flex flex-col gap-3 border border-line-mid p-4 shadow-[0_8px_32px_rgba(0,0,0,.5)] ${mobile ? 'fixed inset-x-0 bottom-0 z-[65] rounded-t-[16px] pb-[calc(16px+env(safe-area-inset-bottom))]' : 'rounded-[12px]'}`}
+      className={`${className ?? ''} flex flex-col gap-3 p-4 ${mobile ? 'fixed inset-x-0 bottom-0 z-[65] rounded-t-[4px] pb-[calc(16px+env(safe-area-inset-bottom))]' : 'rounded-[4px]'}`}
       style={{ background: 'var(--cc-surface)' }}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-[13px] font-semibold">{title}</span>
-        <button type="button" onClick={() => onClose(valid ? hex : null)} className="rounded-[6px] bg-bone px-3 py-1 text-[12px] font-bold text-void" style={{ minHeight: min }}>
+        <button type="button" onClick={() => onClose(valid ? hex : null)} className="rounded-[3px] bg-bone px-3 py-1 text-[12px] font-bold text-void" style={{ minHeight: min }}>
           Listo
         </button>
       </div>
-      <div className="h-14 w-full rounded-[8px]" style={{ background: valid ? hex : start, boxShadow: '0 0 0 1px color-mix(in srgb, var(--cc-text) 40%, transparent)' }} />
+      <div className="h-14 w-full rounded-[4px]" style={{ background: valid ? hex : start, boxShadow: '0 0 0 1px color-mix(in srgb, var(--cc-text) 40%, transparent)' }} />
       <div className="flex items-center gap-2">
         <input
           aria-label="Color en hexadecimal"
@@ -93,7 +93,7 @@ export function ColorEditor({
             onClick={onEyedropper}
             aria-label="Cuentagotas: elegir un color de las referencias"
             title="Cuentagotas: elegí un color de cualquier imagen del lienzo"
-            className="flex size-9 shrink-0 items-center justify-center rounded-[8px] border border-line-strong hover:bg-white/10"
+            className="flex size-9 shrink-0 items-center justify-center rounded-[4px] bg-ink/10 hover:bg-white/10"
             style={{ minHeight: min, minWidth: min }}
           >
             <EyedropperIcon />
@@ -128,11 +128,14 @@ export function ColorsPanel({
   onLive,
   onCommit,
   mobile,
+  flat,
   className,
 }: {
   onLive: (key: RoleKey, hex: string | null) => void;
   onCommit: (key: RoleKey, hex: string | null) => void;
   mobile?: boolean;
+  /** Sin caja: va directo sobre el fondo (columna de Capas). */
+  flat?: boolean;
   className?: string;
 }) {
   const colors = useColors();
@@ -140,8 +143,8 @@ export function ColorsPanel({
   const role = colors.roles.find(r => r.key === editing);
   const edge = (layer: number) => `var(--cc-l${layer - 1}-edge)`;
   return (
-    <section aria-label="Colores de la interfaz" className={`${className ?? ''} relative flex flex-col gap-2 rounded-[12px] border border-line-mid p-3`} style={{ background: 'var(--cc-surface)' }}>
-      <span className="font-mono text-[10px] tracking-[0.08em] text-ink-2">COLORES</span>
+    <section aria-label="Colores de la interfaz" className={`${className ?? ''} relative flex flex-col gap-2 ${flat ? 'p-1' : 'rounded-[4px] p-3'}`} style={flat ? undefined : { background: 'var(--cc-surface)' }}>
+      <span className="type-label text-[11px] text-ink-2">Colores</span>
       <ul className="m-0 flex list-none flex-col gap-1 p-0">
         {colors.roles.map(r => (
           <li key={r.key}>
@@ -150,10 +153,10 @@ export function ColorsPanel({
               onClick={() => setEditing(e => (e === r.key ? null : r.key))}
               aria-expanded={editing === r.key}
               title={r.source}
-              className="flex w-full items-center gap-3 rounded-[8px] px-1 py-[5px] text-left hover:bg-white/5"
+              className="flex w-full items-center gap-3 rounded-[4px] px-1 py-[5px] text-left hover:bg-white/5"
               style={{ minHeight: mobile ? 44 : undefined, background: editing === r.key ? 'color-mix(in srgb, var(--cc-text) 8%, transparent)' : undefined }}
             >
-              <span aria-hidden="true" className="size-6 shrink-0 rounded-[6px]" style={{ background: r.hex, boxShadow: `0 0 0 1px ${edge(r.layer)}, 0 0 0 1px color-mix(in srgb, var(--cc-text) 25%, transparent)` }} />
+              <span aria-hidden="true" className="size-6 shrink-0 rounded-[3px]" style={{ background: r.hex, boxShadow: `0 0 0 1px ${edge(r.layer)}, 0 0 0 1px color-mix(in srgb, var(--cc-text) 25%, transparent)` }} />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="text-[13px] font-semibold leading-tight">

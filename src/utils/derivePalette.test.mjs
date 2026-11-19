@@ -7,8 +7,9 @@ import ts from 'typescript';
 // El módulo es TypeScript puro: se transpila al vuelo, sin dependencias.
 const src = fs.readFileSync(new URL('./derivePalette.ts', import.meta.url), 'utf8');
 const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText;
-const { derivePalette, buildTheme, DEFAULT_PALETTE, hexToOklch, textOn } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
+const { derivePalette, buildTheme, DEFAULT_PALETTE, hexToOklch, textOn, contrastRatio, parseColor, oklchToHex } = await import('data:text/javascript;base64,' + Buffer.from(js).toString('base64'));
 
+const oklchHex = c => oklchToHex(parseColor(c));
 const RED = '#C8472F';
 const BLUE = '#2F5FC8';
 const YELLOW = '#E2B23C';
@@ -80,7 +81,7 @@ test('override a negro: manda sobre lo detectado y el fondo queda negro', () => 
   assert.equal(p.primary, '#000000');
   const t = buildTheme(p);
   assert.equal(t['--cc-bg'], 'oklch(0.000 0.000 0.0)');
-  assert.equal(t['--cc-text'], '#F2EFE8'); // el texto se adapta, el color no se corrige
+  assert.ok(contrastRatio(t['--cc-text'], '#000000') >= 12); // el texto se adapta, el color no se corrige
   assert.notEqual(t['--cc-l0-edge'], 'transparent'); // negro sobre negro: lleva contorno
 });
 
@@ -103,21 +104,45 @@ test('proyecto vacío: paleta neutra por defecto', () => {
   assert.deepEqual(derivePalette([], [], {}), DEFAULT_PALETTE);
 });
 
-test('tema: el fondo toma el tono del primario con L 0.165 y croma ≤ 0.02', () => {
+test('tema: el fondo toma el tono del primario con L 0.14 y croma ≤ 0.02', () => {
   const t = buildTheme({ primary: BLUE, secondary: RED, accent: YELLOW });
   const m = /oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/.exec(t['--cc-bg']);
   assert.ok(m);
-  assert.equal(Number(m[1]), 0.165);
+  assert.equal(Number(m[1]), 0.14);
   assert.ok(Number(m[2]) <= 0.02);
   assert.ok(Math.abs(Number(m[3]) - hexToOklch(BLUE)[2]) < 1);
 });
 
-test('tema: un primario más oscuro que 0.165 define su propia luminosidad', () => {
+test('tema: un primario más oscuro que 0.14 define su propia luminosidad', () => {
   const t = buildTheme({ primary: '#05051A', secondary: RED, accent: YELLOW });
-  assert.ok(Number(/oklch\(([\d.]+)/.exec(t['--cc-bg'])[1]) < 0.165);
+  assert.ok(Number(/oklch\(([\d.]+)/.exec(t['--cc-bg'])[1]) < 0.14);
 });
 
 test('texto sobre claro u oscuro', () => {
-  assert.equal(textOn(0.3), '#F2EFE8');
+  assert.equal(textOn(0.3), '#F4F1EC');
   assert.equal(textOn(0.8), '#141210');
+});
+
+test('contraste: los titulares y textos cumplen 3:1 / 4.5:1 contra el fondo, en dos paletas opuestas', () => {
+  const pals = [
+    { primary: '#C8472F', secondary: '#E2B23C', accent: '#5FB3AE' },
+    { primary: '#1E3A8A', secondary: '#0B1220', accent: '#2B2B2B' },
+  ];
+  for (const pal of pals) {
+    const t = buildTheme(pal);
+    const bg = oklchHex(t['--cc-bg']);
+    for (const n of [0, 1, 2]) {
+      assert.ok(contrastRatio(bg, oklchHex(t['--cc-l' + n + '-ink'])) >= 4.5, 'ink ' + n);
+      assert.ok(contrastRatio(bg, oklchHex(t['--cc-l' + n + '-head'])) >= 3, 'head ' + n);
+    }
+    assert.ok(contrastRatio(bg, t['--cc-text']) >= 7);
+  }
+});
+
+test('fondo forzado a blanco: todo se recalcula y el texto sigue legible', () => {
+  const t = buildTheme({ primary: '#C8472F', secondary: '#E2B23C', accent: '#5FB3AE' }, { bg: '#FFFFFF' });
+  assert.equal(t['--cc-text'], '#141210');
+  assert.ok(contrastRatio('#FFFFFF', t['--cc-text']) >= 4.5);
+  for (const n of [0, 1, 2]) assert.ok(contrastRatio('#FFFFFF', oklchHex(t['--cc-l' + n + '-ink'])) >= 4.5, 'ink ' + n);
+  assert.equal(t['--cc-text-muted'], 'rgba(20, 18, 16, 0.75)');
 });

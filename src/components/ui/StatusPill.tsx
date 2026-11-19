@@ -43,7 +43,7 @@ export const STATUS_TONE: Record<PatternStatus, Tone> = {
 
 export function StatusPill({ status }: { status: PatternStatus }) {
   return (
-    <span className="inline-flex h-6 items-center gap-2 rounded-full border border-line-mid px-[9px] text-xs text-ink">
+    <span className="inline-flex h-6 items-center gap-2 rounded-[4px] bg-surface px-[9px] text-xs text-ink">
       <StatusDot tone={STATUS_TONE[status]} />
       {STATUS_LABEL[status]}
     </span>

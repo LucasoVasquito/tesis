@@ -81,9 +81,9 @@ Cada error dice la causa en lenguaje simple y trae una acción: imagen que no se
 | Esc | soltar la selección |
 | Ctrl+V | pegar imágenes o una URL |
 
-## Identidad visual (dirección 1c «Gráfica»)
+## Identidad visual (dirección «Editorial oscuro»)
 
-Color plano, tipografía dura y capas como señales: vacío `oklch(0.17 0.012 265)`, hueso `#F2EFE8`. La marca se escribe CAMALEON CORPUS, en Archivo 900 condensada; Geist Mono para datos. Respeta `prefers-reduced-motion` (entre capas, un fundido de 150 ms). Referencia: `design_handoff_emergent_rework/Tesis Identidad Visual.dc.html`.
+Fondo casi negro (L 0.14, croma 0.012, con el tono del Núcleo); el color de las referencias es lo único que brilla y la jerarquía se marca con el tamaño de la tipografía, no con cajas. Titulares en **Big Shoulders Display** (700/900, mayúsculas, interlineado 0.84) y todo lo demás en **Manrope**; no hay serif. Radios de 4 px (piezas), 3 px (miniaturas) y 999 px (solo el botón primario). Un solo resplandor por pantalla con el color del Núcleo. Todo son tokens que el motor Camaleón recalcula en vivo (600 ms): el contraste se calcula de verdad (WCAG 4.5:1 para texto, 3:1 para titulares grandes; si un color de capa no llega, el titular pasa a tinta con un subrayado de 4 px del color), el texto secundario nunca baja del 75 % y, si el fondo se fuerza a claro (el PDF sale en papel blanco), tinta, superficies y filetes se recalculan. Las etapas van en la barra superior (escritorio), la línea de estado abajo a la izquierda y el botón primario es una píldora de tinta. Respeta `prefers-reduced-motion` (solo fundidos de 150 ms). Referencia: opción 1b de `Camaleón Direcciones Estéticas.dc.html`.
 
 ## Estructura
 

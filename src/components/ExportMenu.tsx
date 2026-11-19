@@ -74,14 +74,14 @@ export function ExportMenu({ project, notify, mobile }: { project: Project; noti
     }
   };
 
-  const item = 'flex min-h-[44px] w-full flex-col items-start gap-[2px] rounded-[8px] px-3 py-2 text-left hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40';
+  const item = 'flex min-h-[44px] w-full flex-col items-start gap-[2px] rounded-[4px] px-3 py-2 text-left hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-75';
   return (
     <div ref={wrap} className="relative">
       <BarButton active={open} onClick={() => setOpen(o => !o)} ariaLabel="Exportar">
         {busy ? 'Exportando…' : 'Exportar'} <span aria-hidden="true">▴</span>
       </BarButton>
       {open && (
-        <div role="menu" aria-label="Exportar" className={`absolute z-40 flex w-[280px] flex-col gap-1 rounded-[12px] border border-line-mid p-2 shadow-[0_8px_32px_rgba(0,0,0,.5)] ${mobile ? 'bottom-full left-0 mb-3' : 'bottom-full left-0 mb-3'}`} style={{ background: 'var(--cc-surface)' }}>
+        <div role="menu" aria-label="Exportar" className={`absolute z-40 flex w-[280px] flex-col gap-1 rounded-[4px] p-2 ${mobile ? 'bottom-full left-0 mb-3' : 'bottom-full left-0 mb-3'}`} style={{ background: 'var(--cc-surface)' }}>
           <button role="menuitem" type="button" className={item} onClick={png} disabled={!approved.length}>
             <span className="text-[13px] font-semibold">PNG de la pieza aprobada</span>
             <span className="text-[11px] text-ink-2">{approved.length ? '2048 px, lado mayor' : 'Aprobá una variante en Probar'}</span>
@@ -115,14 +115,14 @@ export function ExportMenu({ project, notify, mobile }: { project: Project; noti
               </button>
             ))}
           </div>
-          <pre className="m-0 max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-[8px] border border-line p-3 font-mono text-[12px] leading-[1.5] text-ink-2">{tab === 'json' ? jsonText : promptText}</pre>
+          <pre className="m-0 max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-[4px] p-3 font-mono text-[12px] leading-[1.5] text-ink-2">{tab === 'json' ? jsonText : promptText}</pre>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="rounded-[8px] bg-bone px-4 py-2 text-[13px] font-bold text-void" style={{ minHeight: 44 }} onClick={() => copy(tab === 'json' ? jsonText : promptText)}>
+            <button type="button" className="rounded-[4px] bg-bone px-4 py-2 text-[13px] font-bold text-void" style={{ minHeight: 44 }} onClick={() => copy(tab === 'json' ? jsonText : promptText)}>
               Copiar
             </button>
             <button
               type="button"
-              className="rounded-[8px] border border-line-strong px-4 py-2 text-[13px] font-medium text-ink hover:bg-white/10"
+              className="rounded-[4px] bg-ink/10 px-4 py-2 text-[13px] font-medium text-ink hover:bg-white/10"
               style={{ minHeight: 44 }}
               onClick={() => {
                 const name = tab === 'json' ? downloadJson(project, json!) : downloadPrompt(project, promptText);

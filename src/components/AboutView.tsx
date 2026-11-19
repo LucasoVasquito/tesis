@@ -31,7 +31,7 @@ export function AboutView({ onBack }: { onBack: () => void }) {
             Postura frente al agente
           </h3>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-5">
+            <div className="flex flex-col gap-2 rounded-card bg-surface p-5">
               <span className="font-mono text-xs text-discarded-ink">El agente no</span>
               <ul className="m-0 flex list-disc flex-col gap-1 pl-[18px] text-13 text-ink">
                 <li>reemplaza el criterio del diseñador;</li>
@@ -39,7 +39,7 @@ export function AboutView({ onBack }: { onBack: () => void }) {
                 <li>genera identidades cerradas.</li>
               </ul>
             </div>
-            <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-5">
+            <div className="flex flex-col gap-2 rounded-card bg-surface p-5">
               <span className="font-mono text-xs text-confirmed-ink">El instrumento sí</span>
               <ul className="m-0 flex list-disc flex-col gap-1 pl-[18px] text-13 text-ink">
                 <li>detecta recurrencias observables;</li>

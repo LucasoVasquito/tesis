@@ -1,73 +1,69 @@
 @import "tailwindcss" source(".");
 
 /* ========================================================
-   CAMALEON CORPUS · Identidad visual 1c "Gráfica"
-   Wipeout / The Designers Republic: color plano, tipografía dura,
-   láminas como señales. Sin brillos, desenfoques ni glassmorphism.
-   Referencia: design_handoff_emergent_rework/Tesis Identidad Visual.dc.html
+   CAMALEON CORPUS · Dirección estética «Editorial oscuro»
+   Fondo casi negro; el color de las referencias es lo único que brilla.
+   La jerarquía se marca con el tamaño de la tipografía, no con cajas.
+   Todo son tokens que el motor Camaleón recalcula en vivo (src/utils/derivePalette.ts).
    ======================================================== */
 
 @theme {
-  /* Paleta 1c (valores exactos del documento de identidad) */
-  --color-void: var(--cc-bg);   /* vacío: fondo (lo tiñe el motor Camaleón) */
-  --color-bone: #F2EFE8;                 /* hueso: soporte, texto, barra de atajos */
-  --color-core: oklch(0.7 0.19 45);      /* naranja: lámina 01 · núcleo */
-  --color-accent: oklch(0.62 0.2 262);   /* azul: lámina 03 · acento y revelado */
+  /* Color: nada fijo, todo sale del motor (--cc-*) */
+  --color-void: var(--cc-bg);
+  --color-bone: var(--cc-text);           /* tinta: texto, botón primario, selección */
+  --color-core: var(--cc-l0);             /* Núcleo */
+  --color-accent: var(--cc-l2);           /* Acento */
 
-  /* Láminas: cada una es una señal de color */
-  --color-layer-1: oklch(0.7 0.19 45);
-  --color-layer-2: #F2EFE8;
-  --color-layer-3: oklch(0.62 0.2 262);
+  /* Capas: cada una toma el color dominante de su capa */
+  --color-layer-1: var(--cc-l0);
+  --color-layer-2: var(--cc-l1);
+  --color-layer-3: var(--cc-l2);
 
-  /* Superficies (derivadas del vacío) */
+  /* Superficies (derivadas del fondo) */
   --color-bg: var(--cc-bg);
   --color-surface: var(--cc-surface);
   --color-raised: var(--cc-raised);
   --color-line: var(--cc-line);
-  --color-line-mid: color-mix(in srgb, var(--cc-text) 18%, transparent);
+  --color-line-mid: color-mix(in srgb, var(--cc-text) 12%, transparent);
   --color-line-strong: color-mix(in srgb, var(--cc-text) 32%, transparent);
 
-  /* Tinta */
+  /* Tinta: el texto secundario nunca baja del 75 % */
   --color-ink: var(--cc-text);
   --color-ink-2: color-mix(in srgb, var(--cc-text) 75%, transparent);
-  --color-ink-3: color-mix(in srgb, var(--cc-text) 50%, transparent); /* solo para elementos deshabilitados o decorativos */
+  --color-ink-3: color-mix(in srgb, var(--cc-text) 75%, transparent);
 
-  /* Estados de decisión (heredados; se van con la auditoría por etapas) */
+  /* Estados de decisión */
   --color-pending: oklch(0.8 0.12 85);
   --color-confirmed: oklch(0.78 0.11 155);
   --color-discarded: oklch(0.7 0.16 25);
-  /* Señal: lo que viene de la IA y lo que se puede rastrear → azul acento */
-  --color-signal: oklch(0.62 0.2 262);
+  --color-signal: var(--cc-l2);
   --color-pending-ink: oklch(0.88 0.08 85);
   --color-confirmed-ink: oklch(0.88 0.08 155);
   --color-discarded-ink: oklch(0.85 0.08 25);
-  --color-signal-ink: oklch(0.82 0.1 262);
+  --color-signal-ink: var(--cc-l2-ink);
   --color-error-ink: oklch(0.85 0.08 25);
 
-  /* Tipografía: Archivo (eje de ancho variable) + Geist Mono para datos y evidencia */
-  --font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Archivo", "Arial Narrow", sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  /* El texto de lectura también es Archivo 400 (1c no usa serif) */
-  --font-serif: "Archivo", system-ui, sans-serif;
-  /* Display condensada genérica para los especímenes de reglas tipográficas (no es tipografía de interfaz) */
-  --font-specimen: "Anton", "Arial Narrow", Impact, sans-serif;
+  /* Tipografía: Big Shoulders Display para titulares, Manrope para todo lo demás. Sin serif. */
+  --font-sans: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --font-mono: "Manrope", system-ui, sans-serif; /* los datos van en Manrope con cifras tabulares */
+  --font-serif: "Manrope", system-ui, sans-serif;
 
   --text-13: 13px;
   --text-13--line-height: 1.45;
   --text-15: 15px;
   --text-15--line-height: 1.45;
 
-  /* Forma: cantos vivos */
-  --radius-ctrl: 0px;
-  --radius-card: 0px;
-  --radius-tag: 0px;
+  /* Forma: 4 px piezas grandes, 3 px miniaturas, 999 px solo botón primario y stickers circulares */
+  --radius-ctrl: 4px;
+  --radius-card: 4px;
+  --radius-tag: 3px;
 
-  /* Elevación: sin sombras difusas; los flotantes se separan con un filete */
-  --shadow-float: 0 0 0 1px rgba(242, 239, 232, 0.32);
+  /* Sin sombras de elevación */
+  --shadow-float: none;
   --shadow-card: none;
 
-  /* Movimiento: desaceleración al final, sin rebotes */
+  /* Movimiento */
   --ease-emergent: cubic-bezier(0.2, 0.7, 0.2, 1);
   --ease-camera: cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -98,13 +94,13 @@
   }
 
   ::selection {
-    background: var(--color-core);
+    background: var(--color-ink);
     color: var(--color-void);
   }
 
   /* Foco visible global en todo lo interactivo */
   :focus-visible {
-    outline: 2px solid var(--color-core);
+    outline: 2px solid var(--color-ink);
     outline-offset: 3px;
   }
 
@@ -140,43 +136,40 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(242, 239, 232, 0.16);
-    border-radius: 0;
+    background: color-mix(in srgb, var(--cc-text) 22%, transparent);
+    border-radius: 3px;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(242, 239, 232, 0.3);
+    background-color: color-mix(in srgb, var(--cc-text) 40%, transparent);
   }
 }
 
 /* ---------- Componentes ---------- */
 @layer components {
-  /* Button */
+  /* Botones: el primario es una píldora de tinta; el resto es solo texto */
   .btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    height: 36px;
-    padding: 0 14px;
+    height: 40px;
+    padding: 0 16px;
     border-radius: var(--radius-ctrl);
-    border: 1px solid transparent;
-    font: 800 13px/1 var(--font-sans);
-    font-stretch: 75%;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    border: 0;
+    font: 500 14px/1 var(--font-sans);
     white-space: nowrap;
     user-select: none;
     transition:
-      background-color 120ms var(--ease-emergent),
-      border-color 120ms var(--ease-emergent),
-      color 120ms var(--ease-emergent),
-      opacity 120ms var(--ease-emergent);
+      background-color 160ms var(--ease-emergent),
+      color 160ms var(--ease-emergent),
+      opacity 160ms var(--ease-emergent);
   }
   .btn-sm {
     height: 32px;
     padding: 0 12px;
+    font-size: 13px;
   }
   .btn svg {
     width: 16px;
@@ -186,32 +179,34 @@
   }
 
   .btn-primary {
-    background: var(--color-bone);
+    background: var(--color-ink);
     color: var(--color-void);
+    border-radius: 999px;
+    padding: 0 22px;
+    height: 46px;
+    font-weight: 700;
   }
   .btn-primary:hover:not(:disabled) {
-    background: var(--color-core);
+    background: var(--cc-primary);
+    color: var(--cc-on-primary);
   }
 
-  .btn-secondary {
-    background: transparent;
-    color: var(--color-ink);
-    border: 2px solid var(--color-bone);
-  }
-  .btn-secondary:hover:not(:disabled) {
-    background: var(--color-bone);
-    color: var(--color-void);
-  }
-
+  .btn-secondary,
   .btn-ghost {
     background: transparent;
+    color: var(--color-ink);
+  }
+  .btn-secondary:hover:not(:disabled),
+  .btn-ghost:hover:not(:disabled) {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .btn-ghost {
     color: var(--color-ink-2);
-    padding: 0 12px;
   }
   .btn-ghost:hover:not(:disabled),
   .btn-ghost[aria-expanded="true"],
   .btn-ghost[aria-pressed="true"] {
-    background: rgba(242, 239, 232, 0.08);
     color: var(--color-ink);
   }
 
@@ -219,30 +214,24 @@
   .btn-discard {
     padding: 0 12px;
   }
-  /* Acciones de IA: tinte de señal */
+  /* Acciones de IA */
   .btn-signal {
-    background: var(--color-accent);
-    border-color: var(--color-accent);
-    color: var(--color-bone);
+    background: var(--cc-l2);
+    color: var(--cc-l2-on);
   }
   .btn-signal:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--color-accent) 85%, white);
+    opacity: 0.88;
   }
   .btn-confirm {
-    background: color-mix(in oklab, var(--color-confirmed) 8%, transparent);
-    border-color: color-mix(in oklab, var(--color-confirmed) 35%, transparent);
     color: var(--color-confirmed-ink);
   }
-  .btn-confirm:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--color-confirmed) 14%, transparent);
+  .btn-confirm:hover:not(:disabled),
+  .btn-discard:hover:not(:disabled) {
+    text-decoration: underline;
+    text-underline-offset: 4px;
   }
   .btn-discard {
-    background: color-mix(in oklab, var(--color-discarded) 8%, transparent);
-    border-color: color-mix(in oklab, var(--color-discarded) 35%, transparent);
     color: var(--color-discarded-ink);
-  }
-  .btn-discard:hover:not(:disabled) {
-    background: color-mix(in oklab, var(--color-discarded) 14%, transparent);
   }
 
   /* Solo ícono: 36×36, siempre con aria-label */
@@ -251,23 +240,18 @@
     padding: 0;
     background: transparent;
     color: var(--color-ink-2);
-    border-color: var(--color-line);
   }
   .btn-icon:hover:not(:disabled) {
     color: var(--color-ink);
-    border-color: var(--color-line-strong);
+    background: color-mix(in srgb, var(--cc-text) 10%, transparent);
   }
   .btn-icon.btn-sm {
     width: 32px;
   }
-  .btn-icon-bare {
-    border-color: transparent;
-  }
 
-  /* Deshabilitado (no aplica mientras carga) */
+  /* Deshabilitado */
   .btn:disabled:not([data-loading]) {
     background: transparent;
-    border-color: var(--color-line);
     color: var(--color-ink-3);
   }
   .btn[data-loading] {
@@ -277,14 +261,10 @@
 
   .btn kbd,
   .kbd {
-    font: 500 12px/18px var(--font-mono);
+    font: 500 12px/18px var(--font-sans);
     padding: 0 5px;
     border-radius: var(--radius-tag);
-    border: 1px solid currentColor;
-    border-color: color-mix(in oklab, currentColor 40%, transparent);
-  }
-  .btn-ghost kbd {
-    border-color: var(--color-line-strong);
+    background: color-mix(in srgb, currentColor 14%, transparent);
   }
 
   .spinner {
@@ -297,20 +277,19 @@
     flex-shrink: 0;
   }
 
-  /* Input */
+  /* Input: superficie sin borde; el foco se marca con un filete inferior */
   .field-input {
     width: 100%;
     height: 40px;
     padding: 0 12px;
     border-radius: var(--radius-ctrl);
-    border: 1px solid var(--color-line-mid);
-    background: var(--color-bg);
+    border: 0;
+    box-shadow: inset 0 -1px 0 var(--color-line-strong);
+    background: var(--color-surface);
     color: var(--color-ink);
     font: 400 14px/1.4 var(--font-sans);
     outline: none;
-    transition:
-      border-color 120ms var(--ease-emergent),
-      box-shadow 120ms var(--ease-emergent);
+    transition: box-shadow 160ms var(--ease-emergent);
   }
   textarea.field-input {
     height: auto;
@@ -318,30 +297,25 @@
     resize: vertical;
     line-height: 1.5;
   }
-  /* Placeholder: más tenue que el valor pero con contraste AA (5.6:1 sobre --bg) */
   .field-input::placeholder {
-    color: #8a8a93;
+    color: var(--color-ink-2);
   }
   .field-input:hover {
-    border-color: var(--color-line-strong);
+    box-shadow: inset 0 -1px 0 var(--color-ink-2);
   }
   .field-input:focus,
   .field-input:focus-visible {
-    border-color: var(--color-bone);
-    box-shadow: 0 0 0 1px var(--color-bone);
+    box-shadow: inset 0 -2px 0 var(--cc-primary);
     outline: none;
   }
   .field-input[aria-invalid="true"] {
-    border-color: color-mix(in oklab, var(--color-discarded) 60%, transparent);
-  }
-  .field-input[aria-invalid="true"]:focus {
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-discarded) 14%, transparent);
+    box-shadow: inset 0 -2px 0 var(--cc-error);
   }
 
   /* Lienzo: retícula de puntos */
   .dot-grid {
     background-color: var(--color-bg);
-    background-image: radial-gradient(rgba(242, 239, 232, 0.07) 1px, transparent 1px);
+    background-image: radial-gradient(var(--cc-line) 1px, transparent 1px);
     background-size: 24px 24px;
   }
 
@@ -356,67 +330,109 @@
   }
 }
 
-/* ---------- Identidad 1c: tipografía y señales ---------- */
+/* ---------- Editorial oscuro: tipografía y señales ---------- */
 @layer components {
-  /* Nombres y titulares: Archivo 900, 62%, mayúsculas */
+  /* Titulares: Big Shoulders Display, mayúsculas, interletrado −0.01em, interlineado 0.84 */
   .type-name {
     font-family: var(--font-display);
     font-weight: 900;
-    font-stretch: 62%;
+    letter-spacing: -0.01em;
     text-transform: uppercase;
-    line-height: 0.9;
+    line-height: 0.84;
   }
-  /* Rótulos: Archivo 800, 75%, .04em */
-  .type-label {
+  /* Título de etapa (96 px) */
+  .type-stage {
     font-family: var(--font-display);
-    font-weight: 800;
-    font-stretch: 75%;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+    text-transform: uppercase;
+    line-height: 0.84;
+    font-size: clamp(56px, 7vw, 96px);
+  }
+  /* Rótulos pequeños */
+  .type-label {
+    font-family: var(--font-sans);
+    font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
-  /* Datos y evidencia */
+  /* Datos: Manrope 500, cifras tabulares */
   .type-data {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
 
-  /* Rótulo de lámina: bloque de color plano ("01 NÚCLEO") */
+  /* Rótulo de capa: bloque de color lleno ("01 NÚCLEO") */
   .layer-tag {
     display: inline-block;
     padding: 3px 8px;
-    font: 800 12px/1.2 var(--font-display);
-    font-stretch: 75%;
+    border-radius: var(--radius-tag);
+    font: 700 12px/1.2 var(--font-sans);
     letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
-    background: var(--layer-color, var(--color-bone));
-    color: var(--layer-ink, var(--color-void));
+    background: var(--layer-color, var(--color-ink));
+    color: var(--layer-on, var(--color-void));
   }
-  /* Color camaleón: los colores de capa salen de la paleta del proyecto (--capa-1..3, ver src/utils/camaleon.ts) */
+  /* Color camaleón: los colores de capa salen de la paleta del proyecto */
   .layer-1 {
     --layer-color: var(--capa-1);
-    --layer-ink: var(--color-void);
+    --layer-on: var(--cc-l0-on);
   }
   .layer-2 {
     --layer-color: var(--capa-2);
-    --layer-ink: var(--color-void);
+    --layer-on: var(--cc-l1-on);
   }
   .layer-3 {
     --layer-color: var(--capa-3);
-    --layer-ink: var(--color-void);
+    --layer-on: var(--cc-l2-on);
   }
-  /* Franja horizontal del color de la lámina (el núcleo lleva más masa) */
+  /* Franja del color de la capa (el Núcleo lleva más masa) */
   .layer-rule {
     height: 2px;
-    background: var(--layer-color, var(--color-bone));
+    background: var(--layer-color, var(--color-ink));
   }
   .layer-1 .layer-rule,
   .layer-rule.layer-1 {
     height: 4px;
   }
 
-  /* Barra de atajos: bloque hueso fijo abajo, texto vacío, Archivo 800 */
+  /* Titular de capa: color con contraste de 3:1; si no llega, va en tinta con subrayado de 4 px del color */
+  .layer-headline {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    line-height: 0.84;
+    color: var(--layer-head, var(--color-ink));
+    text-decoration: underline 4px var(--layer-under, transparent);
+    text-underline-offset: 6px;
+    text-decoration-skip-ink: none;
+    transition: color 200ms ease-out;
+  }
+  .layer-1 .layer-headline,
+  .layer-headline.layer-1 { font-weight: 900; font-size: clamp(72px, 9vw, 132px); }
+  .layer-2 .layer-headline,
+  .layer-headline.layer-2 { font-weight: 700; font-size: 64px; }
+  .layer-3 .layer-headline,
+  .layer-headline.layer-3 { font-weight: 700; font-size: 40px; }
+
+  /* Un solo brillo por pantalla: resplandor difuso con el color del Núcleo en una esquina */
+  .glow {
+    position: absolute;
+    pointer-events: none;
+    width: min(80vmax, 1100px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, var(--cc-l0) 33%, transparent);
+    opacity: 0.2;
+    transition: opacity 1.2s ease-out;
+  }
+  .glow[data-neutral="true"] {
+    opacity: 0;
+  }
+
+  /* Barra de atajos (heredada) */
   .shortcut-bar {
     display: flex;
     align-items: center;
@@ -425,11 +441,10 @@
     padding: 0 20px;
     overflow-x: auto;
     scrollbar-width: none;
-    background: var(--color-bone);
+    background: var(--color-ink);
     color: var(--color-void);
-    font: 800 12px/1 var(--font-display);
-    font-stretch: 75%;
-    letter-spacing: 0.05em;
+    font: 700 12px/1 var(--font-sans);
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     white-space: nowrap;
   }
@@ -515,56 +530,69 @@
   }
 }
 
-@keyframes em-stage {
+/* Cambio de etapa: el titular entra desde abajo 24 px con fade en 400 ms; el resto, fade de 250 ms */
+@keyframes em-headline {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(24px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-
-/* Cambio de etapa: 240ms, solo opacidad y transform */
 .stage-enter {
-  animation: em-stage 240ms var(--ease-emergent);
+  animation: em-fade-in 250ms ease-out both;
+}
+.stage-enter .type-stage,
+.stage-enter .layer-headline,
+.stage-enter [data-headline] {
+  animation: em-headline 400ms var(--ease-camera) both;
 }
 
 /* ---------- Movimiento reducido: todo a 0ms ---------- */
 /* ---------- Motor Camaleón: la interfaz toma los colores del proyecto (src/utils/derivePalette.ts) ----------
    Las variables --cc-* se registran como <color> para que el cambio se anime (.4 s). Con prefers-reduced-motion es instantáneo. */
-@property --cc-bg { syntax: '<color>'; inherits: true; initial-value: oklch(0.165 0.012 40); }
-@property --cc-surface { syntax: '<color>'; inherits: true; initial-value: oklch(0.225 0.012 40); }
-@property --cc-raised { syntax: '<color>'; inherits: true; initial-value: oklch(0.265 0.012 40); }
+@property --cc-bg { syntax: '<color>'; inherits: true; initial-value: oklch(0.14 0.012 33); }
+@property --cc-surface { syntax: '<color>'; inherits: true; initial-value: oklch(0.2 0.012 33); }
+@property --cc-raised { syntax: '<color>'; inherits: true; initial-value: oklch(0.24 0.012 33); }
 @property --cc-l0 { syntax: '<color>'; inherits: true; initial-value: oklch(0.68 0.14 33); }
 @property --cc-l1 { syntax: '<color>'; inherits: true; initial-value: oklch(0.80 0.12 86); }
 @property --cc-l2 { syntax: '<color>'; inherits: true; initial-value: oklch(0.74 0.09 190); }
 @property --cc-primary { syntax: '<color>'; inherits: true; initial-value: oklch(0.68 0.14 33); }
 @property --cc-on-primary { syntax: '<color>'; inherits: true; initial-value: #141210; }
-@property --cc-text { syntax: '<color>'; inherits: true; initial-value: #F2EFE8; }
-@property --cc-text-muted { syntax: '<color>'; inherits: true; initial-value: rgba(242, 239, 232, 0.65); }
-@property --cc-line { syntax: '<color>'; inherits: true; initial-value: rgba(242, 239, 232, 0.1); }
-@property --cc-line-hover { syntax: '<color>'; inherits: true; initial-value: rgba(242, 239, 232, 0.14); }
+@property --cc-text { syntax: '<color>'; inherits: true; initial-value: #F4F1EC; }
+@property --cc-text-muted { syntax: '<color>'; inherits: true; initial-value: rgba(244, 241, 236, 0.75); }
+@property --cc-line { syntax: '<color>'; inherits: true; initial-value: rgba(244, 241, 236, 0.12); }
+@property --cc-line-hover { syntax: '<color>'; inherits: true; initial-value: rgba(244, 241, 236, 0.2); }
 :root {
-  --cc-bg: oklch(0.165 0.012 40);
-  --cc-surface: oklch(0.225 0.012 40);
-  --cc-raised: oklch(0.265 0.012 40);
+  --cc-bg: oklch(0.14 0.012 33);
+  --cc-surface: oklch(0.2 0.012 33);
+  --cc-raised: oklch(0.24 0.012 33);
   --cc-l0: oklch(0.68 0.14 33);
   --cc-l1: oklch(0.80 0.12 86);
   --cc-l2: oklch(0.74 0.09 190);
   --cc-primary: oklch(0.68 0.14 33);
   --cc-on-primary: #141210;
-  --cc-text: #F2EFE8;
-  --cc-text-muted: rgba(242, 239, 232, 0.65);
-  --cc-line: rgba(242, 239, 232, 0.1);
-  --cc-line-hover: rgba(242, 239, 232, 0.14);
+  --cc-text: #F4F1EC;
+  --cc-text-muted: rgba(244, 241, 236, 0.75);
+  --cc-line: rgba(244, 241, 236, 0.12);
+  --cc-line-hover: rgba(244, 241, 236, 0.2);
   --cc-l0-edge: transparent;
   --cc-l1-edge: transparent;
   --cc-l2-edge: transparent;
   --cc-l0-ink: var(--cc-l0);
   --cc-l1-ink: var(--cc-l1);
   --cc-l2-ink: var(--cc-l2);
+  --cc-l0-head: var(--cc-l0);
+  --cc-l1-head: var(--cc-l1);
+  --cc-l2-head: var(--cc-l2);
+  --cc-l0-under: transparent;
+  --cc-l1-under: transparent;
+  --cc-l2-under: transparent;
+  --cc-l0-on: #141210;
+  --cc-l1-on: #141210;
+  --cc-l2-on: #141210;
   /* Estados: no se tiñen */
   --cc-ok: oklch(0.74 0.09 150);
   --cc-warn: oklch(0.80 0.12 86);
@@ -573,12 +601,12 @@
   --capa-1: var(--cc-l0);
   --capa-2: var(--cc-l1);
   --capa-3: var(--cc-l2);
-  transition: --cc-bg 0.4s, --cc-surface 0.4s, --cc-raised 0.4s, --cc-l0 0.4s, --cc-l1 0.4s, --cc-l2 0.4s, --cc-primary 0.4s, --cc-on-primary 0.4s, --cc-text 0.4s, --cc-text-muted 0.4s, --cc-line 0.4s, --cc-line-hover 0.4s;
+  transition: --cc-bg 0.6s ease-out, --cc-surface 0.6s ease-out, --cc-raised 0.6s ease-out, --cc-l0 0.6s ease-out, --cc-l1 0.6s ease-out, --cc-l2 0.6s ease-out, --cc-primary 0.6s ease-out, --cc-on-primary 0.6s ease-out, --cc-text 0.6s ease-out, --cc-text-muted 0.6s ease-out, --cc-line 0.6s ease-out, --cc-line-hover 0.6s ease-out;
 }
 /* Una capa del color del fondo no desaparece: lleva un contorno de 1px */
-.layer-1 { --layer-edge: var(--cc-l0-edge); --layer-text: var(--cc-l0-ink); }
-.layer-2 { --layer-edge: var(--cc-l1-edge); --layer-text: var(--cc-l1-ink); }
-.layer-3 { --layer-edge: var(--cc-l2-edge); --layer-text: var(--cc-l2-ink); }
+.layer-1 { --layer-edge: var(--cc-l0-edge); --layer-text: var(--cc-l0-ink); --layer-head: var(--cc-l0-head); --layer-under: var(--cc-l0-under); }
+.layer-2 { --layer-edge: var(--cc-l1-edge); --layer-text: var(--cc-l1-ink); --layer-head: var(--cc-l1-head); --layer-under: var(--cc-l1-under); }
+.layer-3 { --layer-edge: var(--cc-l2-edge); --layer-text: var(--cc-l2-ink); --layer-head: var(--cc-l2-head); --layer-under: var(--cc-l2-under); }
 .layer-dot { box-shadow: 0 0 0 1px var(--layer-edge, transparent); }
 
 /* ---------- Escena de capas (01 MOODBOARD) ---------- */
@@ -605,6 +633,14 @@
     animation-duration: 0ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
+  }
+  .stage-enter,
+  .stage-enter .type-stage,
+  .stage-enter .layer-headline,
+  .stage-enter [data-headline] {
+    animation-name: em-fade-in !important;
+    animation-duration: 150ms !important;
+    animation-timing-function: linear !important;
   }
 }
 

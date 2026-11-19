@@ -23,43 +23,6 @@ interface Props {
 
 const LAYERS: Layer[] = [1, 2, 3];
 const KEY_OF: Record<Layer, string> = { 1: '1', 2: '2', 3: '3' };
-const layerColor = (l: Layer) => `var(--capa-${l})`;
-
-/** Mini pila 3D isométrica: las tres capas. La de destino se ilumina y recibe la miniatura. */
-function MiniStack({ piece, project, lit, strong }: { piece: Pattern; project: Project; lit: Layer; strong: boolean }) {
-  const ref = project.references.find(r => r.id === (piece.cover?.refId ?? piece.evidence[0]));
-  const crop = piece.cover && piece.cover.refId === ref?.id ? piece.cover.crop : undefined;
-  return (
-    <div aria-hidden="true" className="relative mx-auto h-[170px] w-[260px]" style={{ perspective: 900 }}>
-      <div className="absolute left-1/2 top-[20px] h-[130px] w-[200px]" style={{ transformStyle: 'preserve-3d', transform: 'translateX(-50%) rotateX(58deg) rotateZ(-36deg)' }}>
-        {[3, 2, 1].map(l => {
-          const layer = l as Layer;
-          const on = layer === lit;
-          return (
-            <div
-              key={l}
-              className="absolute inset-0 overflow-hidden"
-              style={{
-                transform: `translateZ(${(2 - l) * 34}px)`,
-                border: `${on ? 2 : 1}px solid ${on ? layerColor(layer) : 'color-mix(in srgb, var(--cc-text) 22%, transparent)'}`,
-                background: on ? `color-mix(in oklab, ${layerColor(layer)} ${strong ? 26 : 14}%, var(--cc-bg))` : 'color-mix(in srgb, var(--cc-bg) 70%, transparent)',
-                boxShadow: on ? `0 0 28px color-mix(in oklab, ${layerColor(layer)} 45%, transparent)` : undefined,
-                transition: 'background 200ms, border-color 200ms, box-shadow 200ms',
-              }}
-            >
-              <span className="absolute left-2 top-1 font-mono text-[10px] leading-none" style={{ color: on ? `var(--cc-l${layer - 1}-ink)` : 'color-mix(in srgb, var(--cc-text) 45%, transparent)' }}>
-                {SHEET_NAME[layer].toUpperCase()}
-              </span>
-              {on && ref && (
-                <Crop image={ref.image} crop={crop} fit="cover" alt="" className="absolute inset-[22%] size-auto" style={{ opacity: strong ? 1 : 0.55 }} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props) {
   const progress = reviewProgress(project);
@@ -126,26 +89,29 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
   if (!current) {
     const out = outPieces(project);
     return (
-      <div className="relative h-full overflow-y-auto">
-        <div className="mx-auto flex max-w-[640px] flex-col gap-6 px-8 pb-40 pt-12">
-          <span className="font-mono text-[12px] tracking-[0.08em] text-ink-2">✓ ETAPA COMPLETA</span>
-          <h1 className="m-0 text-[32px] font-bold leading-[1.1]">Revisaste todas las sugerencias</h1>
-          <p className="m-0 font-mono text-[13px] text-ink-2">{summary(project, 'revisar')}</p>
+      <div className="stage-enter relative h-full overflow-y-auto">
+        <div className="mx-auto flex max-w-[720px] flex-col gap-6 px-6 pb-40 pt-12 lg:px-10">
+          <span className="type-label text-[12px] text-ink-2">✓ Etapa completa</span>
+          <h1 data-headline className="type-stage m-0">
+            Revisión completa
+          </h1>
+          <p className="m-0 text-[22px] font-medium leading-snug">Revisaste todas las sugerencias.</p>
+          <p className="type-data m-0 text-[14px] text-ink-2">{summary(project, 'revisar')}</p>
           <section aria-label="Descartadas" className="flex flex-col gap-3">
-            <h2 className="m-0 font-mono text-[11px] font-medium tracking-[0.08em] text-ink-2">DESCARTADAS</h2>
+            <h2 className="type-label m-0 text-[11px] text-ink-2">Descartadas</h2>
             {out.length === 0 && <p className="m-0 text-[14px] text-ink-2">No descartaste ninguna.</p>}
-            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            <ul className="m-0 flex list-none flex-col p-0">
               {out.map(x => (
-                <li key={x.id} className="flex items-center gap-3 rounded-[10px] border border-line p-2">
-                  <PieceThumb piece={x} project={project} className="aspect-[4/3] w-[72px] shrink-0" word={false} />
+                <li key={x.id} className="flex items-center gap-3 border-t border-line py-3">
+                  <PieceThumb piece={x} project={project} className="aspect-[4/3] w-[72px] shrink-0 rounded-[3px]" word={false} />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-[15px] font-semibold">{x.name}</span>
-                    <span className="font-mono text-[11px] text-ink-2">volvería a {SHEET_NAME[proposedLayer(x, project)]}</span>
+                    <span className="type-data text-[12px] text-ink-2">volvería a {SHEET_NAME[proposedLayer(x, project)]}</span>
                   </span>
                   <button
                     type="button"
                     onClick={() => apply(p => recover(p, x.id), `Recuperaste «${x.name}» en ${SHEET_NAME[proposedLayer(x, project)]}.`)}
-                    className="rounded-[8px] border border-line-strong px-3 py-[6px] text-[13px] font-medium text-ink hover:bg-white/10"
+                    className="px-3 py-[6px] text-[13px] font-bold text-ink underline underline-offset-4 hover:no-underline"
                     style={{ minHeight: mobile ? 44 : undefined }}
                   >
                     Recuperar
@@ -167,17 +133,24 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
   const idx = Math.min(progress.total, progress.reviewed + 1);
   const fact = `Aparece en ${evidence}.`;
 
+  const HEAD_SIZE: Record<Layer, number> = { 1: 40, 2: 32, 3: 28 };
+
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto grid max-w-[980px] grid-cols-1 gap-x-12 gap-y-8 px-4 py-6 pb-32 md:grid-cols-[minmax(0,1fr)_minmax(0,340px)] md:px-8 md:py-8">
-        {/* Izquierda: la pieza y la decisión */}
+    <div className="stage-enter h-full overflow-y-auto">
+      <div className="mx-auto grid max-w-[1240px] grid-cols-1 gap-x-12 gap-y-8 px-4 py-6 pb-32 md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:px-10 md:py-8">
+        {/* Izquierda: la pieza en grande, su nombre y dónde aparece */}
         <section aria-label="Sugerencia" className="flex min-w-0 flex-col gap-4">
-          <span className="font-mono text-[12px] tracking-[0.06em] text-ink-2">
-            SUGERENCIA · {idx} DE {progress.total}
+          <span className="type-data text-[13px] text-ink-2">
+            Sugerencia {idx} de {progress.total}
           </span>
-          <PieceThumb piece={current} project={project} className={`aspect-[4/3] max-w-full self-start bg-raised ${mobile ? 'w-full' : ''}`} style={mobile ? undefined : { height: 'clamp(80px, calc(100vh - 470px), 240px)' }} />
+          <PieceThumb
+            piece={current}
+            project={project}
+            className={`aspect-[4/3] w-full rounded-[4px] bg-raised ${mobile ? '' : 'max-h-[calc(100vh-380px)]'}`}
+            style={suggested === 1 ? { boxShadow: '0 30px 80px color-mix(in srgb, var(--cc-l0) 33%, transparent)' } : undefined}
+          />
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] tracking-[0.06em] text-ink-3">NOMBRE · PODÉS EDITARLO</span>
+            <span className="type-label text-[11px] text-ink-2">Nombre · podés editarlo</span>
             <textarea
               key={current.id}
               ref={nameRef}
@@ -191,19 +164,33 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
                 }
               }}
               spellCheck={false}
-              className="w-full resize-none border-b-2 border-transparent bg-transparent py-1 text-[26px] font-bold leading-[1.1] text-ink outline-none hover:border-line-strong focus:border-bone"
+              className="w-full resize-none rounded-[4px] bg-transparent px-0 py-1 text-[28px] font-bold leading-[1.1] text-ink outline-none hover:bg-ink/5 focus:bg-ink/5"
             />
           </label>
-          <span className="font-mono text-[12px] tracking-[0.06em] text-ink-2">EN {evidenceText(current, project).toUpperCase()}</span>
+          <span className="type-data text-[13px] text-ink-2">En {evidenceText(current, project)}</span>
+        </section>
 
-          <div role="group" aria-label="¿En qué capa entra?" className="flex flex-col gap-3 pt-2">
-            <div className="flex flex-col gap-1">
-              <h2 className="m-0 text-[15px] font-bold">¿En qué capa entra?</h2>
-              <p className="m-0 text-[13px] leading-snug text-ink-2">
-                Tocá una capa y la pieza queda ahí. Sugerida: <b className="text-ink">{SHEET_NAME[suggested]}</b>. {fact}
-              </p>
+        {/* Derecha: el titular de la capa propuesta, la razón y las opciones */}
+        <section aria-label="Dónde entraría" className={`layer-${lit} flex min-w-0 flex-col gap-5`}>
+          <span className="type-label text-[11px] text-ink-2">{hover && hover !== suggested ? 'Si la mandás a' : 'Entraría en'}</span>
+          <h1 key={lit} data-headline className="layer-headline m-0" style={{ fontSize: lit === 1 ? 'clamp(64px, 11vh, 132px)' : lit === 2 ? 'clamp(48px, 8vh, 64px)' : 40 }}>
+            {SHEET_NAME[lit]}
+          </h1>
+          <p className="m-0 line-clamp-3 text-[22px] font-medium leading-snug">
+            {fact}
+            {current.description?.trim() ? ` ${current.description.trim()}` : ''}
+          </p>
+          {evidenceRefs.length > 0 && (
+            <div aria-label="Evidencia" className="grid grid-cols-6 gap-2">
+              {evidenceRefs.map(r => (
+                <Crop key={r.id} image={r.image} fit="cover" alt={r.name} className="aspect-square w-full rounded-[3px] bg-raised" />
+              ))}
             </div>
-            <div className={mobile ? 'flex flex-col gap-2' : 'grid grid-cols-3 gap-2'}>
+          )}
+
+          <div role="group" aria-label="¿En qué capa entra?" className="flex flex-col gap-2 pt-2">
+            <h2 className="type-label m-0 text-[11px] text-ink-2">¿En qué capa entra? Tocá una y la pieza queda ahí</h2>
+            <div className="flex flex-col">
               {LAYERS.map(l => {
                 const isSuggested = l === suggested;
                 return (
@@ -215,71 +202,39 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
                     onMouseLeave={() => setHover(null)}
                     onFocus={() => setHover(l)}
                     onBlur={() => setHover(null)}
-                    className="flex min-h-[92px] flex-col items-start gap-1 rounded-[12px] border p-3 text-left transition-colors duration-120 hover:brightness-110"
-                    style={{
-                      borderColor: isSuggested ? layerColor(l) : 'var(--color-line-strong)',
-                      borderWidth: isSuggested ? 2 : 1,
-                      background: isSuggested ? `color-mix(in oklab, ${layerColor(l)} 14%, transparent)` : 'transparent',
-                      boxShadow: `0 0 0 1px var(--cc-l${l - 1}-edge)`,
-                    }}
+                    className={`layer-${l} flex items-center gap-4 border-t border-line px-1 py-3 text-left transition-colors duration-150 hover:bg-ink/5`}
+                    style={{ minHeight: 64 }}
                   >
-                    <span className="flex w-full items-center gap-2 text-[14px] font-bold">
-                      <span aria-hidden="true" className="layer-dot size-2 shrink-0 rounded-full" style={{ background: layerColor(l) }} />
-                      {l} · {SHEET_NAME[l]}
-                      <kbd className="ml-auto font-mono text-[11px] font-medium opacity-60">{isSuggested ? '⏎' : KEY_OF[l]}</kbd>
+                    <span className="layer-headline w-[132px] shrink-0 md:w-[150px]" style={{ fontSize: HEAD_SIZE[l], fontWeight: l === 1 ? 900 : 700 }}>
+                      {SHEET_NAME[l]}
                     </span>
-                    <span className="text-[12px] leading-snug text-ink-2">{LAYER_QUESTION[l]}</span>
+                    <span className="min-w-0 flex-1 text-[13px] leading-snug text-ink-2">{LAYER_QUESTION[l]}</span>
                     <span
-                      className="mt-auto rounded-[6px] px-2 py-[2px] text-[11px] font-bold"
-                      style={isSuggested ? { background: layerColor(l), color: `var(--cc-l${l - 1}-on)` } : { color: 'var(--cc-text-muted)' }}
+                      className={`shrink-0 whitespace-nowrap text-[13px] font-bold ${isSuggested ? 'rounded-full bg-bone px-4 py-2 text-void' : 'text-ink underline underline-offset-4'}`}
                     >
-                      {isSuggested ? `Aceptar en ${SHEET_NAME[l]}` : `Mandar a ${SHEET_NAME[l]}`}
+                      {isSuggested ? `Aceptar en ${SHEET_NAME[l]} ⏎` : `Mandar a ${SHEET_NAME[l]} · ${KEY_OF[l]}`}
                     </span>
                   </button>
                 );
               })}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={discard} className="inline-flex items-center gap-2 rounded-[10px] border border-line-strong px-4 text-[13px] font-medium text-ink hover:bg-white/10" style={{ minHeight: 44 }}>
+            <div className="flex flex-wrap items-center gap-4 border-t border-line pt-3">
+              <button type="button" onClick={discard} className="inline-flex items-center gap-2 px-1 text-[13px] font-medium text-ink underline-offset-4 hover:underline" style={{ minHeight: 44 }}>
                 Descartar
-                <kbd className="font-mono text-[11px] opacity-50">X</kbd>
+                <kbd className="text-[11px] opacity-75">X</kbd>
               </button>
               <button
                 type="button"
                 onClick={skip}
                 disabled={!canSkip}
                 title={canSkip ? 'Pasa al final de la fila, sin decidir' : 'Es la última: decidila o descartala'}
-                className="inline-flex items-center gap-2 rounded-[10px] border border-transparent px-4 text-[13px] font-medium text-ink-2 hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center gap-2 px-1 text-[13px] font-medium text-ink-2 underline-offset-4 hover:text-ink hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:hover:text-ink-2"
                 style={{ minHeight: 44 }}
               >
                 Saltar por ahora
-                <kbd className="font-mono text-[11px] opacity-50">S</kbd>
+                <kbd className="text-[11px] opacity-75">S</kbd>
               </button>
             </div>
-          </div>
-        </section>
-
-        {/* Derecha: dónde entraría y la evidencia */}
-        <section aria-label="Dónde entraría" className="flex min-w-0 flex-col gap-4">
-          {!mobile && <MiniStack piece={current} project={project} lit={lit} strong={hover !== null} />}
-          <p className="m-0 text-center font-mono text-[12px] tracking-[0.08em]" style={{ color: `var(--cc-l${lit - 1}-ink)` }}>
-            ENTRARÍA EN {SHEET_NAME[lit].toUpperCase()}
-          </p>
-          <div className="flex flex-col gap-3">
-            <p className="m-0 line-clamp-5 text-[13px] leading-[1.5] text-ink-2">
-              {fact}
-              {current.description?.trim() ? ` ${current.description.trim()}` : ''}
-            </p>
-            {evidenceRefs.length > 0 && (
-              <div>
-                <span className="font-mono text-[10px] tracking-[0.06em] text-ink-3">DÓNDE APARECE</span>
-                <div className="mt-2 grid grid-cols-3 gap-2" aria-label="Evidencia">
-                  {evidenceRefs.map(r => (
-                    <Crop key={r.id} image={r.image} fit="cover" alt={r.name} className="aspect-[4/3] w-full bg-raised" />
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </section>
       </div>

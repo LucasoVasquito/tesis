@@ -26,7 +26,7 @@ export function Modal({ open, title, meta, onClose, width = 520, children }: Mod
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-card border border-line-mid bg-surface shadow-float motion-safe:animate-[em-rise_180ms_var(--ease-emergent)] sm:rounded-card"
+        className="relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded-t-card bg-surface shadow-float motion-safe:animate-[em-rise_180ms_var(--ease-emergent)] sm:rounded-card"
         style={{ maxWidth: width }}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-3">

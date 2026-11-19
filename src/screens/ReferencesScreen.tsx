@@ -73,7 +73,7 @@ const hex2 = (n: number) => n.toString(16).padStart(2, '0');
 const textOnHex = (hex: string) => {
   const n = parseInt(hex.slice(1), 16);
   const lum = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
-  return lum < 0.55 ? '#F2EFE8' : '#0A0A0A';
+  return lum < 0.55 ? '#F4F1EC' : '#141210';
 };
 
 export function ReferencesScreen(props: Props) {
@@ -599,7 +599,7 @@ export function ReferencesScreen(props: Props) {
   const sorted = [...refs].filter(r => r.board || (live && live.id === r.id)).sort((a, b) => (front[a.id] ?? 0) - (front[b.id] ?? 0));
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className="stage-enter relative h-full w-full overflow-hidden">
       <div
         ref={wrapRef}
         data-canvas
@@ -661,7 +661,7 @@ export function ReferencesScreen(props: Props) {
                   height: b.h,
                   zIndex: front[r.id] ?? 0,
                   cursor: ey ? 'crosshair' : 'move',
-                  outline: bad ? `${3 / cam.z}px solid var(--cc-error)` : isSel ? `${2 / cam.z}px solid #F2EFE8` : undefined,
+                  outline: bad ? `${3 / cam.z}px solid var(--cc-error)` : isSel ? `${2 / cam.z}px solid var(--cc-text)` : undefined,
                 }}
               >
                 <img
@@ -709,19 +709,19 @@ export function ReferencesScreen(props: Props) {
 
         {/* Lupa del cuentagotas: se mueve con el cursor y muestra los píxeles ampliados */}
         <div ref={loupeRef} aria-hidden="true" className="pointer-events-none absolute left-0 top-0 z-40 hidden flex-col items-center gap-1" style={{ width: LOUPE_PX }}>
-          <div className="relative overflow-hidden rounded-full" style={{ width: LOUPE_PX, height: LOUPE_PX, boxShadow: '0 0 0 2px #F2EFE8, 0 4px 18px rgba(0,0,0,.6)', background: '#222' }}>
+          <div className="relative overflow-hidden rounded-full" style={{ width: LOUPE_PX, height: LOUPE_PX, boxShadow: '0 0 0 2px var(--cc-text), 0 4px 18px rgba(0,0,0,.6)', background: '#222' }}>
             <canvas ref={loupeCanvas} width={LOUPE_PX} height={LOUPE_PX} className="size-full" />
             <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ width: LOUPE_PX / LOUPE_N, height: LOUPE_PX / LOUPE_N, boxShadow: '0 0 0 1.5px #0A0A0A, inset 0 0 0 1.5px #F2EFE8' }} />
           </div>
-          <span ref={loupeLabel} className="rounded-[6px] px-2 py-[2px] font-mono text-[12px] font-bold" style={{ boxShadow: '0 0 0 1px rgba(255,255,255,.4)' }} />
+          <span ref={loupeLabel} className="rounded-[3px] px-2 py-[2px] font-mono text-[12px] font-bold" style={{ boxShadow: '0 0 0 1px rgba(255,255,255,.4)' }} />
         </div>
       </div>
 
       {/* Aviso del modo cuentagotas */}
       {ey && (
-        <div role="status" className="absolute left-4 top-4 z-30 flex w-[min(380px,calc(100%-32px))] flex-col gap-2 rounded-[12px] border border-line-mid p-3" style={{ background: 'var(--cc-surface)' }} onPointerDown={e => e.stopPropagation()}>
+        <div role="status" className="absolute left-4 top-4 z-30 flex w-[min(380px,calc(100%-32px))] flex-col gap-2 rounded-[4px] p-3 lg:left-10 lg:top-6" style={{ background: 'var(--cc-surface)' }} onPointerDown={e => e.stopPropagation()}>
           <div className="flex items-center gap-2">
-            <span aria-hidden="true" className="size-6 shrink-0 rounded-[6px]" style={{ background: ey.current, boxShadow: '0 0 0 1px rgba(255,255,255,.35)' }} />
+            <span aria-hidden="true" className="size-6 shrink-0 rounded-[3px]" style={{ background: ey.current, boxShadow: '0 0 0 1px rgba(255,255,255,.35)' }} />
             <span className="text-[13px] font-semibold leading-tight">Cuentagotas · color {ey.label}</span>
           </div>
           <p className="m-0 text-[12px] leading-snug" style={{ color: 'var(--cc-text-muted)' }}>
@@ -731,7 +731,7 @@ export function ReferencesScreen(props: Props) {
           </p>
           <div className="flex items-center justify-between gap-2">
             <span className="font-mono text-[10px] tracking-[0.06em] text-ink-2">ESC PARA CANCELAR</span>
-            <button type="button" onClick={() => props.onEyedropperDone?.(null)} className="rounded-[6px] border border-line-strong px-3 py-1 text-[12px] font-semibold hover:bg-white/10" style={{ minHeight: mobile ? 44 : undefined }}>
+            <button type="button" onClick={() => props.onEyedropperDone?.(null)} className="rounded-[3px] bg-ink/10 px-3 py-1 text-[12px] font-semibold hover:bg-white/10" style={{ minHeight: mobile ? 44 : undefined }}>
               Cancelar
             </button>
           </div>
@@ -739,16 +739,22 @@ export function ReferencesScreen(props: Props) {
       )}
 
       {/* Frase de intención: opcional, ayuda al agente a entender la marca */}
-      <div className={`absolute left-4 top-4 z-20 flex w-[min(360px,calc(100%-32px))] flex-col gap-1 ${ey ? 'hidden' : ''}`} onPointerDown={e => e.stopPropagation()}>
+      {/* Título de etapa: fijo arriba a la izquierda; se desvanece al acercar el lienzo */}
+      {!ey && (
+        <h1 data-headline className="type-stage pointer-events-none absolute left-4 top-3 z-10 m-0 text-ink lg:left-10 lg:top-5" style={{ opacity: clamp(1.6 - cam.z, 0, 1), transition: 'opacity 200ms ease-out' }}>
+          Referencias
+        </h1>
+      )}
+      <div className={`absolute left-4 z-20 flex w-[min(360px,calc(100%-32px))] flex-col gap-1 ${mobile ? 'top-[72px]' : 'top-[92px] lg:left-10 lg:top-[110px]'} ${ey ? 'hidden' : ''}`} onPointerDown={e => e.stopPropagation()}>
         <label className="flex flex-col gap-1">
-          <span className="font-mono text-[10px] tracking-[0.06em] text-ink-3">FRASE DE INTENCIÓN · OPCIONAL</span>
+          <span className="type-label text-[11px] text-ink-2">Frase de intención · opcional</span>
           <input
             value={intent}
             onChange={e => setIntent(e.target.value)}
             onBlur={submitIntent}
             onKeyDown={e => e.key === 'Enter' && (e.currentTarget.blur(), e.preventDefault())}
             placeholder="Ej: hamburguesería cruda, de barrio"
-            className="rounded-[8px] border border-line-mid bg-bg/80 px-3 py-2 text-[13px] text-ink outline-none placeholder:text-ink-3 focus:border-bone"
+            className="field-input" style={{ height: 40 }}
           />
         </label>
         {props.briefBusy && <span className="font-mono text-[11px] text-ink-2">Redactando el brief…</span>}

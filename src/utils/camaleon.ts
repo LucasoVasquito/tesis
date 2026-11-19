@@ -6,7 +6,7 @@ import { Theme } from './derivePalette';
  */
 export function applyTheme(theme: Theme | null) {
   const root = document.documentElement;
-  const names = ['--cc-bg', '--cc-surface', '--cc-raised', '--cc-l0', '--cc-l1', '--cc-l2', '--cc-primary', '--cc-on-primary', '--cc-text', '--cc-text-muted', '--cc-line', '--cc-line-hover', '--cc-l0-edge', '--cc-l1-edge', '--cc-l2-edge', '--cc-l0-on', '--cc-l1-on', '--cc-l2-on', '--cc-l0-ink', '--cc-l1-ink', '--cc-l2-ink'];
+  const names = ['--cc-bg', '--cc-surface', '--cc-raised', '--cc-l0', '--cc-l1', '--cc-l2', '--cc-primary', '--cc-on-primary', '--cc-text', '--cc-text-muted', '--cc-line', '--cc-line-hover', '--cc-l0-edge', '--cc-l1-edge', '--cc-l2-edge', '--cc-l0-on', '--cc-l1-on', '--cc-l2-on', '--cc-l0-ink', '--cc-l1-ink', '--cc-l2-ink', '--cc-l0-head', '--cc-l1-head', '--cc-l2-head', '--cc-l0-under', '--cc-l1-under', '--cc-l2-under'];
   for (const n of names) {
     if (theme && theme[n]) root.style.setProperty(n, theme[n]);
     else root.style.removeProperty(n);

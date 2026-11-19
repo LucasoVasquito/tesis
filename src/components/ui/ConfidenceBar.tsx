@@ -20,9 +20,9 @@ export function ConfidenceBar({ value, label = 'Confianza', className }: Confide
         aria-valuemin={0}
         aria-valuemax={1}
         aria-valuenow={Number(v.toFixed(2))}
-        className="h-1 rounded-sm bg-line"
+        className="h-1 rounded-[3px] bg-line"
       >
-        <div className="h-full rounded-sm bg-ink" style={{ width: `${v * 100}%` }} />
+        <div className="h-full rounded-[3px] bg-ink" style={{ width: `${v * 100}%` }} />
       </div>
     </div>
   );
@@ -38,9 +38,9 @@ export function ProgressTrack({ value, label }: { value: number; label: string }
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(v * 100)}
-      className="h-1 rounded-sm bg-line"
+      className="h-1 rounded-[3px] bg-line"
     >
-      <div className="h-full rounded-sm bg-ink transition-[width] duration-180 ease-emergent" style={{ width: `${v * 100}%` }} />
+      <div className="h-full rounded-[3px] bg-ink transition-[width] duration-180 ease-emergent" style={{ width: `${v * 100}%` }} />
     </div>
   );
 }

@@ -7,13 +7,49 @@ import { Viewport } from '../../hooks/useViewport';
 
 const MUSTARD = 'var(--cc-warn)';
 
+/** Las 5 etapas en la barra superior (escritorio): la actual con subrayado de 2 px, las completadas con ✓. */
+export function StageNav({ project, current, onGo }: { project: Project; current: Moment; onGo: (id: Moment, blocked: string | null) => void }) {
+  const items = railItems(project, current);
+  return (
+    <nav aria-label="Etapas" className="no-print min-w-0">
+      <ol className="m-0 flex list-none items-center gap-6 p-0 xl:gap-8">
+        {items.map(it => {
+          const cur = it.state === 'current';
+          return (
+            <li key={it.id}>
+              <button
+                type="button"
+                aria-current={cur ? 'step' : undefined}
+                aria-disabled={it.blocked ? true : undefined}
+                title={it.blocked ?? it.line}
+                onClick={() => onGo(it.id, it.blocked)}
+                className={`group relative flex h-14 items-center gap-[6px] whitespace-nowrap text-[13px] ${cur ? 'font-bold text-ink' : 'font-medium text-ink-2 hover:text-ink'} ${it.blocked ? 'cursor-not-allowed' : ''}`}
+              >
+                <span className="type-data">{it.num}</span>
+                <span>{it.label}</span>
+                {it.state === 'done' && <span aria-label="completada" className="text-[11px]">✓</span>}
+                {it.state === 'stale' && (
+                  <span aria-label="desactualizada" title="Cambiaste algo antes: revisalo" className="flex size-4 items-center justify-center rounded-full text-[10px] font-bold" style={{ background: MUSTARD, color: 'var(--cc-bg)' }}>
+                    !
+                  </span>
+                )}
+                <span aria-hidden="true" className="absolute inset-x-0 bottom-[10px] h-[2px] transition-opacity duration-200" style={{ background: 'var(--cc-l0-head)', opacity: cur ? 1 : 0 }} />
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
 function Marker({ item, size = 22 }: { item: RailItem; size?: number }) {
   const base = 'relative z-10 flex shrink-0 items-center justify-center rounded-full font-mono text-[11px] leading-none';
   const st = { width: size, height: size };
   switch (item.state) {
     case 'current':
       return (
-        <span className={`${base} border-[1.5px] border-bone bg-void text-ink`} style={st}>
+        <span className={`${base} bg-bone/20 font-bold text-ink ring-[1.5px] ring-bone`} style={st}>
           {item.num}
         </span>
       );
@@ -31,13 +67,13 @@ function Marker({ item, size = 22 }: { item: RailItem; size?: number }) {
       );
     case 'blocked':
       return (
-        <span className={`${base} border border-dashed border-bone/25 bg-void text-ink-3`} style={st}>
+        <span className={`${base} bg-bone/10 text-ink-3`} style={st}>
           {item.num}
         </span>
       );
     default:
       return (
-        <span className={`${base} border border-bone/25 bg-void text-ink-2`} style={st}>
+        <span className={`${base} bg-bone/10 text-ink-2`} style={st}>
           {item.num}
         </span>
       );
@@ -74,7 +110,7 @@ function RailList({ project, current, onGo, onGoLayer, touch }: ListProps) {
             <Marker item={it} />
             <span className="flex min-w-0 flex-col gap-[2px]">
               <span className={`text-[14px] font-semibold leading-[22px] ${it.state === 'current' || it.state === 'done' || it.state === 'stale' || it.state === 'here' ? 'text-ink' : it.blocked ? 'text-ink-3' : 'text-ink-2'}`}>{it.label}</span>
-              <span className="text-[12px] leading-[1.35]" style={{ color: it.warn ? MUSTARD : it.state === 'current' ? 'color-mix(in srgb, var(--cc-text) 75%, transparent)' : 'color-mix(in srgb, var(--cc-text) 50%, transparent)' }}>
+              <span className="text-[12px] leading-[1.35]" style={{ color: it.warn ? MUSTARD : it.state === 'current' ? 'color-mix(in srgb, var(--cc-text) 75%, transparent)' : 'color-mix(in srgb, var(--cc-text) 75%, transparent)' }}>
                 {it.line}
               </span>
             </span>
@@ -128,6 +164,7 @@ export function StepRail({ project, current, viewport, onGo, onGoLayer }: RailPr
     onGoLayer(l);
   };
 
+  if (viewport === 'desktop') return null; // en escritorio las etapas van en la barra superior (StageNav)
   if (viewport === 'mobile') return <StepBar project={project} current={current} onGo={onGo} onGoLayer={onGoLayer} />;
 
   if (viewport === 'tablet') {
@@ -182,7 +219,7 @@ export function StepBar({ project, current, onGo, onGoLayer }: { project: Projec
       {open && (
         <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/50" />
-          <div role="dialog" aria-label="Etapas" onClick={e => e.stopPropagation()} className="absolute inset-x-0 bottom-0 max-h-[80%] overflow-y-auto rounded-t-[16px] border-t border-line-mid px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-5" style={{ background: 'var(--cc-surface)' }}>
+          <div role="dialog" aria-label="Etapas" onClick={e => e.stopPropagation()} className="absolute inset-x-0 bottom-0 max-h-[80%] overflow-y-auto rounded-t-[4px] border-t border-line-mid px-5 pb-[calc(24px+env(safe-area-inset-bottom))] pt-5" style={{ background: 'var(--cc-surface)' }}>
             <RailList
               project={project}
               current={current}

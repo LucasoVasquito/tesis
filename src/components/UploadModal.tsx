@@ -154,8 +154,8 @@ export function UploadModal({ isOpen, onClose, existing, onAddFiles, onAddRefere
                 close();
               }
             }}
-            className={`flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-card border border-dashed p-6 text-center transition-colors duration-120 ${
-              dragOver ? 'border-ink/60 bg-white/[.03]' : 'border-line-strong'
+            className={`flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-card bg-surface p-6 text-center transition-colors duration-120 ${
+              dragOver ? 'outline outline-1 outline-dotted outline-ink' : ''
             }`}
           >
             <span className="text-15 font-medium text-ink">Soltá imágenes acá</span>
@@ -218,7 +218,7 @@ export function UploadModal({ isOpen, onClose, existing, onAddFiles, onAddRefere
               key={key}
               type="button"
               onClick={() => addPack(key)}
-              className="flex items-center gap-3 rounded-card border border-line bg-bg p-3 text-left transition-colors duration-120 hover:border-line-strong"
+              className="flex items-center gap-3 rounded-card bg-bg p-3 text-left transition-colors duration-120 hover:border-line-strong"
             >
               <span className="flex -space-x-2">
                 {pack.images.slice(0, 3).map(img => (

@@ -33,7 +33,7 @@ export function CategoryTag({ category, palette }: { category: PatternCategory |
       title={`${label} · familia ${f.label}`}
     >
       {f.id === 'color' && palette && palette.length > 0 && (
-        <span aria-hidden="true" className="flex h-2.5 w-6 overflow-hidden rounded-[2px]">
+        <span aria-hidden="true" className="flex h-2.5 w-6 overflow-hidden rounded-[3px]">
           {palette.slice(0, 3).map((c, i) => (
             <span key={i} className="flex-1" style={{ background: c }} />
           ))}

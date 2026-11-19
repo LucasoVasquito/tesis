@@ -25,11 +25,12 @@ export function Notices({ notice, onClose }: { notice: NoticeData | null; onClos
     <div
       role="status"
       aria-live="polite"
-      className={`no-print fixed z-[66] flex items-start gap-3 rounded-[12px] border border-line-mid p-3 shadow-[0_8px_32px_rgba(0,0,0,.5)] ${mobile ? 'inset-x-2 bottom-[calc(80px+env(safe-area-inset-bottom))]' : 'right-6 top-[68px] w-[380px] max-w-[calc(100vw-48px)]'}`}
-      style={{ background: 'var(--cc-surface)', borderColor: notice.tone === 'error' ? 'var(--cc-error)' : undefined }}
+      className={`no-print fixed z-[66] flex items-start gap-3 ${mobile ? 'inset-x-2 bottom-[calc(80px+env(safe-area-inset-bottom))] rounded-[4px] p-3' : 'bottom-14 left-10 max-w-[min(560px,calc(100vw-80px))]'}`}
+      style={mobile ? { background: 'var(--cc-surface)' } : { textShadow: '0 0 14px var(--cc-bg), 0 0 4px var(--cc-bg)' }}
     >
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <span className="text-[13px] leading-snug text-ink">{notice.text}</span>
+      <span aria-hidden="true" className="mt-[6px] size-2 shrink-0 rounded-full" style={{ background: notice.tone === 'error' ? 'var(--cc-error)' : 'var(--cc-l0)' }} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-[14px] leading-snug text-ink">{notice.text}</span>
         {notice.detail && <span className="text-[12px] leading-snug text-ink-2">{notice.detail}</span>}
         {notice.action && (
           <button
@@ -38,7 +39,7 @@ export function Notices({ notice, onClose }: { notice: NoticeData | null; onClos
               notice.action!.run();
               onClose();
             }}
-            className="self-start rounded-[6px] bg-bone px-3 py-1 text-[12px] font-bold text-void hover:bg-white" style={{ minHeight: mobile ? 44 : undefined }}
+            className="self-start text-[13px] font-bold text-ink underline underline-offset-4 hover:no-underline" style={{ minHeight: mobile ? 44 : undefined }}
           >
             {notice.action.label}
           </button>

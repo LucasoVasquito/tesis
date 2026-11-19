@@ -17,8 +17,8 @@ import { ColorContext, ColorCtx, RoleColor, RoleKey } from './screens/colorConte
 import { useShortcuts } from './hooks/useAuditShortcuts';
 
 import { Button } from './components/ui';
-import { SaveState, StatusLine, TopBar } from './components/shell/TopBar';
-import { StepRail } from './components/shell/StepRail';
+import { SaveState, StatusBar, StatusLine, TopBar } from './components/shell/TopBar';
+import { StepRail, StageNav } from './components/shell/StepRail';
 import { NoticeData, Notices } from './components/shell/Notices';
 import { UploadModal } from './components/UploadModal';
 import { AboutView } from './components/AboutView';
@@ -38,7 +38,7 @@ import { MutateOptions, NotifyOptions } from './screens/types';
 import { DEMO_ID, buildDemo, demoRequested } from './utils/demo';
 import { clearTestLog, downloadTestLog, logEvent, setLogStage, testMode } from './utils/testLog';
 import { useViewport } from './hooks/useViewport';
-import { STEPS, blockReason, locationText, stepIndex, stepLabel } from './utils/steps';
+import { STEPS, blockReason, isAnalyzed, locationText, stepIndex, stepLabel } from './utils/steps';
 
 /** Claves viejas de localStorage que ya no se usan (los proyectos pasaron a IndexedDB). */
 const DISCARDED_KEYS = [
@@ -911,12 +911,34 @@ function Workspace({ boot }: { boot: Boot }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [notify]);
 
+  /** Ir a una etapa desde la barra de etapas: si está bloqueada, avisa por qué. */
+  const goStage = (id: Moment, blocked: string | null) => {
+    if (blocked) {
+      logEvent('blocked_click', { target: id, reason: blocked });
+      notify(`${stepLabel(id)} · ${blocked}`);
+    } else enter(id);
+  };
+
   const enabled = !overlay && !isUploadOpen && !deleteRequest && !isLogOpen && !guideOpen && !briefOpen;
   const notifyBlocked = useCallback((reason: string) => notify(reason), [notify]);
 
   return (
     <ColorContext.Provider value={{ ...colorCtx, eyedrop: startEyedropper }}>
-    <div className="flex h-full w-full flex-col overflow-hidden bg-bg text-ink print:h-auto print:overflow-visible">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-bg text-ink print:h-auto print:overflow-visible">
+      {/* Un solo brillo por pantalla, con el color del Núcleo. En Referencias arranca neutro y se enciende al detectar el primer patrón. */}
+      <div aria-hidden="true" className="no-print pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <div
+          className="glow"
+          data-neutral={screen === 'referencias' && !isAnalyzed(project)}
+          style={
+            screen === 'revisar'
+              ? { left: '-22vmax', bottom: '-30vmax' }
+              : screen === 'probar'
+                ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
+                : { right: '-24vmax', top: '-34vmax' }
+          }
+        />
+      </div>
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:bg-ink focus:px-3 focus:py-2 focus:text-bg">
         Saltar al contenido
       </a>
@@ -941,16 +963,14 @@ function Workspace({ boot }: { boot: Boot }) {
         }}
         status={status}
         save={saveState}
+        nav={viewport === 'desktop' ? <StageNav project={project} current={screen} onGo={goStage} /> : undefined}
+        onUndo={undo}
+        canUndo={undoStack.current.length > 0}
       />
       {project.example && <ExampleBanner onStart={handleNewProject} />}
 
-      <div className={`flex min-h-0 flex-1 ${viewport === 'mobile' ? 'flex-col' : ''}`}>
-        <StepRail project={project} current={screen} viewport={viewport} onGoLayer={l => { const why = blockReason(projectRef.current, 'capas'); if (why) return notify(`Capas · ${why}`); enter('capas'); setGoLayer({ layer: l, n: Date.now() }); }} onGo={(id, blocked) => {
-            if (blocked) {
-              logEvent('blocked_click', { target: id, reason: blocked });
-              notify(`${stepLabel(id)} · ${blocked}`);
-            } else enter(id);
-          }} />
+      <div className={`relative z-[1] flex min-h-0 flex-1 ${viewport === 'mobile' ? 'flex-col' : ''}`}>
+        <StepRail project={project} current={screen} viewport={viewport} onGoLayer={l => { const why = blockReason(projectRef.current, 'capas'); if (why) return notify(`Capas · ${why}`); enter('capas'); setGoLayer({ layer: l, n: Date.now() }); }} onGo={goStage} />
 
         <main id="main" tabIndex={-1} className={`relative min-h-0 min-w-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
           {screen === 'referencias' && (
@@ -995,7 +1015,7 @@ function Workspace({ boot }: { boot: Boot }) {
             />
           )}
           {(screen === 'probar' || probarSeen === project.id) && (
-            <div className={screen === 'probar' ? 'h-full' : 'hidden'}>
+            <div className={screen === 'probar' ? 'stage-enter h-full' : 'hidden'}>
               <ProbarScreen
                 key={project.id}
                 project={project}
@@ -1024,6 +1044,11 @@ function Workspace({ boot }: { boot: Boot }) {
       </div>
 
       <Notices notice={notice} onClose={() => setNotice(null)} />
+      {viewport === 'desktop' && (
+        <div className="no-print pointer-events-none fixed bottom-6 left-10 z-[60] max-w-[min(560px,calc(100vw-80px))]">
+          <StatusBar status={status} className="pointer-events-auto" />
+        </div>
+      )}
       {guideOpen && <Guide onClose={() => setGuideOpen(false)} />}
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} onAddUrl={(url, extra) => void handleAddUrl(url, extra)} />
       <Modal open={!!deleteRequest} title={deleteRequest === 'all' ? 'Eliminar todos los proyectos' : 'Eliminar proyecto'} meta="No se puede deshacer" width={440} onClose={() => setDeleteRequest(null)}>

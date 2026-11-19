@@ -24,7 +24,7 @@ export function Swatch({ hex, name, source, role }: SwatchProps) {
     <button
       type="button"
       onClick={copy}
-      className="flex flex-col overflow-hidden rounded-card border border-line bg-surface text-left transition-colors duration-120 ease-emergent hover:border-line-strong"
+      className="flex flex-col overflow-hidden rounded-card bg-surface text-left transition-colors duration-120 ease-emergent hover:border-line-strong"
       aria-label={`${name ?? 'Color'} ${hex}${source ? `, origen ${source}` : ''}. Copiar HEX`}
     >
       <span className="block h-16" style={{ background: hex }} />
