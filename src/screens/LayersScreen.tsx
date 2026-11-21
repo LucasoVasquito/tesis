@@ -5,7 +5,7 @@ import { useViewport } from '../hooks/useViewport';
 import { corpusRefs, evidenceCount, isLayer } from '../utils/layers';
 import { LAYER_QUESTION } from '../utils/layerQuestions';
 import { logEvent } from '../utils/testLog';
-import { ActionResult, SHEET_NAME, isSuggestion, piecesIn, place, rename } from '../pieces/model';
+import { ActionResult, SHEET_NAME, evidenceText, isSuggestion, piecesIn, place, rename } from '../pieces/model';
 import { BarButton, BarSep, BottomBar } from '../components/shell/BottomBar';
 import { ColorEditor, ColorsPanel } from '../components/ColorEditor';
 import { PieceThumb } from './common';
@@ -469,7 +469,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
         style={{ cursor: 'grab', outline: sel ? `2px solid ${layerVar(l)}` : undefined, outlineOffset: 1, opacity: ghost?.piece.id === x.id ? 0.3 : 1 }}
       >
         <PieceThumb piece={x} project={project} className="aspect-[4/5] w-full rounded-[4px] bg-raised" onSwatch={isColor ? () => { setSelectedId(x.id); setColorFor(x.id); } : undefined} />
-        <span className="line-clamp-2 text-[1rem] font-semibold leading-tight">{x.name}</span>
+        <span className="text-[1rem] font-semibold leading-tight">{x.name}</span>
         <span className="truncate font-mono text-[0.875rem] text-ink-2">
           {x.origin === 'user' ? 'TUYO' : suggestion ? 'DETECTADO · SUGERENCIA' : 'DETECTADO'} · {evidenceCount(x, project)}/{total}
         </span>
@@ -697,6 +697,20 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
             </div>
             <p className="m-0 text-[0.875rem] leading-snug text-ink-2">También con la rueda del mouse o las flechas.</p>
           </aside>
+          {selected && (
+            <section className="flex flex-col gap-2 p-1" aria-label="Detalle de la pieza">
+              <span className="type-label text-[0.75rem] text-ink-2">Pieza elegida · {SHEET_NAME[selected.layer as Layer]}</span>
+              <h3 className="m-0 text-[1.125rem] font-semibold leading-tight">{selected.name}</h3>
+              <div className="flex flex-col gap-2 text-[0.875rem] leading-[1.55]">
+                {selected.description?.trim() && <p className="m-0">{selected.description.trim()}</p>}
+                {selected.systemHypothesis?.trim() && selected.systemHypothesis.trim() !== selected.description?.trim() && <p className="m-0 text-ink-2">{selected.systemHypothesis.trim()}</p>}
+                {!selected.description?.trim() && !selected.systemHypothesis?.trim() && <p className="m-0 text-ink-2">Todavía sin regla redactada.</p>}
+                <span className="type-data text-ink-2">
+                  {selected.origin === 'user' ? 'TUYO' : 'DETECTADO'} · En {evidenceText(selected, project)}
+                </span>
+              </div>
+            </section>
+          )}
           <ColorsPanel flat onLive={onRoleLive} onCommit={onRoleCommit} />
         </div>
       )}

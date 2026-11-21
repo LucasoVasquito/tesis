@@ -11,6 +11,7 @@ import { Notify } from './types';
 import { SHEET_NAME, evidenceText, isSuggestion, livePieces, piecesIn } from '../pieces/model';
 import { BottomBar } from '../components/shell/BottomBar';
 import { PieceThumb } from './common';
+import { PieceRule } from './PieceRule';
 
 interface SystemScreenProps {
   project: Project;
@@ -159,7 +160,7 @@ export function SystemScreen(props: SystemScreenProps) {
                           <PieceThumb piece={x} project={project} className="aspect-[4/5] w-full rounded-[4px] bg-raised" style={{ opacity: suggestion(x) ? 0.85 : 1 }} />
                           <Origin piece={x} suggestion={suggestion(x)} />
                           <span className="text-[1.125rem] font-semibold leading-tight">{x.name}</span>
-                          <span className="max-w-[68ch] text-[0.9375rem] leading-[1.5] text-ink-2">{shortRule(x)}</span>
+                          <PieceRule piece={x} project={project} short={shortRule(x)} />
                         </div>
                       ))}
                     </div>
@@ -180,7 +181,7 @@ export function SystemScreen(props: SystemScreenProps) {
                     <PieceThumb piece={x} project={project} className="aspect-[4/5] w-full rounded-[4px] bg-raised" style={{ opacity: suggestion(x) ? 0.85 : 1 }} />
                     <Origin piece={x} suggestion={suggestion(x)} />
                     <span className="text-[1rem] font-semibold leading-tight">{x.name}</span>
-                    <span className="text-[0.875rem] leading-[1.5] text-ink-2">{shortRule(x)}</span>
+                    <PieceRule piece={x} project={project} short={shortRule(x)} />
                   </div>
                 ))}
               </div>
@@ -192,9 +193,10 @@ export function SystemScreen(props: SystemScreenProps) {
               {counts[3] === 0 && <p className="m-0 text-[1rem] text-ink-2">Sin acentos todavía.</p>}
               <ul className="m-0 grid list-none grid-cols-3 gap-4 p-0 sm:grid-cols-4 lg:grid-cols-6">
                 {others(accent).map(x => (
-                  <li key={x.id} className="flex min-w-0 flex-col gap-2" title={oneLine(x)}>
+                  <li key={x.id} className="flex min-w-0 flex-col gap-2">
                     <PieceThumb piece={x} project={project} className="aspect-square w-full rounded-[3px] bg-raised" word={false} style={{ opacity: suggestion(x) ? 0.85 : 1 }} />
-                    <span className="line-clamp-2 text-[0.875rem] font-semibold leading-tight">{x.name}</span>
+                    <span className="text-[0.875rem] font-semibold leading-tight">{x.name}</span>
+                    <PieceRule piece={x} project={project} short={oneLine(x)} />
                   </li>
                 ))}
               </ul>
@@ -245,7 +247,8 @@ export function SystemScreen(props: SystemScreenProps) {
               <ol className="m-0 flex list-none flex-col gap-3 p-0">
                 {rules.map(x => (
                   <li key={x.id} className="text-[0.875rem] leading-[1.5]">
-                    <span className="font-semibold">{x.name}.</span> <span className="text-ink-2">{oneLine(x)}</span>
+                    <span className="font-semibold">{x.name}.</span>
+                    <PieceRule piece={x} project={project} short={oneLine(x)} />
                   </li>
                 ))}
               </ol>
