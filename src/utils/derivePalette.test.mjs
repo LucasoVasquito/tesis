@@ -54,7 +54,7 @@ test('la jerarquía manda sobre la frecuencia', () => {
     ],
     {},
   );
-  assert.equal(p.primary, YELLOW); // la pieza de Núcleo con más frecuencia
+  assert.equal(p.primary, YELLOW); // la pieza de Primario con más frecuencia
 });
 
 test('capa sin color: el rol se completa con el siguiente del ranking no usado', () => {
@@ -72,7 +72,7 @@ test('capa sin color: el rol se completa con el siguiente del ranking no usado',
     {},
   );
   assert.equal(p.primary, RED);
-  assert.equal(p.secondary, BLUE); // Soporte sin color → el más frecuente que no está usado
+  assert.equal(p.secondary, BLUE); // Secundario sin color → el más frecuente que no está usado
   assert.equal(p.accent, GREEN);
 });
 

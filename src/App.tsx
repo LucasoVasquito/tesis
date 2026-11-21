@@ -352,7 +352,7 @@ function Workspace({ boot }: { boot: Boot }) {
   const [briefOpen, setBriefOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [focusRef, setFocusRef] = useState<{ id: string; n: number } | null>(null);
-  const [capaName, setCapaName] = useState('Núcleo');
+  const [capaName, setCapaName] = useState('Primario');
   const [goLayer, setGoLayer] = useState<{ layer: Layer; n: number } | null>(null);
   const [probarType, setProbarType] = useState('logotipo');
   const [probarActivity, setProbarActivity] = useState<string | null>(null);
@@ -949,7 +949,7 @@ function Workspace({ boot }: { boot: Boot }) {
   return (
     <ColorContext.Provider value={{ ...colorCtx, eyedrop: startEyedropper }}>
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-bg text-ink print:h-auto print:overflow-visible">
-      {/* Un solo brillo por pantalla, con el color del Núcleo. En Referencias arranca neutro y se enciende al detectar el primer patrón. */}
+      {/* Un solo brillo por pantalla, con el color del Primario. En Referencias arranca neutro y se enciende al detectar el primer patrón. */}
       <div aria-hidden="true" className="no-print pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div
           className="glow"

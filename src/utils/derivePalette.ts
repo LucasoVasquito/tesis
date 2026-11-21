@@ -4,7 +4,7 @@
  * derivePalette(detectedColors, pieces, overrides) → { primary, secondary, accent }
  *   1. Propuesta por frecuencia: los colores detectados, de mayor a menor presencia ponderada
  *      (lo que sale de las referencias del usuario pesa el doble que lo que infiere el sistema).
- *   2. Ajuste por jerarquía: la pieza de color con más frecuencia de Núcleo manda el primario, la de Soporte el
+ *   2. Ajuste por jerarquía: la pieza de color con más frecuencia de Primario manda el primario, la de Secundario el
  *      secundario y la de Acento el acento. Si una capa no tiene pieza de color, ese rol toma el siguiente color del
  *      ranking que no esté usado. Un color editado a mano (override) manda sobre lo detectado.
  *
@@ -199,9 +199,9 @@ export interface ThemeOptions {
 
 /**
  * Variables CSS de la interfaz a partir de la paleta («Editorial oscuro»).
- *  --cc-bg       tono del Núcleo con L 0.14 y croma 0.012 (neutro si el Núcleo es gris o negro)
+ *  --cc-bg       tono del Primario con L 0.14 y croma 0.012 (neutro si el Primario es gris o negro)
  *  --cc-surface  fondo + 0.06 de L · --cc-raised fondo + 0.10
- *  --cc-text     blanco cálido con el tono del Núcleo (croma 0.01); sobre fondos claros, tinta oscura
+ *  --cc-text     blanco cálido con el tono del Primario (croma 0.01); sobre fondos claros, tinta oscura
  *  texto secundario al 75 % como mínimo · filetes al 12 %
  *  Por cada capa: -on (texto sobre el bloque, el que más contrasta), -ink (texto de 4.5:1 o más sobre el fondo),
  *  -head (titular grande: alcanza con 3:1), -under (subrayado de 4 px cuando el titular no llega y pasa a tinta).

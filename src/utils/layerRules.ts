@@ -4,8 +4,8 @@ import { pieceWeight } from '../pieces/model';
 
 /**
  * Lo que dice cada lámina. La lámina no es decorativa: define cuánto pesa un patrón en el resultado.
- * - Núcleo: regla completa, con ejemplos.
- * - Soporte: regla corta.
+ * - Primario: regla completa, con ejemplos.
+ * - Secundario: regla corta.
  * - Acento: una línea.
  */
 
@@ -15,9 +15,9 @@ const firstSentence = (t: string) => {
 };
 const clip = (t: string, max: number) => (t.length <= max ? t : `${t.slice(0, max - 1).replace(/\s+\S*$/, '')}…`);
 
-/** Núcleo: la regla entera (hipótesis de sistema o descripción). */
+/** Primario: la regla entera (hipótesis de sistema o descripción). */
 export const fullRule = (p: Pattern) => (p.systemHypothesis?.trim() || p.description?.trim() || '').trim();
-/** Soporte: la primera oración, corta. */
+/** Secundario: la primera oración, corta. */
 export const shortRule = (p: Pattern) => clip(firstSentence(p.description || p.systemHypothesis || ''), 110);
 /** Acento: una línea. */
 export const oneLine = (p: Pattern) => clip(firstSentence(p.description || p.systemHypothesis || '').split(/[;:—]/)[0], 64);
@@ -36,5 +36,5 @@ export function layerContents(p: Project, l: Layer): { patterns: Pattern[]; frag
   };
 }
 
-/** Patrones de la pila en orden de lámina: núcleo primero, después soporte y acento. */
+/** Patrones de la pila en orden de lámina: primario primero, después secundario y acento. */
 export const stackOrder = (p: Project) => ([1, 2, 3] as Layer[]).flatMap(l => layerContents(p, l).patterns.map(x => ({ pattern: x, layer: l })));

@@ -26,7 +26,7 @@ interface SystemScreenProps {
 }
 
 const LAYERS: Layer[] = [1, 2, 3];
-/** Titular de cada capa a escala: Núcleo 132 px, Soporte 80, Acento 56. */
+/** Titular de cada capa a escala: Primario 132 px, Secundario 80, Acento 56. */
 const HEAD: Record<Layer, string> = { 1: 'clamp(80px, 9vw, 132px)', 2: 'clamp(52px, 5.6vw, 80px)', 3: 'clamp(38px, 4vw, 56px)' };
 
 /** Quién ubicó la pieza. */
@@ -66,7 +66,7 @@ export function SystemScreen(props: SystemScreenProps) {
   const core = piecesIn(project, 1);
   const support = piecesIn(project, 2);
   const accent = piecesIn(project, 3);
-  // Sin Núcleo, la pieza con más evidencia se propone como titular.
+  // Sin Primario, la pieza con más evidencia se propone como titular.
   const fallbackLead = !core.length ? [...livePieces(project)].sort((a, b) => evidenceCount(b, project) - evidenceCount(a, project))[0] : undefined;
   const lead = core[0] ?? fallbackLead;
   const moreCore = core.slice(1);
@@ -133,8 +133,8 @@ export function SystemScreen(props: SystemScreenProps) {
               <span className="text-[1.375rem] font-medium leading-snug text-ink-2">{title}</span>
             </header>
 
-            {/* Capa 1 · Núcleo: pieza principal grande (7 de 12 columnas) con su título y descripción (5) */}
-            <section id="sys-1" data-sec="1" className="flex scroll-mt-6 flex-col gap-8" aria-label="Capa 1 · Núcleo">
+            {/* Capa 1 · Primario: pieza principal grande (7 de 12 columnas) con su título y descripción (5) */}
+            <section id="sys-1" data-sec="1" className="flex scroll-mt-6 flex-col gap-8" aria-label="Capa 1 · Primario">
               <SectionHead layer={1} count={counts[1]} />
               {lead ? (
                 <>
@@ -166,14 +166,14 @@ export function SystemScreen(props: SystemScreenProps) {
                   )}
                 </>
               ) : (
-                <p className="m-0 text-[1rem] text-ink-2">El Núcleo está vacío. Ubicá piezas en la Capa 1.</p>
+                <p className="m-0 text-[1rem] text-ink-2">El Primario está vacío. Ubicá piezas en la Capa 1.</p>
               )}
             </section>
 
-            {/* Capa 2 · Soporte: grilla de 4 columnas, miniaturas más chicas */}
-            <section id="sys-2" data-sec="2" className="flex scroll-mt-6 flex-col gap-6" aria-label="Capa 2 · Soporte">
+            {/* Capa 2 · Secundario: grilla de 4 columnas, miniaturas más chicas */}
+            <section id="sys-2" data-sec="2" className="flex scroll-mt-6 flex-col gap-6" aria-label="Capa 2 · Secundario">
               <SectionHead layer={2} count={counts[2]} />
-              {counts[2] === 0 && <p className="m-0 text-[1rem] text-ink-2">Sin soporte todavía.</p>}
+              {counts[2] === 0 && <p className="m-0 text-[1rem] text-ink-2">Sin secundario todavía.</p>}
               <div className="grid grid-cols-2 gap-x-5 gap-y-8 md:grid-cols-4">
                 {others(support).map(x => (
                   <div key={x.id} className="flex min-w-0 flex-col gap-2">
@@ -263,7 +263,7 @@ export function SystemScreen(props: SystemScreenProps) {
         primary={
           core.length
             ? { label: 'Probar en una pieza', kbd: '⏎', onClick: props.onNext }
-            : { label: 'Probar en una pieza', blocked: 'Necesita al menos una pieza en Núcleo.', blockedLabel: 'Núcleo vacío', onClick: () => {}, onBlockedClick: props.onBlocked }
+            : { label: 'Probar en una pieza', blocked: 'Necesita al menos una pieza en Primario.', blockedLabel: 'Primario vacío', onClick: () => {}, onBlockedClick: props.onBlocked }
         }
       />
     </div>

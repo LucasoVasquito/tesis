@@ -5,8 +5,8 @@ import { fullRule, layerContents, oneLine, shortRule, stackOrder } from './layer
 
 /**
  * Consecuencias de la lámina: la lámina no es decorativa, cambia el resultado.
- * - Prompt: va en orden de capa; el núcleo pesa más, el acento es un detalle.
- * - Lineamientos: núcleo = regla completa con ejemplos, soporte = regla corta, acento = una línea.
+ * - Prompt: va en orden de capa; el primario pesa más, el acento es un detalle.
+ * - Lineamientos: primario = regla completa con ejemplos, secundario = regla corta, acento = una línea.
  * - Paleta: sale del corpus; orden y proporción siguen la lámina de los patrones de color.
  */
 
@@ -97,10 +97,10 @@ export function stackGuidelinesMarkdown(p: Project): string {
   lines.push(`# ${title}`, '');
   if (p.intent && p.intent !== title) lines.push(`> ${p.intent}`, '');
   if (p.brief) lines.push(p.brief, '');
-  lines.push(`Sistema visual en tres capas. El Núcleo define, el Soporte acompaña y el Acento da carácter. Las piezas marcadas con [DETECTADO · SUGERENCIA] las ubicó el agente y el diseñador todavía no las confirmó.`, '');
+  lines.push(`Sistema visual en tres capas. El Primario define, el Secundario acompaña y el Acento da carácter. Las piezas marcadas con [DETECTADO · SUGERENCIA] las ubicó el agente y el diseñador todavía no las confirmó.`, '');
 
   const core = layerContents(p, 1);
-  lines.push(`## 01 · Núcleo`, '');
+  lines.push(`## 01 · Primario`, '');
   if (!core.patterns.length && !core.fragments.length) lines.push('_Vacío._', '');
   for (const x of core.patterns) {
     lines.push(`### ${x.name}${unaudited(x)}`, '');
@@ -114,7 +114,7 @@ export function stackGuidelinesMarkdown(p: Project): string {
   if (core.fragments.length) lines.push('');
 
   const support = layerContents(p, 2);
-  lines.push(`## 02 · Soporte`, '');
+  lines.push(`## 02 · Secundario`, '');
   if (!support.patterns.length && !support.fragments.length) lines.push('_Vacío._', '');
   for (const x of support.patterns) lines.push(`- **${x.name}**${unaudited(x)}: ${shortRule(x) || '—'} _(${evidenceCount(x, p)} de ${total} referencias)_`);
   for (const f of support.fragments) lines.push(`- Fragmento: ${f.label} (${f.refId})`);

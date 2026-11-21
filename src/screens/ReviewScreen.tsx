@@ -43,6 +43,9 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
   }, [project, skipped]);
   const current = queue[0] ?? null;
   const [hover, setHover] = useState<Layer | null>(null);
+  /** La capa elegida: un clic solo elige; la pieza no se mueve hasta confirmar. */
+  const [pick, setPick] = useState<Layer | null>(null);
+  useEffect(() => setPick(null), [current?.id]);
   useEffect(() => setHover(null), [current?.id]);
 
   const suggested = current ? proposedLayer(current, project) : 1;
@@ -77,12 +80,12 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
   };
 
   useShortcuts(enabled, {
-    '1': () => (current ? accept(1) : false),
-    '2': () => (current ? accept(2) : false),
-    '3': () => (current ? accept(3) : false),
+    '1': () => (current ? setPick(1) : false),
+    '2': () => (current ? setPick(2) : false),
+    '3': () => (current ? setPick(3) : false),
     x: () => (current ? discard() : false),
     s: () => (current ? skip() : false),
-    enter: () => (current ? accept(currentLayer) : onNext()),
+    enter: () => (current ? accept(pick ?? currentLayer) : onNext()),
   });
 
   /* ---------- Etapa completa ---------- */
@@ -130,7 +133,8 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
 
   /* ---------- Una sugerencia por vez ---------- */
   const evidenceRefs = current.evidence.map(id => project.references.find(r => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r).slice(0, 6);
-  const lit = hover ?? suggested;
+  const lit = hover ?? pick ?? suggested;
+  const target = pick ?? suggested;
   const evidence = evidenceText(current, project).replace(' referencias', ' imágenes').replace(' referencia', ' imagen');
   const idx = Math.min(progress.total, progress.reviewed + 1);
   const fact = `Aparece en ${evidence}.`;
@@ -174,7 +178,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
 
         {/* Derecha: el titular de la capa propuesta, la razón y las opciones */}
         <section aria-label="Dónde entraría" className={`layer-${lit} flex min-w-0 flex-col gap-5`}>
-          <span className="type-label text-[0.75rem] text-ink-2">{hover && hover !== suggested ? 'Si la mandás a' : 'Entraría en'}</span>
+          <span className="type-label text-[0.75rem] text-ink-2">{hover && hover !== (pick ?? suggested) ? 'Si la mandás a' : pick && pick !== suggested ? 'Elegiste' : 'Entraría en'}</span>
           <h1 key={lit} data-headline className="layer-headline m-0" style={{ fontSize: lit === 1 ? 'clamp(64px, 11vh, 132px)' : lit === 2 ? 'clamp(48px, 8vh, 64px)' : 40 }}>
             {SHEET_NAME[lit]}
           </h1>
@@ -191,7 +195,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
           )}
 
           <div role="group" aria-label="¿En qué capa entra?" className="flex flex-col gap-2 pt-2">
-            <h2 className="type-label m-0 text-[0.75rem] text-ink-2">¿En qué capa entra? Tocá una y la pieza queda ahí</h2>
+            <h2 className="type-label m-0 text-[0.75rem] text-ink-2">¿En qué capa entra? Elegí una y confirmá</h2>
             <div className="flex flex-col">
               {LAYERS.map(l => {
                 const isSuggested = l === suggested;
@@ -199,28 +203,37 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext }: Props)
                   <button
                     key={l}
                     type="button"
-                    onClick={() => accept(l)}
+                    onClick={() => setPick(l)}
+                    aria-pressed={pick === l}
                     onMouseEnter={() => setHover(l)}
                     onMouseLeave={() => setHover(null)}
                     onFocus={() => setHover(l)}
                     onBlur={() => setHover(null)}
-                    className={`layer-${l} flex items-center gap-4 border-t border-line px-1 py-3 text-left transition-colors duration-150 hover:bg-ink/5`}
+                    className={`layer-${l} flex items-center gap-4 border-t border-line px-2 py-3 text-left transition-colors duration-150 hover:bg-ink/5 ${pick === l ? 'bg-ink/10' : ''}`}
                     style={{ minHeight: 64 }}
                   >
-                    <span className="layer-headline w-[132px] shrink-0 md:w-[150px]" style={{ fontSize: HEAD_SIZE[l], fontWeight: l === 1 ? 900 : 700 }}>
+                    <span className="layer-headline w-[150px] shrink-0 md:w-[176px]" style={{ fontSize: HEAD_SIZE[l], fontWeight: l === 1 ? 900 : 700 }}>
                       {SHEET_NAME[l]}
                     </span>
                     <span className="min-w-0 flex-1 text-[0.875rem] leading-snug text-ink-2">{LAYER_QUESTION[l]}</span>
                     <span
-                      className={`shrink-0 whitespace-nowrap text-[0.875rem] font-bold ${isSuggested ? 'rounded-full bg-bone px-4 py-2 text-void' : 'text-ink underline underline-offset-4'}`}
+                      className={`shrink-0 whitespace-nowrap text-[0.875rem] font-bold ${pick === l ? 'rounded-full bg-bone px-4 py-2 text-void' : isSuggested ? 'text-ink' : 'text-ink-2'}`}
                     >
-                      {isSuggested ? `Aceptar en ${SHEET_NAME[l]} ⏎` : `Mandar a ${SHEET_NAME[l]} · ${KEY_OF[l]}`}
+                      {pick === l ? '✓ Elegida' : isSuggested ? 'Sugerida · elegir' : `Elegir · ${KEY_OF[l]}`}
                     </span>
                   </button>
                 );
               })}
             </div>
-            <div className="flex flex-wrap items-center gap-4 border-t border-line pt-3">
+            <div className="flex flex-wrap items-center gap-4 border-t border-line pt-4">
+              <button
+                type="button"
+                onClick={() => accept(target)}
+                className="inline-flex h-12 items-center gap-3 rounded-full bg-bone px-6 text-[1rem] font-bold text-void transition-colors duration-150 hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]"
+              >
+                Confirmar en {SHEET_NAME[target]}
+                <kbd className="text-[0.875rem] font-medium opacity-75">⏎</kbd>
+              </button>
               <button type="button" onClick={discard} className="inline-flex items-center gap-2 px-1 text-[0.875rem] font-medium text-ink underline-offset-4 hover:underline" style={{ minHeight: 44 }}>
                 Descartar
                 <kbd className="text-[0.875rem] opacity-75">X</kbd>

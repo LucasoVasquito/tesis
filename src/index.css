@@ -11,7 +11,7 @@
   /* Color: nada fijo, todo sale del motor (--cc-*) */
   --color-void: var(--cc-bg);
   --color-bone: var(--cc-text);           /* tinta: texto, botón primario, selección */
-  --color-core: var(--cc-l0);             /* Núcleo */
+  --color-core: var(--cc-l0);             /* Primario */
   --color-accent: var(--cc-l2);           /* Acento */
 
   /* Capas: cada una toma el color dominante de su capa */
@@ -393,7 +393,7 @@
     --layer-color: var(--capa-3);
     --layer-on: var(--cc-l2-on);
   }
-  /* Franja del color de la capa (el Núcleo lleva más masa) */
+  /* Franja del color de la capa (el Primario lleva más masa) */
   .layer-rule {
     height: 2px;
     background: var(--layer-color, var(--color-ink));
@@ -422,7 +422,7 @@
   .layer-3 .layer-headline,
   .layer-headline.layer-3 { font-weight: 700; font-size: 40px; }
 
-  /* Un solo brillo por pantalla: resplandor difuso con el color del Núcleo en una esquina */
+  /* Un solo brillo por pantalla: resplandor difuso con el color del Primario en una esquina */
   .glow {
     position: absolute;
     pointer-events: none;

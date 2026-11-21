@@ -11,8 +11,8 @@ export interface LayerInfo {
 }
 
 export const LAYERS: LayerInfo[] = [
-  { id: 1, num: '01', name: 'Núcleo', role: 'Define el sistema', className: 'layer-1' },
-  { id: 2, num: '02', name: 'Soporte', role: 'Lo acompaña', className: 'layer-2' },
+  { id: 1, num: '01', name: 'Primario', role: 'Define el sistema', className: 'layer-1' },
+  { id: 2, num: '02', name: 'Secundario', role: 'Lo acompaña', className: 'layer-2' },
   { id: 3, num: '03', name: 'Acento', role: 'Aparece poco y da carácter', className: 'layer-3' },
 ];
 
@@ -27,7 +27,7 @@ export const corpusRefs = (p: Project) => p.references.filter(r => !r.parentId);
 /**
  * Lámina que sostiene la evidencia: en cuántas referencias del corpus aparece.
  * Es el criterio del espejo cuando la IA no propuso una lámina.
- * Umbrales: en 1 de cada 4 referencias o más → núcleo; en 1 de cada 10 o más → soporte; si no, acento.
+ * Umbrales: en 1 de cada 4 referencias o más → primario; en 1 de cada 10 o más → secundario; si no, acento.
  */
 export const EVIDENCE_CORE = 0.25;
 export const EVIDENCE_SUPPORT = 0.1;

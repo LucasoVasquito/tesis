@@ -8,7 +8,7 @@ export interface Primary {
   onClick: () => void;
   /** Si está, el botón se ve deshabilitado pero al hacer clic explica el motivo. */
   blocked?: string;
-  /** Texto corto que reemplaza a la etiqueta mientras está bloqueado ("Núcleo vacío"). */
+  /** Texto corto que reemplaza a la etiqueta mientras está bloqueado ("Primario vacío"). */
   blockedLabel?: string;
   onBlockedClick?: (reason: string) => void;
 }

@@ -423,7 +423,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
     else goTo(l - 1);
   };
   const primary = coreEmpty
-    ? { label: 'Ver sistema', blocked: 'Necesita al menos una pieza en Núcleo.', blockedLabel: 'Núcleo vacío', onClick: () => {}, onBlockedClick: onBlocked }
+    ? { label: 'Ver sistema', blocked: 'Necesita al menos una pieza en Primario.', blockedLabel: 'Primario vacío', onClick: () => {}, onBlockedClick: onBlocked }
     : { label: 'Ver sistema', kbd: '⏎', onClick: onNext };
   useShortcuts(enabled, {
     arrowup: () => goTo(Math.round(dRef.current) - 1),

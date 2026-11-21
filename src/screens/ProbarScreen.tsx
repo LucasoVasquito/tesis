@@ -64,7 +64,7 @@ const StepLabel = ({ children }: { children: React.ReactNode }) => <span classNa
 
 /**
  * 05 · PROBAR. Aplica el sistema a una pieza concreta. Dos columnas: a la izquierda la pieza (paso 1) y la receta
- * (paso 2, sale sola de las capas); a la derecha el resultado (paso 3): dos variantes que se revisan contra el Núcleo.
+ * (paso 2, sale sola de las capas); a la derecha el resultado (paso 3): dos variantes que se revisan contra el Primario.
  */
 export function ProbarScreen({ project, enabled, session, onSaveSession, onNotify, onActivity, onUndoable, onType, onBlocked }: ProbarScreenProps) {
   const system = useMemo(() => stackSystem(project), [project]);
@@ -206,7 +206,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     return result.data;
   };
 
-  /** Imágenes de las piezas del Núcleo (como máximo 3, priorizando las del usuario): recorte de la portada o primera referencia. */
+  /** Imágenes de las piezas del Primario (como máximo 3, priorizando las del usuario): recorte de la portada o primera referencia. */
   const coreImages = async (): Promise<{ id: string; image: string }[]> => {
     const ordered = [...sel.core].sort((a, b) => Number(b.origin === 'user') - Number(a.origin === 'user'));
     const out: { id: string; image: string }[] = [];
@@ -246,7 +246,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
   };
   const strip = ({ imageUrl, ...p }: Piece): GeneratedPiece => p;
 
-  /** ¿La pieza generada respeta cada pieza del Núcleo? Lo mira el agente con visión. */
+  /** ¿La pieza generada respeta cada pieza del Primario? Lo mira el agente con visión. */
   const checkCore = async (piece: Piece, core: Pattern[]) => {
     if (!core.length || piece.mode === 'direct') return;
     setChecks(c => ({ ...c, [piece.id]: 'loading' }));
@@ -359,7 +359,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
         ? `Generando la variante ${genStage === 1 ? 1 : 2} de 2…`
         : `Generando la variante ${busySlots[0] + 1} de 2…`
     : checking
-      ? 'Revisando que el Núcleo esté presente…'
+      ? 'Revisando que el Primario esté presente…'
       : null;
   useEffect(() => onActivity(activity), [activity]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => onActivity(null), []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -385,7 +385,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     busy
       ? { label: 'Generando…', blocked: 'Hay una generación en curso: puede tardar hasta 90 segundos.', blockedLabel: 'Generando…', onClick: () => {}, onBlockedClick: onBlocked }
       : !direct && !sel.core.length
-        ? { label: 'Generar 2 variantes', blocked: 'Necesita al menos una pieza en Núcleo: marcala en la receta (Editar).', blockedLabel: 'Núcleo vacío', onClick: () => {}, onBlockedClick: onBlocked }
+        ? { label: 'Generar 2 variantes', blocked: 'Necesita al menos una pieza en Primario: marcala en la receta (Editar).', blockedLabel: 'Primario vacío', onClick: () => {}, onBlockedClick: onBlocked }
         : { label: hasResult ? 'Generar otras 2' : 'Generar 2 variantes', kbd: '⏎', onClick: () => void generate([0, 1]) };
 
   useShortcuts(enabled, { enter: () => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick()) });
@@ -470,7 +470,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
       body = (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center" role="status" aria-busy="true">
           <span aria-hidden="true" className="size-3 rounded-full motion-safe:animate-pulse" style={{ background: 'var(--cc-l0)' }} />
-          <span className="text-[1.0625rem] font-semibold">{direct ? 'Componiendo con tu pedido…' : 'Componiendo con el Núcleo…'}</span>
+          <span className="text-[1.0625rem] font-semibold">{direct ? 'Componiendo con tu pedido…' : 'Componiendo con el Primario…'}</span>
         </div>
       );
     } else if (err) {
@@ -511,18 +511,18 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
             <span>· {directionLabel(p) || (p.mode === 'direct' ? 'directo' : 'con el sistema')}</span>
           </span>
           {p.mode === 'direct' ? (
-            <span className="text-[0.875rem] text-ink-2">Modo directo: sin control del Núcleo.</span>
+            <span className="text-[0.875rem] text-ink-2">Modo directo: sin control del Primario.</span>
           ) : c === 'loading' ? (
             <span className="flex items-center gap-2 text-[0.875rem] text-ink-2">
-              <span className="spinner text-core" /> Revisando si respeta el Núcleo…
+              <span className="spinner text-core" /> Revisando si respeta el Primario…
             </span>
           ) : c === 'error' ? (
             <span className="flex items-center gap-2 text-[0.875rem] text-ink-2">
-              No se pudo evaluar el Núcleo.
+              No se pudo evaluar el Primario.
               <KeyButton label="Reintentar" tone="ghost" onClick={() => void checkCore(p, recipe.core)} />
             </span>
           ) : Array.isArray(c) ? (
-            <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Núcleo respetado">
+            <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-label="Primario respetado">
               {c.map(k => (
                 <li key={k.id} className="flex items-start gap-2 text-[0.875rem]" title={k.note}>
                   <span className={`type-label shrink-0 ${k.respected ? 'text-confirmed-ink' : 'text-error-ink'}`} aria-label={k.respected ? 'respetada' : 'no respetada'}>
@@ -645,8 +645,8 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                   {limitNote ? `Ya hay ${MAX_DECISIONS} decisiones, el máximo: desmarcá una para sumar otra.` : `Marcá o desmarcá lo que entra. ${decisions} de ${MAX_DECISIONS} decisiones.`}
                 </p>
                 <div className="flex flex-col gap-5" style={{ opacity: direct ? 0.75 : 1, pointerEvents: direct ? 'none' : undefined }}>
-                  {layerBlock(1, 'las 3 de más peso vienen marcadas', recipe.core, x => item(x, check(isOn(x.id) && !omittedIds.has(x.id), `${x.name}: usar en el pedido`, () => toggle(x, 1)), stateOf(x)), 'El Núcleo está vacío: ubicá piezas en la Capa 1.')}
-                  {layerBlock(2, 'se preseleccionó lo que aplica', recipe.support, x => item(x, check(isOn(x.id) && !omittedIds.has(x.id), `${x.name}: usar en el pedido`, () => toggle(x, 2)), stateOf(x)), 'No hay piezas de Soporte.')}
+                  {layerBlock(1, 'las 3 de más peso vienen marcadas', recipe.core, x => item(x, check(isOn(x.id) && !omittedIds.has(x.id), `${x.name}: usar en el pedido`, () => toggle(x, 1)), stateOf(x)), 'El Primario está vacío: ubicá piezas en la Capa 1.')}
+                  {layerBlock(2, 'se preseleccionó lo que aplica', recipe.support, x => item(x, check(isOn(x.id) && !omittedIds.has(x.id), `${x.name}: usar en el pedido`, () => toggle(x, 2)), stateOf(x)), 'No hay piezas de Secundario.')}
                   {layerBlock(3, 'detalle · una sola', recipe.accent, x => item(x, check(isOn(x.id) && !omittedIds.has(x.id), `${x.name}: usar como detalle`, () => toggle(x, 3)), stateOf(x)), 'No hay piezas de Acento.')}
                 </div>
 
@@ -742,7 +742,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
           <div className="relative flex flex-col gap-5">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <StepLabel>RESULTADO</StepLabel>
-              {hasResult && <span className="text-[0.875rem] text-ink-2">Aprobá la que mejor respete el Núcleo{pieceType === 'logo' ? ': el logo aprobado se usa en las demás piezas' : ''}.</span>}
+              {hasResult && <span className="text-[0.875rem] text-ink-2">Aprobá la que mejor respete el Primario{pieceType === 'logo' ? ': el logo aprobado se usa en las demás piezas' : ''}.</span>}
             </div>
             {!hasResult && !busy && !slotErrs.some(Boolean) && <h2 className="m-0 text-[clamp(1.5rem,2.4vw,2rem)] font-semibold leading-tight">Generá dos variantes de tu {noun}</h2>}
 

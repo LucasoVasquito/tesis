@@ -179,7 +179,7 @@ export interface Pattern {
 
 /* ---------- Pila de láminas ---------- */
 
-/** 1 · Núcleo (adelante), 2 · Soporte (al medio), 3 · Acento (atrás). */
+/** 1 · Primario (adelante), 2 · Secundario (al medio), 3 · Acento (atrás). */
 export type Layer = 1 | 2 | 3;
 
 /** Los tres momentos del flujo (reemplazan a las 5 etapas). */
@@ -428,7 +428,7 @@ export interface Project {
   patternGroups?: PatternGroup[];
   /** Colores de la interfaz elegidos a mano (manda sobre lo detectado). */
   roleColors?: Partial<Record<'primary' | 'secondary' | 'accent', string>>;
-  /** Colores de capa calculados con la paleta del proyecto (color camaleón): Núcleo, Soporte, Acento. */
+  /** Colores de capa calculados con la paleta del proyecto (color camaleón): Primario, Secundario, Acento. */
   layerColors?: [string, string, string];
   /** Etapa más avanzada alcanzada (0 a 4). */
   reached?: number;
@@ -501,7 +501,7 @@ export interface PieceAudit {
   at: string;
 }
 
-/** Lo que el agente vio en una pieza generada sobre una pieza del Núcleo: ✓ respetada / ✕ no respetada. */
+/** Lo que el agente vio en una pieza generada sobre una pieza del Primario: ✓ respetada / ✕ no respetada. */
 export interface CoreCheck {
   id: string;
   respected: boolean;
@@ -513,7 +513,7 @@ export interface ApplicationSession {
   /** Pieza aprobada por tipo. */
   approved: Partial<Record<PieceType, string>>;
   audits: Record<string, PieceAudit>;
-  /** Control de respeto del Núcleo, por pieza generada. */
+  /** Control de respeto del Primario, por pieza generada. */
   coreChecks?: Record<string, CoreCheck[]>;
   requests: Partial<Record<PieceType, string>>;
   brandText?: string;

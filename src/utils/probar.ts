@@ -33,15 +33,15 @@ export const pieceTypeInfo = (t: PieceType) => PIECE_TYPES.find(p => p.id === t)
 
 /** Como máximo 3 a 5 decisiones en total, para no saturar el pedido. */
 export const MAX_DECISIONS = 5;
-/** Del Núcleo, el agente preselecciona las 3 piezas de más peso; el usuario puede cambiarlas. */
+/** Del Primario, el agente preselecciona las 3 piezas de más peso; el usuario puede cambiarlas. */
 export const MAX_CORE = 3;
-/** Imágenes de referencia del Núcleo que se mandan al modelo de imagen. */
+/** Imágenes de referencia del Primario que se mandan al modelo de imagen. */
 export const MAX_CORE_IMAGES = 3;
 
 export interface Recipe {
-  /** Núcleo: todo lo que hay; las 3 de más peso vienen marcadas. */
+  /** Primario: todo lo que hay; las 3 de más peso vienen marcadas. */
   core: Pattern[];
-  /** Soporte: todo lo que hay, el usuario primero. */
+  /** Secundario: todo lo que hay, el usuario primero. */
   support: Pattern[];
   /** Acento: todo lo que hay, el usuario primero. */
   accent: Pattern[];
@@ -53,7 +53,7 @@ export interface Recipe {
 const fit = (x: Pattern, t: PieceTypeInfo) => t.prefers.indexOf(x.category);
 
 /**
- * La receta: el Núcleo entra entero; el agente preselecciona 1 o 2 piezas de Soporte que tienen sentido para el tipo
+ * La receta: el Primario entra entero; el agente preselecciona 1 o 2 piezas de Secundario que tienen sentido para el tipo
  * de pieza y, como máximo, un Acento (solo si aplica). Todo ordenado por peso: lo del usuario primero.
  */
 export function buildRecipe(p: Project, type: PieceType): Recipe {
@@ -79,7 +79,7 @@ export interface Selection {
   omitted: Pattern[];
 }
 
-/** Lo que entra al pedido: Núcleo, Soporte marcado y Acento marcado, por capa y por peso, hasta el límite. */
+/** Lo que entra al pedido: Primario, Secundario marcado y Acento marcado, por capa y por peso, hasta el límite. */
 export function selectDecisions(r: Recipe, on: (id: string) => boolean): Selection {
   const all = [
     ...r.core.filter(x => on(x.id)).map(x => ({ x, layer: 1 as Layer })),
@@ -113,7 +113,7 @@ export interface PromptInput {
 
 /**
  * El pedido, siempre en este orden:
- * 1 tipo de pieza y formato · 2 Núcleo (obligatorio) · 3 Soporte (secundario) · 4 Acento (detalle menor)
+ * 1 tipo de pieza y formato · 2 Primario (obligatorio) · 3 Secundario (secundario) · 4 Acento (detalle menor)
  * 5 paleta, en proporción según la capa · 6 texto y pedido libre · 7 restricciones.
  */
 export function buildProbarPrompt(p: Project, o: PromptInput): string {

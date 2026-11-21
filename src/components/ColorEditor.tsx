@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { RoleKey, useColors } from '../screens/colorContext';
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -25,6 +25,7 @@ export function ColorEditor({
   onEyedropper,
   mobile,
   className,
+  style,
 }: {
   title: string;
   start: string;
@@ -38,6 +39,7 @@ export function ColorEditor({
   onEyedropper?: () => void;
   mobile?: boolean;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const [hex, setHex] = useState(start.toUpperCase());
   const [text, setText] = useState(start.toUpperCase());
@@ -68,7 +70,7 @@ export function ColorEditor({
       aria-label={`Color: ${title}`}
       onPointerDown={e => e.stopPropagation()}
       className={`${className ?? ''} flex flex-col gap-3 p-4 ${mobile ? 'fixed inset-x-0 bottom-0 z-[65] rounded-t-[4px] pb-[calc(16px+env(safe-area-inset-bottom))]' : 'rounded-[4px]'}`}
-      style={{ background: 'var(--cc-surface)' }}
+      style={{ background: 'var(--cc-raised)', ...style }}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-[0.875rem] font-semibold">{title}</span>
@@ -141,9 +143,26 @@ export function ColorsPanel({
   const colors = useColors();
   const [editing, setEditing] = useState<RoleKey | null>(null);
   const role = colors.roles.find(r => r.key === editing);
+  // El editor va con posición fija junto al panel: así no lo recorta el desplazamiento de la columna donde vive.
+  const sectionRef = useRef<HTMLElement>(null);
+  const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!editing || mobile) return setAnchor(null);
+    const place = () => {
+      const r = sectionRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const w = 272;
+      const left = r.left - w - 12 >= 8 ? r.left - w - 12 : Math.min(window.innerWidth - w - 8, Math.max(8, r.left));
+      const below = r.left - w - 12 < 8; // sin lugar a la izquierda: va debajo del panel
+      setAnchor({ left, top: Math.max(8, Math.min(below ? r.bottom + 8 : r.top, window.innerHeight - 400)) });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [editing, mobile]);
   const edge = (layer: number) => `var(--cc-l${layer - 1}-edge)`;
   return (
-    <section aria-label="Colores de la interfaz" className={`${className ?? ''} relative flex flex-col gap-2 ${flat ? 'p-1' : 'rounded-[4px] p-3'}`} style={flat ? undefined : { background: 'var(--cc-surface)' }}>
+    <section ref={sectionRef} aria-label="Colores de la interfaz" className={`${className ?? ''} relative flex flex-col gap-2 ${flat ? 'p-1' : 'rounded-[4px] p-3'}`} style={flat ? undefined : { background: 'var(--cc-surface)' }}>
       <span className="type-label text-[0.75rem] text-ink-2">Colores</span>
       <ul className="m-0 flex list-none flex-col gap-1 p-0">
         {colors.roles.map(r => (
@@ -178,12 +197,13 @@ export function ColorsPanel({
       {role && (
         <ColorEditor
           key={role.key}
-          title={`${role.label} · ${role.layer === 1 ? 'Núcleo' : role.layer === 2 ? 'Soporte' : 'Acento'}`}
+          title={role.label}
           start={role.hex.startsWith('#') ? role.hex : '#888888'}
           overridden={role.overridden}
           others={colors.detected}
           mobile={mobile}
-          className={mobile ? '' : 'absolute right-[calc(100%+12px)] top-0 z-30 w-[260px]'}
+          className={mobile ? '' : 'fixed z-[80] w-[272px]'}
+          style={mobile || !anchor ? undefined : { left: anchor.left, top: anchor.top }}
           onLive={hex => onLive(role.key, hex)}
           onClose={hex => {
             setEditing(null);

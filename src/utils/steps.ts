@@ -42,7 +42,7 @@ export const approvedCount = (p: Project) => Object.values(p.applications?.stack
 export function blockReason(p: Project, id: Moment): string | null {
   if (id === 'referencias') return null;
   if (!isAnalyzed(p)) return 'Se habilita al analizar';
-  if ((id === 'sistema' || id === 'probar') && piecesIn(p, 1).length === 0) return 'Necesita al menos una pieza en Núcleo.';
+  if ((id === 'sistema' || id === 'probar') && piecesIn(p, 1).length === 0) return 'Necesita al menos una pieza en Primario.';
   return null;
 }
 
@@ -129,7 +129,7 @@ export function locationText(p: Project, current: Moment, detail?: string): stri
       return r.remaining ? `${head} · sugerencia ${r.reviewed + 1} de ${r.total}` : `${head} · todas revisadas`;
     }
     case 'capas':
-      return `${head} · estás mirando ${detail ?? 'Núcleo'}`;
+      return `${head} · estás mirando ${detail ?? 'Primario'}`;
     case 'sistema':
       return `${head} · leyendo el resultado`;
     case 'probar':

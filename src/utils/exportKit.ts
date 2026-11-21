@@ -86,12 +86,12 @@ export async function downloadApprovedPngs(project: Project): Promise<string[]> 
 
 /* ---------- JSON y prompt ---------- */
 
-const LAYER_KEY: Record<Layer, 'nucleo' | 'soporte' | 'acento'> = { 1: 'nucleo', 2: 'soporte', 3: 'acento' };
+const LAYER_KEY: Record<Layer, 'nucleo' | 'secundario' | 'acento'> = { 1: 'nucleo', 2: 'secundario', 3: 'acento' };
 
 export interface ExportJson {
   project: string;
   palette: { primary: string; secondary: string; accent: string };
-  layers: Record<'nucleo' | 'soporte' | 'acento', { question: string; pieces: { name: string; type: string; value?: string; rule: string; evidence: string; source: 'tuyo' | 'detectado' }[] }>;
+  layers: Record<'nucleo' | 'secundario' | 'acento', { question: string; pieces: { name: string; type: string; value?: string; rule: string; evidence: string; source: 'tuyo' | 'detectado' }[] }>;
   approved: { kind: string; variant: number; file: string }[];
 }
 
@@ -116,23 +116,23 @@ export function buildExportJson(project: Project, palette: Palette, pieceColor: 
   return {
     project: project.name || project.intent || 'Proyecto',
     palette: { primary: hexOf(palette.primary), secondary: hexOf(palette.secondary), accent: hexOf(palette.accent) },
-    layers: { nucleo: layer(1), soporte: layer(2), acento: layer(3) },
+    layers: { nucleo: layer(1), secundario: layer(2), acento: layer(3) },
     approved: approvedPieces(project).map(a => ({ kind: pieceTypeInfo(a.kind).label.toLowerCase(), variant: a.variant, file: pngName(project, a.kind, a.variant) })),
   };
 }
 
 /** Prompt en texto natural, generado a partir del JSON. */
 export function buildExportPrompt(j: ExportJson): string {
-  const list = (key: 'nucleo' | 'soporte' | 'acento') =>
+  const list = (key: 'nucleo' | 'secundario' | 'acento') =>
     j.layers[key].pieces.map(p => `- ${p.name}${p.value ? ` (${p.value})` : ''}${p.rule ? `: ${p.rule}` : ''}`).join('\n') || '- (nada en esta capa)';
   return [
     `Diseñá para ${j.project}.`,
     '',
-    `Obligatorio (Núcleo) · ${LAYER_QUESTION[1]}`,
+    `Obligatorio (Primario) · ${LAYER_QUESTION[1]}`,
     list('nucleo'),
     '',
-    `Usá cuando acompañe (Soporte) · ${LAYER_QUESTION[2]}`,
-    list('soporte'),
+    `Usá cuando acompañe (Secundario) · ${LAYER_QUESTION[2]}`,
+    list('secundario'),
     '',
     `Usá con moderación (Acento) · ${LAYER_QUESTION[3]}`,
     list('acento'),

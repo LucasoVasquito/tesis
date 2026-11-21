@@ -26,7 +26,7 @@ export interface ActionResult {
 /** Mínimo de referencias para analizar. */
 export const MIN_REFS = 5;
 
-export const SHEET_NAME: Record<Layer, string> = { 1: 'Núcleo', 2: 'Soporte', 3: 'Acento' };
+export const SHEET_NAME: Record<Layer, string> = { 1: 'Primario', 2: 'Secundario', 3: 'Acento' };
 export const sheetLabel = (l: Layer) => `CAPA ${l} · ${SHEET_NAME[l].toUpperCase()}`;
 
 /* ---------- Lectura ---------- */
@@ -41,7 +41,7 @@ export const unplacedPieces = (p: Project) => livePieces(p).filter(x => !isLayer
 
 /* ---------- Peso: el usuario sobre el agente ---------- */
 
-/** Peso de la capa: Núcleo 3, Soporte 2, Acento 1. */
+/** Peso de la capa: Primario 3, Secundario 2, Acento 1. */
 export const LAYER_WEIGHT: Record<Layer, number> = { 1: 3, 2: 2, 3: 1 };
 
 /** Peso del origen: USUARIO 2 · AGENTE confirmado 1.5 · AGENTE sin confirmar (sugerencia) 1. */
@@ -73,8 +73,8 @@ export const evidenceText = (x: Pattern, p: Project) => {
 };
 
 /**
- * Hoja que sugiere la evidencia, por ranking: el 20 % con más evidencia va al Núcleo (al menos una pieza),
- * el 45 % siguiente al Soporte y el resto al Acento. Se usa cuando la IA no dijo nada.
+ * Hoja que sugiere la evidencia, por ranking: el 20 % con más evidencia va al Primario (al menos una pieza),
+ * el 45 % siguiente al Secundario y el resto al Acento. Se usa cuando la IA no dijo nada.
  */
 export function rankLayers(p: Project): Map<string, Layer> {
   const ranked = livePieces(p)
@@ -121,13 +121,13 @@ export function place(p: Project, id: string, l: Layer): ActionResult {
   };
 }
 
-/** ↑ / ↓ · Subir o bajar de hoja (↑ hacia el Núcleo). */
+/** ↑ / ↓ · Subir o bajar de hoja (↑ hacia el Primario). */
 export function move(p: Project, id: string, dir: 1 | -1): ActionResult & { to?: Layer } {
   const x = find(p, id);
   if (!x) return { project: p, log: [] };
   const from = isLayer(x.layer) ? x.layer : 3;
   const to = Math.min(3, Math.max(1, from - dir)) as Layer;
-  if (isLayer(x.layer) && to === x.layer) return { project: p, log: [], message: dir === 1 ? 'Ya está en el Núcleo' : 'Ya está en el Acento: para sacarla, X' };
+  if (isLayer(x.layer) && to === x.layer) return { project: p, log: [], message: dir === 1 ? 'Ya está en el Primario' : 'Ya está en el Acento: para sacarla, X' };
   return { ...place(p, id, to), to };
 }
 
@@ -419,12 +419,12 @@ export function returnRef(p: Project, id: string): ActionResult {
   };
 }
 
-/** ↑ / ↓ de una referencia ya ubicada (↑ hacia el Núcleo). */
+/** ↑ / ↓ de una referencia ya ubicada (↑ hacia el Primario). */
 export function moveRefLayer(p: Project, id: string, dir: 1 | -1): ActionResult & { to?: Layer } {
   const r = findRef(p, id);
   if (!r || !isLayer(r.layer)) return { project: p, log: [] };
   const to = Math.min(3, Math.max(1, r.layer - dir)) as Layer;
-  if (to === r.layer) return { project: p, log: [], message: dir === 1 ? 'Ya está en el Núcleo' : 'Ya está en el Acento: para sacarla, X' };
+  if (to === r.layer) return { project: p, log: [], message: dir === 1 ? 'Ya está en el Primario' : 'Ya está en el Acento: para sacarla, X' };
   return { ...placeRef(p, id, to), to };
 }
 
