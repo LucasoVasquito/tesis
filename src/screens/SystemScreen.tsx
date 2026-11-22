@@ -134,6 +134,25 @@ export function SystemScreen(props: SystemScreenProps) {
               <span className="text-[1.375rem] font-medium leading-snug text-ink-2">{title}</span>
             </header>
 
+            {/* Brief: nombre del proyecto, objetivo y descripción */}
+            <section aria-label="Brief" className="flex max-w-[78ch] flex-col gap-5">
+              <Label>Brief</Label>
+              <div className="flex flex-col gap-1">
+                <span className="type-label text-[0.75rem] text-ink-2">Proyecto</span>
+                <h2 className="m-0 text-[2rem] font-semibold leading-[1.1]">{project.name?.trim() || 'Sin nombre todavía'}</h2>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="type-label text-[0.75rem] text-ink-2">Objetivo</span>
+                <p className="m-0 text-[1.0625rem] leading-[1.6]">{project.objective?.trim() || project.intent?.trim() || 'Sin objetivo todavía. Escribilo en Referencias.'}</p>
+              </div>
+              {(project.brief || project.description)?.trim() && (
+                <div className="flex flex-col gap-1">
+                  <span className="type-label text-[0.75rem] text-ink-2">Descripción</span>
+                  <p className="m-0 whitespace-pre-line text-[1rem] leading-[1.6] text-ink-2">{(project.brief || project.description).trim()}</p>
+                </div>
+              )}
+            </section>
+
             {/* Capa 1 · Primario: pieza principal grande (7 de 12 columnas) con su título y descripción (5) */}
             <section id="sys-1" data-sec="1" className="flex scroll-mt-6 flex-col gap-8" aria-label="Capa 1 · Primario">
               <SectionHead layer={1} count={counts[1]} />
