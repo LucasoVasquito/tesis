@@ -104,18 +104,18 @@ test('proyecto vacío: paleta neutra por defecto', () => {
   assert.deepEqual(derivePalette([], [], {}), DEFAULT_PALETTE);
 });
 
-test('tema: el fondo toma el tono del primario con L 0.14 y croma ≤ 0.02', () => {
+test('tema: el fondo toma el tono del primario con L 0.13 y croma ≤ 0.02 (v7: base de las luces de clima)', () => {
   const t = buildTheme({ primary: BLUE, secondary: RED, accent: YELLOW });
   const m = /oklch\(([\d.]+) ([\d.]+) ([\d.]+)\)/.exec(t['--cc-bg']);
   assert.ok(m);
-  assert.equal(Number(m[1]), 0.14);
+  assert.equal(Number(m[1]), 0.13);
   assert.ok(Number(m[2]) <= 0.02);
   assert.ok(Math.abs(Number(m[3]) - hexToOklch(BLUE)[2]) < 1);
 });
 
-test('tema: un primario más oscuro que 0.14 define su propia luminosidad', () => {
-  const t = buildTheme({ primary: '#05051A', secondary: RED, accent: YELLOW });
-  assert.ok(Number(/oklch\(([\d.]+)/.exec(t['--cc-bg'])[1]) < 0.14);
+test('tema: un primario más oscuro que 0.13 define su propia luminosidad', () => {
+  const t = buildTheme({ primary: '#02020C', secondary: RED, accent: YELLOW });
+  assert.ok(Number(/oklch\(([\d.]+)/.exec(t['--cc-bg'])[1]) < 0.13);
 });
 
 test('texto sobre claro u oscuro', () => {

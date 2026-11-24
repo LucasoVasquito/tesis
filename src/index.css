@@ -687,3 +687,97 @@
     min-width: 44px;
   }
 }
+
+/* La mesa (v6): lo nuevo entra desde la derecha al avanzar y desde la izquierda al volver (24 px y fundido, 300 ms). */
+@keyframes desk-in-fwd {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes desk-in-back {
+  from { opacity: 0; transform: translateX(-24px); }
+  to { opacity: 1; transform: none; }
+}
+.desk-in.desk-fwd { animation: desk-in-fwd 300ms var(--ease-camera, ease-out) both; }
+.desk-in.desk-back { animation: desk-in-back 300ms var(--ease-camera, ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  .desk-in.desk-fwd,
+  .desk-in.desk-back { animation: none; }
+}
+
+/* Barra de acción: separador entre «← Anterior» y las herramientas de la etapa (solo si hay herramientas). */
+.bar-tools:not(:empty)::before {
+  content: '';
+  flex-shrink: 0;
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--color-line-mid, rgba(255, 255, 255, 0.15));
+}
+
+
+/* Capas: el cambio de capa se lee como profundidad. Más hondo: viene desde el fondo (chico); más cerca: desde adelante. */
+@keyframes layer-in-deeper {
+  from { opacity: 0; transform: translateY(28px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes layer-in-closer {
+  from { opacity: 0; transform: translateY(-28px) scale(1.04); }
+  to { opacity: 1; transform: none; }
+}
+.layer-in-deeper { animation: layer-in-deeper 360ms var(--ease-camera, ease-out) both; }
+.layer-in-closer { animation: layer-in-closer 360ms var(--ease-camera, ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  .layer-in-deeper,
+  .layer-in-closer { animation: none; }
+}
+
+
+/* Capas: guía de arrastre. La primera pieza late y una mano demuestra el gesto (arrastrar hacia abajo). */
+@keyframes drag-coach-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--layer-color, #fff) 70%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in oklab, var(--layer-color, #fff) 20%, transparent); }
+}
+.drag-coach-target { animation: drag-coach-pulse 1.6s ease-in-out infinite; }
+@keyframes drag-coach-hand {
+  0% { left: 4px; top: 10px; opacity: 0; }
+  15% { opacity: 1; }
+  60% { left: 30px; top: 18px; opacity: 1; }
+  85%, 100% { left: 30px; top: 18px; opacity: 0; }
+}
+.drag-coach-hand { animation: drag-coach-hand 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .drag-coach-target,
+  .drag-coach-hand { animation: none; }
+}
+
+/* Referencias · lo que encontró el agente: los patrones aparecen de a uno. */
+@keyframes found-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.found-in { animation: found-in 420ms var(--ease-camera, ease-out) both; }
+@media (prefers-reduced-motion: reduce) {
+  .found-in { animation: none; }
+}
+
+/* Luces de clima (v7): cada luz es un círculo difuso; las posiciones y colores los escribe Clima.tsx cuadro a cuadro. */
+.clima-light {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  will-change: transform, opacity;
+}
+/* Fondo claro: las luces pasan a manchas que multiplican, más suaves. */
+.clima[data-light='true'] .clima-light {
+  mix-blend-mode: multiply;
+  opacity: 0.25 !important;
+}
+
+
+/* Barra superior, riel y barra de acción: el fondo al 70 % con desenfoque; las luces se intuyen detrás. */
+.surface-glass {
+  background: color-mix(in srgb, var(--cc-bg) 70%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}

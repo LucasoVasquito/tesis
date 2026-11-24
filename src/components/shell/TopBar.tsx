@@ -28,6 +28,8 @@ interface TopBarProps {
   /** Ayuda: vuelve a mostrar la guía de tres carteles. */
   onOpenHelp: () => void;
   status: StatusLine;
+  /** Migas: «Capas › Secundario». */
+  crumb?: string;
   save: SaveState;
   /** Las 5 etapas (solo escritorio). */
   nav?: React.ReactNode;
@@ -145,7 +147,7 @@ export function TopBar(props: TopBarProps) {
   const name = project.name.trim() || 'Proyecto sin nombre';
 
   return (
-    <header className={`no-print relative z-10 flex shrink-0 items-center px-3 lg:gap-6 lg:px-10 ${mobile ? 'min-h-14 flex-wrap gap-x-2 pb-1 pt-1' : 'h-14 gap-3'}`}>
+    <header className={`no-print surface-glass relative z-10 flex shrink-0 items-center px-3 lg:gap-6 lg:px-10 ${mobile ? 'min-h-14 flex-wrap gap-x-2 pb-1 pt-1' : 'h-14 gap-3'}`}>
       {/* Proyecto */}
       <div className="relative flex min-w-0 flex-1 basis-0 items-center gap-3" ref={wrapRef}>
         <span className={`type-name shrink-0 whitespace-nowrap tracking-[0.04em] text-ink ${mobile ? 'text-[1.125rem]' : 'text-[1.375rem]'}`}>CAMALEÓN CORPUS</span>
@@ -162,6 +164,11 @@ export function TopBar(props: TopBarProps) {
           <span className="truncate text-[0.875rem]">{name}</span>
           <ChevronDown aria-hidden="true" />
         </button>
+        {props.crumb && !mobile && (
+          <span className="hidden truncate text-[0.875rem] text-ink-2 min-[1200px]:inline" aria-label={`Estás en ${props.crumb}`}>
+            {props.crumb}
+          </span>
+        )}
         {open && (
           <ul
             id={menuId}

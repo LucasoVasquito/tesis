@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BoardBox, Project, Reference } from '../types';
+import { BoardBox, Layer, Project, Reference } from '../types';
 import { useShortcuts } from '../hooks/useAuditShortcuts';
 import { useViewport } from '../hooks/useViewport';
 import { corpusRefs } from '../utils/layers';
-import { MIN_REFS } from '../pieces/model';
+import { MIN_REFS, SHEET_NAME, createUserPiece, suggestions } from '../pieces/model';
+import { AnalysisPanel } from './ReferencesSteps';
+import { LAYER_QUESTION } from '../utils/layerQuestions';
 import { AnalysisState } from '../pieces/analyze';
 import { isAnalyzed } from '../utils/steps';
 import { BarButton, BarSep, BottomBar } from '../components/shell/BottomBar';
@@ -54,8 +56,6 @@ interface Props {
   onDeleteRef: (id: string) => void;
   onNext: () => void;
   onBlocked: (reason: string) => void;
-  onSubmitIntent: (intent: string) => void;
-  briefBusy: boolean;
   /** Pide centrar el lienzo en una imagen (por ejemplo, la que no se pudo leer). */
   focus: { id: string; n: number } | null;
   /** Modo cuentagotas: se elige un color tocando cualquier punto de una imagen del lienzo. */
@@ -64,6 +64,9 @@ interface Props {
   onEyedropperDone?: (hex: string | null, back?: boolean) => void;
   onNotify?: (text: string) => void;
 }
+
+/** La ayuda del lienzo ya se mostró una vez. */
+const CANVAS_HELP_KEY = 'cc_canvas_help_seen';
 
 /** Lupa del cuentagotas: 9×9 píxeles ampliados alrededor del cursor. */
 const LOUPE_N = 9;
@@ -109,11 +112,45 @@ export function ReferencesScreen(props: Props) {
   }, [stripH, stripC]);
 
   const [selected, setSelected] = useState<string | null>(null);
+  /** Varias imágenes elegidas (⇧ o Ctrl + clic, o «Elegir varias» en táctil): con 2 o más se crea un patrón. */
+  const [picked, setPicked] = useState<string[]>([]);
+  const [multi, setMulti] = useState(false);
+  /** Formulario «Crear patrón» abierto. */
+  const [grouping, setGrouping] = useState(false);
+  const [gName, setGName] = useState('');
+  const [gNote, setGNote] = useState('');
+  const [gLayer, setGLayer] = useState<Layer>(2);
+  const openGrouping = () => {
+    if (picked.length < 2) return;
+    setGName('');
+    setGNote('');
+    setGLayer(2);
+    setGrouping(true);
+  };
+  const submitGroup = () => {
+    if (!gName.trim() || picked.length < 2) return;
+    const r = createUserPiece(project, picked, gName, gLayer, gNote);
+    if (!r.id) return;
+    mutate(() => r.project, { notice: r.message });
+    setGrouping(false);
+    setPicked([]);
+    setMulti(false);
+  };
+  /** Patrones tuyos por imagen: se marcan en el lienzo con una etiqueta. */
+  const ownByRef = useMemo(() => {
+    const m = new Map<string, { name: string; layer: Layer | null }[]>();
+    project.patterns
+      .filter(x => x.origin === 'user' && x.status !== 'discarded' && !x.isGroup && x.evidence.length > 1)
+      .forEach(x => x.evidence.forEach(id => m.set(id, [...(m.get(id) ?? []), { name: x.name, layer: (x.layer as Layer | null) ?? null }])));
+    return m;
+  }, [project.patterns]);
   /** Orden en el frente: lo último seleccionado va arriba. */
   const [front, setFront] = useState<Record<string, number>>({});
   const frontCounter = useRef(1);
   /** Caja que se está arrastrando o redimensionando (se guarda al soltar). */
   const [live, setLive] = useState<{ id: string; box: BoardBox } | null>(null);
+  const liveRef = useRef(live);
+  liveRef.current = live;
   const [unreadable, setUnreadable] = useState<Set<string>>(new Set());
   const [dragOver, setDragOver] = useState(false);
 
@@ -267,7 +304,11 @@ export function ReferencesScreen(props: Props) {
         }
         setCam({ ...cur.cam, x: cur.cam.x + dx, y: cur.cam.y + dy });
       }
-      else if (cur.kind === 'move') setLive({ id: cur.id, box: { ...cur.box, x: cur.box.x + dx / z, y: cur.box.y + dy / z } });
+      else if (cur.kind === 'move') {
+        const next = { id: cur.id, box: { ...cur.box, x: cur.box.x + dx / z, y: cur.box.y + dy / z } };
+        liveRef.current = next;
+        setLive(next);
+      }
       else {
         const b = cur.box;
         const ratio = b.w / b.h;
@@ -290,7 +331,8 @@ export function ReferencesScreen(props: Props) {
         // El borde opuesto queda fijo.
         const x = sx === 1 ? b.x : b.x + b.w - w;
         const y = sy === 1 ? b.y : b.y + b.h - h;
-        setLive({ id: cur.id, box: { x, y, w, h } });
+        liveRef.current = { id: cur.id, box: { x, y, w, h } };
+        setLive(liveRef.current);
       }
     };
     const up = () => {
@@ -301,16 +343,19 @@ export function ReferencesScreen(props: Props) {
       drag.current = null;
       if (!cur) return;
       if (cur.kind === 'pan') {
-        if (!cur.moved) setSelected(null);
+        if (!cur.moved) {
+          setSelected(null);
+          setPicked([]);
+        }
         return;
       }
-      setLive(l => {
-        if (l && cur.moved) {
-          const box = l.box;
-          mutate(p => ({ ...p, references: p.references.map(r => (r.id === l.id ? { ...r, board: box } : r)) }), { silent: true });
-        }
-        return null;
-      });
+      // Se guarda fuera del actualizador de estado: React lo corre durante el render y no se puede actualizar App desde ahí.
+      const l = liveRef.current;
+      if (l && cur.moved) {
+        const box = l.box;
+        mutate(p => ({ ...p, references: p.references.map(r => (r.id === l.id ? { ...r, board: box } : r)) }), { silent: true });
+      }
+      setLive(null);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -537,6 +582,16 @@ export function ReferencesScreen(props: Props) {
     if (touches.current.size >= 2) return;
     e.stopPropagation();
     e.preventDefault();
+    if (e.shiftKey || e.ctrlKey || e.metaKey || multi) {
+      // Si había una sola elegida, entra en la selección múltiple.
+      setPicked(cur => {
+        const base = cur.length ? cur : selected ? [selected] : [];
+        return base.includes(r.id) ? base.filter(id => id !== r.id) : [...base, r.id];
+      });
+      setSelected(null);
+      return;
+    }
+    setPicked([r.id]);
     setSelected(r.id);
     bringFront(r.id);
     begin({ kind: 'move', id: r.id, sx: e.clientX, sy: e.clientY, box: r.board, moved: false });
@@ -583,10 +638,26 @@ export function ReferencesScreen(props: Props) {
     if (url) props.onAddUrl(url);
   };
 
+  /* ---------- Ayuda del lienzo: una sola vez como aviso; después vive en «? Ayuda» ---------- */
+  useEffect(() => {
+    if (!refs.length) return;
+    try {
+      if (localStorage.getItem(CANVAS_HELP_KEY) === '1') return;
+      localStorage.setItem(CANVAS_HELP_KEY, '1');
+    } catch {
+      return;
+    }
+    props.onNotify?.(mobile ? 'Un dedo mueve; dos dedos hacen zoom. Tocá una imagen y arrastrá las esquinas para cambiar el tamaño.' : 'Rueda para moverte, Ctrl + rueda para zoom. Arrastrá las esquinas para cambiar el tamaño. Esto queda en «? Ayuda».');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refs.length > 0]);
+
   /* ---------- Teclado ---------- */
   const primary = (() => {
     if (busy) return { label: 'Analizando…', blocked: 'El análisis está en curso.', blockedLabel: 'Analizando…', onClick: () => {}, onBlockedClick: props.onBlocked };
-    if (analyzed) return { label: 'Seguir en Revisar', kbd: '⏎', onClick: props.onNext };
+    if (analyzed) {
+      const n = suggestions(project).length;
+      return { label: n ? `Revisar ${n} ${n === 1 ? 'sugerencia' : 'sugerencias'} →` : 'Seguir a Revisar →', kbd: '⏎', onClick: props.onNext };
+    }
     if (missing > 0) {
       return {
         label: 'Analizar referencias',
@@ -606,17 +677,10 @@ export function ReferencesScreen(props: Props) {
     '=': () => zoomAt(1.25),
     '-': () => zoomAt(0.8),
     '0': () => fit(),
-    escape: () => (ey ? props.onEyedropperDone?.(null) : busy ? props.onCancelAnalysis() : selected ? setSelected(null) : false),
+    escape: () => (ey ? props.onEyedropperDone?.(null) : grouping ? setGrouping(false) : busy ? props.onCancelAnalysis() : picked.length > 1 ? setPicked([]) : selected ? setSelected(null) : false),
+    g: () => (!ey && picked.length > 1 ? openGrouping() : false),
     enter: () => (ey ? false : primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick()),
   });
-
-  /* ---------- Frase de intención (opcional) ---------- */
-  const [intent, setIntent] = useState(project.intent ?? '');
-  useEffect(() => setIntent(project.intent ?? ''), [project.id, project.intent]);
-  const submitIntent = () => {
-    const v = intent.trim();
-    if (v && v !== project.intent) props.onSubmitIntent(v);
-  };
 
   /* ---------- Dibujo ---------- */
   const dots = 24 * cam.z;
@@ -671,6 +735,8 @@ export function ReferencesScreen(props: Props) {
             const b = boxOf(r);
             if (!b) return null;
             const isSel = selected === r.id;
+            const pickIdx = picked.length > 1 ? picked.indexOf(r.id) : -1;
+            const own = ownByRef.get(r.id);
             const bad = r.broken || unreadable.has(r.id);
             const hs = (mobile ? 24 : 12) / cam.z;
             return (
@@ -686,7 +752,8 @@ export function ReferencesScreen(props: Props) {
                   height: b.h,
                   zIndex: front[r.id] ?? 0,
                   cursor: ey ? 'crosshair' : 'move',
-                  outline: bad ? `${3 / cam.z}px solid var(--cc-error)` : isSel ? `${2 / cam.z}px solid var(--cc-text)` : undefined,
+                  outline: bad ? `${3 / cam.z}px solid var(--cc-error)` : pickIdx >= 0 ? `${3 / cam.z}px solid var(--cc-primary)` : isSel ? `${2 / cam.z}px solid var(--cc-text)` : undefined,
+                  outlineOffset: pickIdx >= 0 ? 2 / cam.z : undefined,
                 }}
               >
                 <img
@@ -696,6 +763,20 @@ export function ReferencesScreen(props: Props) {
                   onError={() => setUnreadable(s => new Set(s).add(r.id))}
                   className="pointer-events-none size-full select-none object-cover"
                 />
+                {pickIdx >= 0 && (
+                  <span className="pointer-events-none absolute flex items-center justify-center rounded-full font-bold" style={{ right: 6 / cam.z, top: 6 / cam.z, width: 24 / cam.z, height: 24 / cam.z, fontSize: 13 / cam.z, background: 'var(--cc-primary)', color: 'var(--cc-on-primary)' }}>
+                    {pickIdx + 1}
+                  </span>
+                )}
+                {own && (
+                  <span className="pointer-events-none absolute flex max-w-full flex-col items-start" style={{ left: 6 / cam.z, bottom: 6 / cam.z, gap: 3 / cam.z }}>
+                    {own.slice(0, 2).map(o => (
+                      <span key={o.name} className={`${o.layer ? `layer-${o.layer}` : ''} max-w-full truncate rounded-[3px] font-semibold leading-tight`} style={{ fontSize: Math.max(10, 12 / cam.z), padding: `${2 / cam.z}px ${6 / cam.z}px`, background: 'rgba(10,10,10,.8)', color: 'var(--cc-text)', boxShadow: `inset ${3 / cam.z}px 0 0 var(--layer-color, var(--cc-text))` }}>
+                        {o.name}
+                      </span>
+                    ))}
+                  </span>
+                )}
                 {bad && (
                   <span className="pointer-events-none absolute left-0 top-0 bg-[var(--cc-error)] px-[6px] py-[2px] font-mono leading-none text-void" style={{ fontSize: Math.max(9, 11 / cam.z) }}>
                     NO SE PUDO LEER
@@ -763,30 +844,111 @@ export function ReferencesScreen(props: Props) {
         </div>
       )}
 
-      {/* Franja fija: título de etapa y frase de intención (opcional, ayuda al agente a entender la marca) */}
+      {/* El análisis: progreso y, al terminar, lo que encontró (una vez por análisis) */}
+      {!ey && (
+        <AnalysisPanel
+          project={project}
+          analysis={props.analysis}
+          onCancel={props.onCancelAnalysis}
+          onRetry={props.onAnalyze}
+          onReview={props.onNext}
+          top={(collapsed ? stripC : stripH) + 8}
+        />
+      )}
+
+      {/* Varias elegidas: crear un patrón con ellas */}
+      {!ey && picked.length > 1 && !grouping && (
+        <div className="absolute bottom-4 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-full py-2 pl-5 pr-2 shadow-float" style={{ background: 'var(--cc-surface)' }} onPointerDown={e => e.stopPropagation()}>
+          <span className="text-[0.9375rem] font-semibold">{picked.length} elegidas</span>
+          <button type="button" onClick={() => setPicked([])} className="text-[0.875rem] text-ink-2 underline underline-offset-4 hover:text-ink">
+            Soltar
+          </button>
+          <button type="button" onClick={openGrouping} className="inline-flex h-10 items-center gap-2 rounded-full bg-bone px-5 text-[0.875rem] font-bold text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]">
+            Crear patrón {!mobile && <kbd className="font-medium opacity-75">G</kbd>}
+          </button>
+        </div>
+      )}
+      {!ey && grouping && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/50 p-4" onPointerDown={e => e.target === e.currentTarget && setGrouping(false)}>
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-label="Crear patrón"
+            onKeyDown={e => e.key === 'Escape' && (e.stopPropagation(), setGrouping(false))}
+            className="flex w-[min(520px,100%)] flex-col gap-5 rounded-[6px] p-6 shadow-float"
+            style={{ background: 'var(--cc-surface)' }}
+            onSubmit={e => {
+              e.preventDefault();
+              submitGroup();
+            }}
+          >
+            <div className="flex flex-col gap-1">
+              <span className="type-label text-[0.75rem] text-ink-2">Crear patrón · {picked.length} referencias</span>
+              <span className="text-[1.375rem] font-semibold">¿Qué tienen en común?</span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto">
+              {picked.map(id => {
+                const r = refs.find(x => x.id === id);
+                return r ? <img key={id} src={r.image} alt={r.name} className="size-14 shrink-0 rounded-[3px] object-cover" /> : null;
+              })}
+            </div>
+            <label className="flex flex-col gap-2">
+              <span className="type-label text-[0.75rem] text-ink-2">Nombre</span>
+              <input autoFocus value={gName} onChange={e => setGName(e.target.value)} onKeyDown={e => e.key === 'Escape' && setGrouping(false)} placeholder="Ej: Sellos circulares" className="field-input" style={{ height: 48, fontSize: '1.125rem' }} />
+            </label>
+            <label className="flex flex-col gap-2">
+              <span className="type-label text-[0.75rem] text-ink-2">Qué se repite · opcional</span>
+              <textarea value={gNote} onChange={e => setGNote(e.target.value)} rows={2} placeholder="Ej: un círculo con texto alrededor, siempre en una esquina" className="field-input" />
+            </label>
+            <div className="flex flex-col gap-2" role="radiogroup" aria-label="Capa">
+              <span className="type-label text-[0.75rem] text-ink-2">¿En qué capa va?</span>
+              <div className="grid grid-cols-3 gap-2">
+                {([1, 2, 3] as Layer[]).map(l => (
+                  <button
+                    key={l}
+                    type="button"
+                    role="radio"
+                    aria-checked={gLayer === l}
+                    onClick={() => setGLayer(l)}
+                    title={LAYER_QUESTION[l]}
+                    className={`layer-${l} flex flex-col items-start gap-1 rounded-[4px] px-3 py-2 text-left`}
+                    style={{ outline: gLayer === l ? '2px solid var(--cc-text)' : '1px solid var(--cc-line)', outlineOffset: -1 }}
+                  >
+                    <span className="layer-headline" style={{ fontSize: 20, textDecoration: 'none' }}>
+                      {SHEET_NAME[l]}
+                    </span>
+                    <span className="text-[0.75rem] leading-snug text-ink-2">{LAYER_QUESTION[l]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-4">
+              <button type="button" onClick={() => setGrouping(false)} className="text-[0.875rem] text-ink-2 underline underline-offset-4 hover:text-ink">
+                Cancelar
+              </button>
+              <button type="submit" disabled={!gName.trim()} className="inline-flex h-11 items-center rounded-full bg-bone px-6 text-[0.9375rem] font-bold text-void disabled:cursor-not-allowed disabled:opacity-50">
+                Crear patrón
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Franja fija: título de etapa y, si hay, la frase del brief (se edita en 0 · Brief) */}
       {!ey && (
         <header
           className={`absolute inset-x-0 top-0 z-20 flex gap-3 px-4 pb-3 lg:px-10 ${mobile ? 'flex-col justify-end' : 'items-end justify-between gap-6'}`}
           style={{ height: collapsed ? stripC : stripH, transition: 'height 200ms ease-out' }}
           onPointerDown={e => e.stopPropagation()}
         >
-          <h1 data-headline className="type-stage m-0 text-ink" style={collapsed ? { fontSize: 32, lineHeight: 1 } : mobile ? { fontSize: 44 } : undefined}>
-            Referencias
+          <h1 data-headline className="type-stage m-0 text-ink" style={collapsed ? { fontSize: 32, lineHeight: 1 } : mobile ? { fontSize: 40 } : { fontSize: 'clamp(40px, 5vw, 72px)', lineHeight: 0.95 }}>
+            Tus referencias
           </h1>
-          <label className={`flex flex-col gap-1 ${mobile ? 'w-full' : 'w-[min(440px,45%)]'}`}>
-            {!collapsed && <span className="type-label text-[0.75rem] tracking-[0.06em] text-ink-2">Frase de intención · opcional</span>}
-            <input
-              value={intent}
-              onChange={e => setIntent(e.target.value)}
-              onBlur={submitIntent}
-              onKeyDown={e => e.key === 'Enter' && (e.currentTarget.blur(), e.preventDefault())}
-              placeholder="Frase de intención. Ej: hamburguesería cruda, de barrio"
-              aria-label="Frase de intención (opcional)"
-              className="field-input"
-              style={{ height: 40 }}
-            />
-            {props.briefBusy && <span className="text-[0.875rem] text-ink-2">Redactando el brief…</span>}
-          </label>
+          {!collapsed && (project.intent?.trim() || project.name.trim()) && (
+            <p className={`m-0 pb-2 text-[1rem] leading-snug text-ink-2 ${mobile ? '' : 'max-w-[min(440px,45%)] text-right'}`}>
+              {project.intent?.trim() || project.name.trim()}
+            </p>
+          )}
         </header>
       )}
 
@@ -803,13 +965,24 @@ export function ReferencesScreen(props: Props) {
         }}
       />
       <BottomBar
-        help={mobile ? 'Un dedo mueve; dos dedos hacen zoom. Tocá una imagen para elegirla y arrastrá las esquinas para cambiar el tamaño.' : 'Rueda para moverte, Ctrl + rueda para zoom. Arrastrá las esquinas para cambiar el tamaño.'}
         actions={
           <>
             {analyzed && !busy && <BarButton onClick={props.onRequestReanalyze}>Volver a analizar</BarButton>}
             {busy && <BarButton onClick={props.onCancelAnalysis}>Cancelar análisis</BarButton>}
             {(analyzed || busy) && <BarSep />}
             <BarButton onClick={() => (mobile ? fileInput.current?.click() : props.onOpenUpload())}>+ Imagen</BarButton>
+            {refs.length > 1 && (
+              <BarButton
+                active={multi}
+                onClick={() => {
+                  setMulti(m => !m);
+                  if (multi) setPicked([]);
+                }}
+                title="Elegí varias imágenes para crear un patrón (también con ⇧ + clic)"
+              >
+                {multi ? 'Listo' : 'Elegir varias'}
+              </BarButton>
+            )}
             <BarSep />
             <BarButton onClick={() => zoomAt(0.8)} ariaLabel="Alejar" title="Alejar (−)">
               −

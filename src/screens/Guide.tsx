@@ -12,9 +12,9 @@ export const guideDone = () => {
 };
 
 const STEPS: { text: string; where: string }[] = [
-  { text: 'Cinco etapas arriba: Referencias, Revisar, Capas, Sistema y Probar. Podés ir y volver.', where: 'left-1/2 top-[72px] -translate-x-1/2' },
-  { text: 'Juntá imágenes en el lienzo: arrastralas, pegá una URL o usá Ctrl+V. Con 5 o más, analizá.', where: 'left-1/2 top-[160px] -translate-x-1/2' },
-  { text: 'Revisá las sugerencias y ordená las capas: la rueda baja por las piezas y, al final, pasa a la siguiente capa. Arrastrá una pieza para cambiarla de capa. Ctrl+Z deshace.', where: 'bottom-[120px] right-6' },
+  { text: 'Seis etapas arriba: Brief, Referencias, Revisar, Capas, Sistema y Probar. Podés ir y volver.', where: 'left-1/2 top-[72px] -translate-x-1/2' },
+  { text: 'Juntá imágenes en el lienzo: arrastralas, pegá una URL o usá Ctrl+V. Con 5 o más, analizá. Rueda para moverte, Ctrl + rueda para zoom; arrastrá las esquinas de una imagen para cambiar su tamaño.', where: 'left-1/2 top-[160px] -translate-x-1/2' },
+  { text: 'Cada etapa va por pasos (arriba, debajo de las etapas): → o ⏎ sigue, ← vuelve. En Capas recorrés Primario, Secundario y Acento de a una; arrastrá una pieza para cambiarla de capa. Ctrl+Z deshace.', where: 'bottom-[96px] right-6' },
 ];
 
 /** Guía de 3 carteles: solo la primera vez (o desde AYUDA), salteable. */

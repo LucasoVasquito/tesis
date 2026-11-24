@@ -2,6 +2,7 @@ import { Layer, PaletteColor, Pattern, Project, Rule, VisualSystem } from '../ty
 import { deltaE, hexToLab, inferPalette, MAX_DISTANCE } from './palette';
 import { corpusRefs, evidenceCount, layerTag } from './layers';
 import { fullRule, layerContents, oneLine, shortRule, stackOrder } from './layerRules';
+import { colorName } from './derivePalette';
 
 /**
  * Consecuencias de la lámina: la lámina no es decorativa, cambia el resultado.
@@ -22,7 +23,18 @@ export interface StackPaletteColor extends PaletteColor {
  * Paleta de la pila. Si hay patrones de color en la pila, mandan ellos; si no, todos los patrones.
  * Cada color toma la lámina más importante en la que aparece y su proporción sale del peso de esa lámina.
  */
+/** La paleta del sistema: Primario, Secundario y Acento, los mismos colores de Capas, Sistema y Probar. */
+export function systemPalette(colors: [string, string, string]): StackPaletteColor[] {
+  const roles = ['Primario', 'Secundario', 'Acento'];
+  return colors.map((hex, i) => {
+    const layer = (i + 1) as Layer;
+    return { hex, name: colorName(hex), role: roles[i], layer, share: LAYER_WEIGHT[layer] / 6 };
+  });
+}
+
 export function stackPalette(p: Project, max = 6): StackPaletteColor[] {
+  // Si el proyecto ya tiene su paleta (la que usa la interfaz), esa es la del sistema: no hay paleta paralela.
+  if (p.layerColors?.length === 3) return systemPalette(p.layerColors);
   const placed = stackOrder(p);
   const colorOnly = placed.some(x => x.pattern.category === 'color');
   const out: StackPaletteColor[] = [];
@@ -76,7 +88,7 @@ export function buildStackPrompt(p: Project, piece = '[describí la pieza: afich
     `# Request`,
     `Piece: ${piece}.`,
     `Brand: ${p.name || p.intent || ''}${p.intent && p.intent !== p.name ? ` — ${p.intent}` : ''}`,
-    p.brief || p.objective ? `Context: ${p.brief || p.objective}` : '',
+    p.objective ? `Context: ${p.objective}` : '',
     ``,
     `# Visual hierarchy (follow this order of weight)`,
     block(1, '1 · CORE — defines the piece. It must dominate: the largest share of the image and the first thing you see.'),
@@ -96,7 +108,7 @@ export function stackGuidelinesMarkdown(p: Project): string {
   const title = p.name || p.intent || 'Sistema visual';
   lines.push(`# ${title}`, '');
   if (p.intent && p.intent !== title) lines.push(`> ${p.intent}`, '');
-  if (p.brief) lines.push(p.brief, '');
+  if (p.objective) lines.push(p.objective, '');
   lines.push(`Sistema visual en tres capas. El Primario define, el Secundario acompaña y el Acento da carácter. Las piezas marcadas con [DETECTADO · SUGERENCIA] las ubicó el agente y el diseñador todavía no las confirmó.`, '');
 
   const core = layerContents(p, 1);
@@ -162,7 +174,7 @@ export function stackSystem(p: Project): VisualSystem {
   return {
     id: 'stack',
     name: p.name || p.intent || 'Pila',
-    description: p.brief || p.objective || '',
+    description: p.objective || '',
     patternIds: ordered.map(x => x.pattern.id),
     referenceIds: [...new Set(ordered.flatMap(x => x.pattern.evidence))],
     status: 'active',

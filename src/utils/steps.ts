@@ -3,7 +3,8 @@ import { corpusRefs } from './layers';
 import { SHEET_NAME, livePieces, outPieces, piecesIn, suggestions } from '../pieces/model';
 
 /**
- * Las 5 etapas: Referencias · Revisar · Capas · Sistema · Probar.
+ * Las etapas: 0 Brief · 1 Referencias · 2 Revisar · 3 Capas · 4 Sistema · 5 Probar.
+ * El índice en STEPS es el número que se muestra.
  * Acá vive todo lo que la barra lateral y la barra superior necesitan saber: qué está completo,
  * qué está bloqueado, qué quedó desactualizado y dónde estabas.
  */
@@ -15,6 +16,7 @@ export interface StepInfo {
 }
 
 export const STEPS: StepInfo[] = [
+  { id: 'brief', label: 'Brief', desc: 'Contá qué vas a diseñar' },
   { id: 'referencias', label: 'Referencias', desc: 'Juntá todo lo que te inspira' },
   { id: 'revisar', label: 'Revisar', desc: 'Decidí qué se sugiere' },
   { id: 'capas', label: 'Capas', desc: 'Ordená por importancia' },
@@ -28,6 +30,9 @@ export const stepLabel = (id: Moment) => STEPS[stepIndex(id)]?.label ?? '';
 /** ¿Ya se analizó? Hay piezas del agente (o descartadas) o una fecha de análisis. */
 export const isAnalyzed = (p: Project) => !!p.lastAnalyzedAt || livePieces(p).length > 0 || outPieces(p).length > 0;
 
+/** ¿Hay brief? Alcanza con la frase o el objetivo. */
+export const hasBrief = (p: Project) => !!(p.intent?.trim() || p.objective.trim());
+
 /** Cuántas sugerencias faltan decidir, cuántas había y cuántas se revisaron. */
 export function reviewProgress(p: Project) {
   const remaining = suggestions(p).length;
@@ -40,7 +45,7 @@ export const approvedCount = (p: Project) => Object.values(p.applications?.stack
 
 /** Por qué una etapa está bloqueada; null si se puede entrar. */
 export function blockReason(p: Project, id: Moment): string | null {
-  if (id === 'referencias') return null;
+  if (id === 'brief' || id === 'referencias') return null;
   if (!isAnalyzed(p)) return 'Se habilita al analizar';
   if ((id === 'sistema' || id === 'probar') && piecesIn(p, 1).length === 0) return 'Necesita al menos una pieza en Primario.';
   return null;
@@ -49,6 +54,8 @@ export function blockReason(p: Project, id: Moment): string | null {
 /** ¿Está completa? Referencias al analizar · Revisar sin sugerencias · Capas y Sistema al avanzar · Probar con una aprobada. */
 export function isDone(p: Project, id: Moment): boolean {
   switch (id) {
+    case 'brief':
+      return hasBrief(p);
     case 'referencias':
       return isAnalyzed(p);
     case 'revisar':
@@ -66,6 +73,8 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 /** Resumen de una etapa completa. */
 export function summary(p: Project, id: Moment): string {
   switch (id) {
+    case 'brief':
+      return p.name.trim() || p.intent?.trim() || 'Completo';
     case 'referencias':
       return plural(corpusRefs(p).length, 'referencia', 'referencias');
     case 'revisar':
@@ -100,7 +109,7 @@ export function railItems(p: Project, current: Moment): RailItem[] {
   const reached = Math.max(p.reached ?? 0, cur);
   return STEPS.map((s, i) => {
     const blocked = blockReason(p, s.id);
-    const base = { id: s.id, label: s.label, num: i + 1, blocked };
+    const base = { id: s.id, label: s.label, num: i, blocked };
     if (s.id === current) {
       const r = reviewProgress(p);
       const line = s.id === 'revisar' && r.total > 0 && r.remaining > 0 ? `${r.reviewed} de ${r.total} revisadas` : s.desc;
@@ -120,8 +129,10 @@ export function railItems(p: Project, current: Moment): RailItem[] {
 
 /** Línea de ubicación (centro de la barra superior). */
 export function locationText(p: Project, current: Moment, detail?: string): string {
-  const head = `Etapa ${stepIndex(current) + 1} de 5 · ${stepLabel(current)}`;
+  const head = `Etapa ${stepIndex(current)} de ${STEPS.length - 1} · ${stepLabel(current)}`;
   switch (current) {
+    case 'brief':
+      return `${head} · ${hasBrief(p) ? p.name.trim() || 'sin nombre todavía' : 'antes de juntar referencias'}`;
     case 'referencias':
       return `${head} · ${plural(corpusRefs(p).length, 'referencia', 'referencias')} en el tablero`;
     case 'revisar': {

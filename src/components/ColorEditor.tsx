@@ -131,8 +131,11 @@ export function ColorsPanel({
   onCommit,
   mobile,
   flat,
+  big,
   className,
 }: {
+  /** Tres muestras grandes, cada una con su pieza de origen (subpaso Colores de Capas). */
+  big?: boolean;
   onLive: (key: RoleKey, hex: string | null) => void;
   onCommit: (key: RoleKey, hex: string | null) => void;
   mobile?: boolean;
@@ -153,14 +156,85 @@ export function ColorsPanel({
       if (!r) return;
       const w = 272;
       const left = r.left - w - 12 >= 8 ? r.left - w - 12 : Math.min(window.innerWidth - w - 8, Math.max(8, r.left));
+      if (big) {
+        // Muestras grandes: el editor va debajo de la muestra elegida.
+        const i = colors.roles.findIndex(x => x.key === editing);
+        const cell = sectionRef.current?.querySelectorAll('[data-role-tile]')[i]?.getBoundingClientRect();
+        const l = cell ? Math.min(window.innerWidth - w - 8, Math.max(8, cell.left)) : left;
+        setAnchor({ left: l, top: Math.max(8, Math.min((cell?.bottom ?? r.bottom) + 8, window.innerHeight - 400)) });
+        return;
+      }
       const below = r.left - w - 12 < 8; // sin lugar a la izquierda: va debajo del panel
       setAnchor({ left, top: Math.max(8, Math.min(below ? r.bottom + 8 : r.top, window.innerHeight - 400)) });
     };
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
-  }, [editing, mobile]);
+  }, [editing, mobile, big]); // eslint-disable-line react-hooks/exhaustive-deps
   const edge = (layer: number) => `var(--cc-l${layer - 1}-edge)`;
+  const editor = role && (
+    <ColorEditor
+      key={role.key}
+      title={role.label}
+      start={role.hex.startsWith('#') ? role.hex : '#888888'}
+      overridden={role.overridden}
+      others={colors.detected}
+      mobile={mobile}
+      className={mobile ? '' : 'fixed z-[80] w-[272px]'}
+      style={mobile || !anchor ? undefined : { left: anchor.left, top: anchor.top }}
+      onLive={hex => onLive(role.key, hex)}
+      onClose={hex => {
+        setEditing(null);
+        if (hex) onCommit(role.key, hex);
+        else onLive(role.key, null);
+      }}
+      onRestore={() => {
+        setEditing(null);
+        onCommit(role.key, null);
+      }}
+      onEyedropper={
+        colors.eyedrop
+          ? () => {
+              const key = role.key;
+              setEditing(null);
+              onLive(key, null);
+              colors.eyedrop?.(key);
+            }
+          : undefined
+      }
+    />
+  );
+  if (big)
+    return (
+      <section ref={sectionRef} aria-label="Colores de la interfaz" className={`${className ?? ''} relative`}>
+        <ul className="m-0 grid list-none gap-5 p-0 md:grid-cols-3">
+          {colors.roles.map(r => (
+            <li key={r.key} data-role-tile>
+              <button
+                type="button"
+                onClick={() => setEditing(e => (e === r.key ? null : r.key))}
+                aria-expanded={editing === r.key}
+                className="flex w-full flex-col gap-3 text-left"
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex h-[min(40vh,320px)] w-full items-end justify-between rounded-[4px] p-4 transition-transform duration-150 hover:scale-[1.01]"
+                  style={{ background: r.hex, boxShadow: `inset 0 0 0 1px ${edge(r.layer)}`, outline: editing === r.key ? '2px solid var(--cc-text)' : undefined, outlineOffset: 3 }}
+                />
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="text-[1.125rem] font-semibold">
+                    {r.layer} · {r.label}
+                  </span>
+                  <span className="font-mono text-[0.9375rem] text-ink-2">{r.hex.toUpperCase()}</span>
+                </span>
+                <span className="text-[0.875rem] leading-snug text-ink-2">{r.source}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {editor}
+      </section>
+    );
   return (
     <section ref={sectionRef} aria-label="Colores de la interfaz" className={`${className ?? ''} relative flex flex-col gap-2 ${flat ? 'p-1' : 'rounded-[4px] p-3'}`} style={flat ? undefined : { background: 'var(--cc-surface)' }}>
       <span className="type-label text-[0.75rem] text-ink-2">Colores</span>
@@ -194,38 +268,7 @@ export function ColorsPanel({
       <p className="m-0 text-[0.875rem] leading-snug" style={{ color: 'var(--cc-text-muted)' }}>
         La interfaz usa estos colores. Tocá uno para cambiarlo.
       </p>
-      {role && (
-        <ColorEditor
-          key={role.key}
-          title={role.label}
-          start={role.hex.startsWith('#') ? role.hex : '#888888'}
-          overridden={role.overridden}
-          others={colors.detected}
-          mobile={mobile}
-          className={mobile ? '' : 'fixed z-[80] w-[272px]'}
-          style={mobile || !anchor ? undefined : { left: anchor.left, top: anchor.top }}
-          onLive={hex => onLive(role.key, hex)}
-          onClose={hex => {
-            setEditing(null);
-            if (hex) onCommit(role.key, hex);
-            else onLive(role.key, null);
-          }}
-          onRestore={() => {
-            setEditing(null);
-            onCommit(role.key, null);
-          }}
-          onEyedropper={
-            colors.eyedrop
-              ? () => {
-                  const key = role.key;
-                  setEditing(null);
-                  onLive(key, null);
-                  colors.eyedrop?.(key);
-                }
-              : undefined
-          }
-        />
-      )}
+      {editor}
     </section>
   );
 }

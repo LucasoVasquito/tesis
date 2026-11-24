@@ -199,7 +199,7 @@ export interface ThemeOptions {
 
 /**
  * Variables CSS de la interfaz a partir de la paleta («Editorial oscuro»).
- *  --cc-bg       tono del Primario con L 0.14 y croma 0.012 (neutro si el Primario es gris o negro)
+ *  --cc-bg       tono del Primario con L 0.13 y croma 0.02 (neutro si el Primario es gris o negro): la base de las luces de clima
  *  --cc-surface  fondo + 0.06 de L · --cc-raised fondo + 0.10
  *  --cc-text     blanco cálido con el tono del Primario (croma 0.01); sobre fondos claros, tinta oscura
  *  texto secundario al 75 % como mínimo · filetes al 12 %
@@ -214,7 +214,7 @@ export function buildTheme(p: Palette, opts: ThemeOptions = {}): Theme {
   const forced = opts.bg ? hexToOklch(opts.bg) : null;
   const neutral = prim[1] < 0.01;
   const hue = neutral ? 0 : prim[2];
-  const bg: Oklch = forced ?? [Math.min(0.14, prim[0]), neutral ? 0 : 0.012, hue];
+  const bg: Oklch = forced ?? [Math.min(0.13, prim[0]), neutral ? 0 : 0.02, hue];
   const light = bg[0] >= 0.6;
   const bgHex = asHex(bg);
   const step = light ? -0.06 : 0.06;

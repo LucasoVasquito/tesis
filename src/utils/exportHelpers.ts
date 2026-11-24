@@ -40,7 +40,7 @@ export function buildVisualSystemExport(system: VisualSystem, project: Project):
       compositionRules: system.compositionRules,
       graphicResources: patterns.filter(p => p.category === 'graphic_elements').map(p => p.name),
     },
-    projectContext: { projectName: project.name, objective: project.objective, description: project.description },
+    projectContext: { projectName: project.name, objective: project.objective, description: project.intent || "" },
     confirmedPatterns: patterns.map(p => ({
       id: p.id,
       name: p.name,
@@ -140,7 +140,7 @@ export function generateSystemMarkdown(project: Project): string {
 
   let md = `# ${project.name || 'Proyecto sin nombre'}\n\n`;
   md += `**Objetivo:** ${project.objective}\n\n`;
-  if (project.description) md += `**Contexto:** ${project.description}\n\n`;
+  if (project.intent) md += `**En una frase:** ${project.intent}\n\n`;
   md += `*Dossier generado con Camaleon Corpus (${new Date().toLocaleDateString('es-AR')})*\n\n---\n\n`;
 
   md += `## 1. Corpus (${project.references.length} referencias)\n\n`;

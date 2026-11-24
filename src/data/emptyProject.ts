@@ -1,7 +1,7 @@
 import { Project } from '../types';
 import { SCHEMA } from '../utils/project';
 
-/** Proyecto vacío: arranca en 01 · Armar, con la frase de intención en blanco. */
+/** Proyecto vacío: arranca en 0 · Brief, con todo en blanco. */
 export function createEmptyProject(): Project {
   return {
     id: `proj_${Date.now()}`,
@@ -21,6 +21,6 @@ export function createEmptyProject(): Project {
     brief: '',
     fragments: [],
     view: 'side',
-    moment: 'referencias',
+    moment: 'brief',
   };
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { inferPalette, HEX_IN_TEXT, normalizeHex } from '../utils/palette';
 import { useColors } from './colorContext';
 import { Pattern, Project } from '../types';
@@ -25,6 +25,43 @@ function pieceHex(piece: Pattern, project: Project): string | null {
 }
 
 /**
+ * Texto que ajusta su tamaño para entrar completo en su caja (sin «…»): hasta `max` px y, si no entra, más chico.
+ * Mide el ancho real del texto y lo escala; se recalcula si cambia el tamaño de la caja.
+ */
+export function FitText({ text, max = 64, min = 10, className, style }: { text: string; max?: number; min?: number; className?: string; style?: React.CSSProperties }) {
+  const boxRef = useRef<HTMLSpanElement>(null);
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [size, setSize] = useState(max);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    const t = textRef.current;
+    if (!box || !t) return;
+    const fit = () => {
+      t.style.fontSize = '100px';
+      const w = t.scrollWidth;
+      const avail = box.clientWidth;
+      const h = box.clientHeight;
+      if (!w || !avail) return;
+      // Por ancho (una línea) y por alto (que no se salga de la caja).
+      const next = Math.max(min, Math.min(max, (100 * avail) / w, h ? h * 0.9 : max));
+      t.style.fontSize = `${next}px`;
+      setSize(next);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [text, max, min]);
+  return (
+    <span ref={boxRef} className={`flex min-w-0 items-center justify-center overflow-hidden ${className ?? ''}`} style={style}>
+      <span ref={textRef} className="whitespace-nowrap leading-[0.95]" style={{ fontSize: size }}>
+        {text}
+      </span>
+    </span>
+  );
+}
+
+/**
  * Imagen de una pieza con su señal sobre la foto: las piezas de color llevan una etiqueta abajo a la izquierda
  * (fondo vacío al 78%, filete del color y el hex en mono); las tipográficas, la palabra de la marca.
  * Nada de cuadrados de color sueltos.
@@ -32,7 +69,7 @@ function pieceHex(piece: Pattern, project: Project): string | null {
 export function PieceThumb({ piece, project, className, style, word, onSwatch }: { piece: Pattern; project: Project; className?: string; style?: React.CSSProperties; word?: boolean; onSwatch?: () => void }) {
   const colors = useColors();
   const fallback = useMemo(() => (piece.category === 'color' ? pieceHex(piece, project) : null), [piece.id, piece.category, piece.description, project.references]); // eslint-disable-line react-hooks/exhaustive-deps
-  const brand = (project.name || project.intent || '').split(/s[—–-]s/)[0].trim();
+  const brand = (project.name || project.intent || '').split(/\s[—–-]\s/)[0].trim();
   // Una pieza de paleta muestra sus 3 o 4 colores en franjas, no un solo hex (y menos un blanco sobre blanco).
   const stripes = useMemo(() => {
     if (piece.category !== 'color' || !/paleta|colores|cromátic|cromatic/i.test(piece.name)) return null;
@@ -79,9 +116,8 @@ export function PieceThumb({ piece, project, className, style, word, onSwatch }:
           </span>
         ))}
       {typo && (
-        <span className="type-name pointer-events-none absolute inset-x-2 bottom-1 truncate text-[clamp(22px,4vw,44px)] leading-[0.9] text-ink">
-          {brand}
-        </span>
+        // Espécimen: el nombre del proyecto entra completo (ajusta su tamaño), sobre --surface.
+        <FitText text={brand} max={72} className="type-name pointer-events-none absolute inset-3 text-ink" />
       )}
     </div>
   );
@@ -172,7 +208,9 @@ export function Toast({ text }: { text: string }) {
 export function BriefPanel({ brief, onSave, onClose }: { brief: string; onSave: (text: string) => void; onClose: () => void }) {
   const [value, setValue] = useState(brief);
   const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => ref.current?.focus(), []);
+  useEffect(() => {
+    ref.current?.focus();
+  }, []);
   const close = () => {
     if (value !== brief) onSave(value);
     onClose();

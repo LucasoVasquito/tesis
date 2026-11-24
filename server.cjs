@@ -733,23 +733,27 @@ Rules:
     }
 });
 // ==========================================
-// 2c-bis. Brief a partir de una frase de intención
+// 2c-bis. Objetivo redactado por el agente
 // ==========================================
-// La IA redacta un borrador; el diseñador lo edita. No inventa datos del cliente: si falta algo, lo deja abierto.
+// El diseñador escribe nombre, una frase y un objetivo (lo que tenga). La IA redacta el Objetivo completo;
+// el diseñador lo edita. No inventa datos del cliente: si falta algo, lo deja abierto.
 app.post("/api/draft-brief", async (req, res) => {
     dotenv_1.default.config({ override: true });
     try {
         const intent = String(req.body?.intent || "").trim();
-        if (!intent)
-            return res.status(400).json({ error: "Se requiere una frase de intención." });
-        const prompt = `Sos asistente de un diseñador gráfico. A partir de su frase de intención, redactá un brief breve en español rioplatense para orientar la lectura de un corpus de imágenes de referencia.
+        const name = String(req.body?.name || "").trim();
+        const objective = String(req.body?.objective || "").trim();
+        if (!intent && !objective)
+            return res.status(400).json({ error: "Se requiere una frase o un objetivo." });
+        const prompt = `Sos asistente de un diseñador gráfico. Redactá el OBJETIVO de su proyecto de identidad visual, en español rioplatense, para orientar la lectura de un corpus de imágenes de referencia.
 
-Frase de intención: "${intent.slice(0, 300)}"
-
+${name ? `Nombre del proyecto: "${name.slice(0, 80)}" (respetalo tal cual).
+` : ""}${intent ? `En una frase: "${intent.slice(0, 300)}"
+` : ""}${objective ? `Lo que escribió el diseñador como objetivo: "${objective.slice(0, 1500)}". Partí de esto: respetá su sentido y lo que dice, pulilo y completalo.
+` : ""}
 Devolvé:
-- name: nombre corto del proyecto (2 a 5 palabras), sacado de la frase. Si la frase nombra una marca, usala.
-- objective: una oración con qué tiene que lograr el sistema visual.
-- brief: entre 3 y 6 oraciones: rubro, tono, público probable, qué buscar en las referencias y qué evitar. No inventes datos concretos del cliente (direcciones, precios, fechas): si algo no se sabe, decilo como pregunta abierta.`;
+- name: ${name ? "el mismo nombre de arriba, sin cambios." : "nombre corto del proyecto (2 a 5 palabras). Si la frase nombra una marca, usala."}
+- objective: entre 3 y 5 oraciones: qué tiene que lograr el sistema visual, rubro, tono, público probable, qué buscar en las referencias y qué evitar. No repitas la frase ni el nombre textualmente. No inventes datos concretos del cliente (direcciones, precios, fechas): si algo no se sabe, decilo como pregunta abierta.`;
         const ai = getGeminiClient();
         const response = await generateContentWithRetry(ai, {
             model: "gemini-3.5-flash",
@@ -761,9 +765,8 @@ Devolvé:
                     properties: {
                         name: { type: genai_1.Type.STRING },
                         objective: { type: genai_1.Type.STRING },
-                        brief: { type: genai_1.Type.STRING },
                     },
-                    required: ["name", "objective", "brief"],
+                    required: ["name", "objective"],
                 },
             },
         });
@@ -772,14 +775,73 @@ Devolvé:
             success: true,
             data: {
                 name: String(d?.name || "").slice(0, 80),
-                objective: String(d?.objective || "").slice(0, 400),
-                brief: String(d?.brief || "").slice(0, 2000),
+                objective: String(d?.objective || "").slice(0, 2000),
             },
         });
     }
     catch (error) {
         console.error("Error en /api/draft-brief:", error);
-        return res.status(500).json({ error: "No se pudo redactar el brief.", details: error?.message });
+        return res.status(500).json({ error: "No se pudo redactar el objetivo.", details: error?.message });
+    }
+});
+// ==========================================
+// 2c-quater. Ficha del sistema: reglas y estilos de letra
+// ==========================================
+// Las reglas son reglas (frases cortas de uso), no títulos de pieza. Las tipografías son estilos de letra, no nombres de pieza.
+app.post("/api/system-sheet", async (req, res) => {
+    dotenv_1.default.config({ override: true });
+    try {
+        const pieces = Array.isArray(req.body?.pieces) ? req.body.pieces.slice(0, 40) : [];
+        const palette = req.body?.palette || {};
+        if (!pieces.length)
+            return res.status(400).json({ error: "Se requieren piezas." });
+        const LAYER = ["", "PRIMARIO (define el sistema)", "SECUNDARIO (lo acompaña)", "ACENTO (aparece poco)"];
+        const list = pieces
+            .map((x) => `- [${LAYER[Number(x.layer)] || "SIN CAPA"}] (${String(x.category || "")}) ${String(x.name || "").slice(0, 120)}: ${String(x.description || "").slice(0, 300)}`)
+            .join("\n");
+        const prompt = `Sos director de arte. Este es el sistema visual de un proyecto${req.body?.name ? ` («${String(req.body.name).slice(0, 80)}»)` : ""}, ordenado en capas:
+
+${list}
+
+Paleta: Primario ${String(palette.primary || "?")}, Secundario ${String(palette.secondary || "?")}, Acento ${String(palette.accent || "?")}.
+
+Devolvé, en español rioplatense:
+- rules: entre 3 y 5 REGLAS DE USO del sistema. Cada una es una frase corta e imperativa o normativa (máximo 12 palabras) que dice cómo se usa o se combina algo: dónde va, dónde no, cuántas veces, sobre qué. Ejemplos del tipo buscado: "El naranja nunca va sobre fotografía.", "La tipografía display solo en titulares.", "Los sellos circulares van una vez por pieza.". NO repitas ni parafrasees los nombres de las piezas como si fueran reglas; no describas, normá. El Primario manda: al menos dos reglas sobre él.
+- fonts: los estilos de letra presentes (de 1 a 3), como clasificación tipográfica corta, no como nombre de pieza. Ejemplos: "Display condensada rotulada", "Mono técnica", "Grotesca pesada". Para cada uno: style (2 a 4 palabras), use (dónde se usa, máximo 6 palabras) y kind: uno de "condensed", "mono", "serif", "script", "rounded", "grotesk", "wide". Si no hay piezas tipográficas, deducilo de lo que haya o devolvé una lista vacía.`;
+        const ai = getGeminiClient();
+        const response = await generateContentWithRetry(ai, {
+            model: "gemini-3.5-flash",
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: genai_1.Type.OBJECT,
+                    properties: {
+                        rules: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
+                        fonts: {
+                            type: genai_1.Type.ARRAY,
+                            items: {
+                                type: genai_1.Type.OBJECT,
+                                properties: { style: { type: genai_1.Type.STRING }, use: { type: genai_1.Type.STRING }, kind: { type: genai_1.Type.STRING } },
+                                required: ["style"],
+                            },
+                        },
+                    },
+                    required: ["rules", "fonts"],
+                },
+            },
+        });
+        const d = parseModelJsonResponse(response.text || "{}");
+        const rules = (Array.isArray(d?.rules) ? d.rules : []).map((r) => String(r || "").trim()).filter(Boolean).slice(0, 5).map((r) => r.slice(0, 160));
+        const fonts = (Array.isArray(d?.fonts) ? d.fonts : [])
+            .map((f) => ({ style: String(f?.style || "").trim().slice(0, 60), use: String(f?.use || "").trim().slice(0, 80), kind: String(f?.kind || "").trim().slice(0, 20) }))
+            .filter((f) => f.style)
+            .slice(0, 3);
+        return res.json({ success: true, data: { rules, fonts } });
+    }
+    catch (error) {
+        console.error("Error en /api/system-sheet:", error);
+        return res.status(500).json({ error: "No se pudieron redactar las reglas.", details: error?.message });
     }
 });
 // ==========================================

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Layer, LogItem, LogKind, Moment, Project, Reference, ReferenceBreakdown } from './types';
 import { loadStoredProjects, saveProjects } from './utils/projectStore';
 import { createEmptyProject } from './data/emptyProject';
@@ -19,6 +19,13 @@ import { useShortcuts } from './hooks/useAuditShortcuts';
 import { Button } from './components/ui';
 import { SaveState, StatusBar, StatusLine, TopBar } from './components/shell/TopBar';
 import { StepRail, StageNav } from './components/shell/StepRail';
+import { ActionBarContext } from './components/shell/BottomBar';
+import { DeskContext, DeskDir } from './components/shell/Desk';
+import { Clima } from './components/Clima';
+import { buildClima } from './utils/clima';
+import { ClimaContext } from './screens/climaContext';
+import { SubstepRail } from './components/shell/SubstepRail';
+import { SUBSTEPS, clampSub, crumbs, savedSub, substepCount } from './utils/substeps';
 import { NoticeData, Notices } from './components/shell/Notices';
 import { UploadModal } from './components/UploadModal';
 import { AboutView } from './components/AboutView';
@@ -33,7 +40,7 @@ import { ReviewScreen } from './screens/ReviewScreen';
 import { LayersScreen } from './screens/LayersScreen';
 import { SystemScreen } from './screens/SystemScreen';
 import { ExampleBanner, Guide, guideDone } from './screens/Guide';
-import { BriefPanel } from './screens/common';
+import { BriefScreen } from './screens/BriefScreen';
 import { MutateOptions, NotifyOptions } from './screens/types';
 import { DEMO_ID, buildDemo, demoRequested } from './utils/demo';
 import { clearTestLog, downloadTestLog, logEvent, setLogStage, testMode } from './utils/testLog';
@@ -303,15 +310,22 @@ function Workspace({ boot }: { boot: Boot }) {
     logEvent('stage_enter', { from: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  /** Entra a una etapa: recuerda la más avanzada, la marca visitada y limpia su aviso de «desactualizada». */
-  /** Etapa desde la que se saltó hacia atrás (si se saltó): solo entonces aparece «Seguir en…». */
-  const [jumpedFrom, setJumpedFrom] = useState<Moment | null>(null);
-  useEffect(() => setJumpedFrom(null), [project.id]);
-  const enter = (m: Moment, markDone?: Moment) => {
+  /* ---------- Subpasos (v6): memoria de lugar, dirección y «↩ Volver a…» ---------- */
+  const sub = savedSub(project, screen);
+  const subRef = useRef(sub);
+  subRef.current = sub;
+  /** Dirección del último cambio: define hacia dónde entra la mesa. */
+  const [deskDir, setDeskDir] = useState<DeskDir>('fwd');
+  /** Lugar al que se vuelve después de un salto por enlace (una sola píldora). */
+  const [returnTo, setReturnTo] = useState<{ stage: Moment; sub: number } | null>(null);
+  useEffect(() => setReturnTo(null), [project.id]);
+  const order = (m: Moment, i: number) => stepIndex(m) * 100 + i;
+
+  /** Entra a una etapa (y, si se indica, a un subpaso): recuerda la más avanzada, la marca visitada y limpia su aviso de «desactualizada». */
+  const enter = (m: Moment, markDone?: Moment, at?: number) => {
+    const target = at === undefined ? savedSub(projectRef.current, m) : clampSub(m, at);
+    setDeskDir(order(m, target) >= order(screenRef.current, subRef.current) ? 'fwd' : 'back');
     if (m !== screenRef.current) {
-      const ci = stepIndex(screenRef.current);
-      const mi = stepIndex(m);
-      setJumpedFrom(prev => (mi < ci ? (prev && stepIndex(prev) > ci ? prev : screenRef.current) : prev && mi >= stepIndex(prev) ? null : prev));
       logEvent('stage_leave', { to: m });
       setLogStage(m);
       logEvent('stage_enter', { from: screenRef.current });
@@ -319,19 +333,50 @@ function Workspace({ boot }: { boot: Boot }) {
     updateProject(p => ({
       ...p,
       moment: m,
+      substep: { ...(p.substep ?? {}), [m]: target },
+      // El subpaso del que se sale queda como visitado (✓ en el riel).
+      subVisited: (() => {
+        const from = screenRef.current;
+        const prev = p.subVisited?.[from] ?? [];
+        return prev.includes(subRef.current) ? p.subVisited : { ...(p.subVisited ?? {}), [from]: [...prev, subRef.current] };
+      })(),
       reached: Math.max(p.reached ?? 0, stepIndex(m)),
       visited: addTo(p.visited, m),
       stale: (p.stale ?? []).filter(s => s !== m),
-      done: markDone && (markDone === 'capas' || markDone === 'sistema') ? addTo(p.done, markDone) : p.done,
+      done: markDone && (markDone === 'capas' || markDone === 'sistema' || markDone === 'revisar') ? addTo(p.done, markDone) : p.done,
     }));
   };
+  /** Cambia de subpaso dentro de la etapa actual (navegación normal: borra la píldora de volver). */
+  const goSub = (i: number) => {
+    setReturnTo(null);
+    enter(screenRef.current, undefined, i);
+  };
+  /** Salto por enlace (p. ej. «Editar en Capas»): deja la píldora «↩ Volver a…». */
+  const jumpLink = (m: Moment, at: number) => {
+    setReturnTo({ stage: screenRef.current, sub: subRef.current });
+    enter(m, undefined, at);
+  };
+  /** ← Anterior: el subpaso anterior o, en el primero, el último de la etapa anterior. */
+  const prevStep = () => {
+    setReturnTo(null);
+    if (subRef.current > 0) return enter(screenRef.current, undefined, subRef.current - 1);
+    const i = stepIndex(screenRef.current);
+    if (i > 0) {
+      const m = STEPS[i - 1].id;
+      if (blockReason(projectRef.current, m)) return;
+      enter(m, undefined, substepCount(m) - 1);
+    }
+  };
+  const canPrev = sub > 0 || stepIndex(screen) > 0;
+  /** Avance normal a la etapa siguiente: entra por su primer subpaso. */
   const go = (m: Moment, markDone?: Moment) => {
     const why = blockReason(projectRef.current, m);
     if (why) {
       notify(why);
       return;
     }
-    enter(m, markDone);
+    setReturnTo(null);
+    enter(m, markDone, 0);
   };
   // 05 PROBAR queda montada (oculta) una vez abierta: si cambiás de etapa con una generación en curso, no se corta ni se pierde el resultado.
   const [probarSeen, setProbarSeen] = useState<string | null>(null);
@@ -349,7 +394,6 @@ function Workspace({ boot }: { boot: Boot }) {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [deleteRequest, setDeleteRequest] = useState<null | 'current' | 'all'>(null);
-  const [briefOpen, setBriefOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [focusRef, setFocusRef] = useState<{ id: string; n: number } | null>(null);
   const [capaName, setCapaName] = useState('Primario');
@@ -374,13 +418,14 @@ function Workspace({ boot }: { boot: Boot }) {
   /* ========== Proyectos: acciones ========== */
   const analysisAbort = useRef<AbortController | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisState>({ status: 'idle' });
+  /** Terminó un análisis hace instantes (el clima se ordena en las tres luces de capa, despacio). */
+  const [justAnalyzed, setJustAnalyzed] = useState(false);
   const resetUi = () => {
     analysisAbort.current?.abort();
     setOverlay(null);
     setAnalysis({ status: 'idle' });
     undoStack.current = [];
     setNotice(null);
-    setBriefOpen(false);
     setProbarActivity(null);
   };
 
@@ -453,16 +498,25 @@ function Workspace({ boot }: { boot: Boot }) {
     notify(ids.length === 1 ? 'Proyecto eliminado' : `${ids.length} proyectos eliminados`);
   };
 
-  /* ========== 01 · REFERENCIAS ========== */
+  /* ========== 0 · BRIEF ========== */
   const [briefBusy, setBriefBusy] = useState(false);
-  /** El agente redacta el brief a partir de la frase. Queda como borrador editable. */
-  const handleSubmitIntent = async (intent: string) => {
-    const projectId = projectRef.current.id;
-    updateProject(p => ({ ...p, intent, name: p.name.trim() ? p.name : intent, objective: p.objective.trim() ? p.objective : intent }), projectId);
-    addLog('brief', 'brief', 'Frase de intención', intent, { projectId });
+  /** El diseñador escribe nombre, frase u objetivo. Se guarda al salir del campo. */
+  const handleBriefField = (field: 'name' | 'intent' | 'objective', value: string) => {
+    const v = value.trim();
+    const cur = projectRef.current;
+    if (v === ((field === 'intent' ? cur.intent : cur[field]) ?? '').trim()) return;
+    updateProject(p => ({ ...p, [field]: v }));
+    const label = field === 'name' ? 'Nombre del proyecto' : field === 'intent' ? 'Frase de intención' : 'Objetivo';
+    addLog('brief', 'brief', label, v || '(vacío)');
+  };
+  /** El agente redacta el Objetivo a partir de lo que haya (nombre, frase, objetivo). Queda editable. */
+  const handleDraftBrief = async (typed?: string) => {
+    const cur = typed === undefined ? projectRef.current : { ...projectRef.current, objective: typed };
+    const projectId = cur.id;
+    if (!(cur.intent ?? '').trim() && !cur.objective.trim()) return notify('Escribí la frase o el objetivo primero: el agente parte de ahí.');
     setBriefBusy(true);
     try {
-      const res = await fetch('/api/draft-brief', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ intent }) });
+      const res = await fetch('/api/draft-brief', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ intent: (cur.intent ?? '').trim(), name: cur.name.trim(), objective: cur.objective.trim() }) });
       const text = await res.text();
       let result: any;
       try {
@@ -470,21 +524,16 @@ function Workspace({ boot }: { boot: Boot }) {
       } catch {
         throw serverError(text, res.status);
       }
-      if (!res.ok || !result.success) throw new Error(result.details || result.error || 'No se pudo redactar el brief');
+      if (!res.ok || !result.success) throw new Error(result.details || result.error || 'No se pudo redactar el objetivo');
       const d = result.data;
-      updateProject(p => ({ ...p, name: p.name.trim() && p.name !== intent ? p.name : d.name || intent, objective: d.objective || p.objective, description: d.brief || p.description, brief: d.brief || p.brief }), projectId);
-      addLog('brief', 'brief', 'Brief redactado por el sistema', 'Borrador: el diseñador lo puede editar', { projectId });
+      updateProject(p => ({ ...p, name: p.name.trim() || d.name || '', objective: d.objective || p.objective }), projectId);
+      addLog('brief', 'brief', 'Objetivo redactado por el sistema', 'Borrador: el diseñador lo puede editar', { projectId });
     } catch (err: any) {
       const raw = String(err?.message || err);
-      notify('El brief queda para después.', { tone: 'error', detail: friendlyError(err instanceof TypeError ? 'failed to fetch' : raw).replace('No se pudo analizar. ', '') });
+      notify('El objetivo queda para después.', { tone: 'error', detail: friendlyError(err instanceof TypeError ? 'failed to fetch' : raw).replace('No se pudo analizar. ', '') });
     } finally {
       setBriefBusy(false);
     }
-  };
-
-  const handleSaveBrief = (text: string) => {
-    updateProject(p => ({ ...p, brief: text, description: text }));
-    addLog('brief', 'brief', 'Brief editado por el diseñador');
   };
 
   const handleAddReferences = useCallback(
@@ -592,20 +641,21 @@ function Workspace({ boot }: { boot: Boot }) {
         };
       }, false);
       setAnalysis({ status: 'idle' });
+      setJustAnalyzed(true);
+      setTimeout(() => setJustAnalyzed(false), 2600);
       if (bad.size) {
         const first = skipped[0];
         notify(`Se encontraron ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'}. ${bad.size} ${bad.size === 1 ? 'imagen no se pudo leer' : 'imágenes no se pudieron leer'} (archivo dañado).`, {
           action: {
             label: 'Ver cuál',
             run: () => {
-              enter('referencias');
+              enter('referencias', undefined, 0);
               setFocusRef({ id: first, n: Date.now() });
             },
           },
         });
-      } else {
-        notify(`Se encontraron ${pieces} ${pieces === 1 ? 'pieza' : 'piezas'} para revisar.`, { action: { label: 'Ir a Revisar', run: () => go('revisar') } });
       }
+      // Sin imágenes dañadas no hace falta aviso: el panel del análisis, sobre el lienzo, muestra lo que encontró.
     } catch (err: any) {
       if (err?.name === 'AbortError') {
         setAnalysis({ status: 'idle' });
@@ -624,7 +674,15 @@ function Workspace({ boot }: { boot: Boot }) {
 
   /** Volver a analizar pide confirmar: se reinicia la revisión de sugerencias. */
   const requestReanalyze = () =>
-    notify('Si volvés a analizar, se reinicia tu revisión de sugerencias. Tus capas no cambian.', { action: { label: 'Analizar igual', run: () => void analyzeRef.current() } });
+    notify('Si volvés a analizar, se reinicia tu revisión de sugerencias. Tus capas no cambian.', {
+      action: {
+        label: 'Analizar igual',
+        run: () => {
+          enter('referencias', undefined, 0);
+          void analyzeRef.current();
+        },
+      },
+    });
 
   /* ---------- Paleta del corpus (lee los colores de la evidencia que falta) ---------- */
   const inspectReference = async (ref: Reference): Promise<ReferenceBreakdown | null> => {
@@ -756,6 +814,43 @@ function Workspace({ boot }: { boot: Boot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleSig]);
   const theme = buildTheme(palette);
+
+  /* ========== Luces de clima (v7) ========== */
+  const [climaFocus, setClimaFocus] = useState<Layer | null>(null);
+  const [climaPulse, setClimaPulse] = useState(0);
+  const [climaFlash, setClimaFlash] = useState<string[] | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const climaApi = useMemo(
+    () => ({
+      setFocus: (l: Layer | null) => setClimaFocus(l),
+      pulse: () => setClimaPulse(n => n + 1),
+      flash: (colors: string[]) => {
+        if (!colors.length) return;
+        setClimaFlash(colors);
+        if (flashTimer.current) clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setClimaFlash(null), 2000);
+      },
+    }),
+    [],
+  );
+  // El foco es de la etapa que lo pidió: al cambiar de etapa se suelta.
+  useEffect(() => setClimaFocus(null), [screen]);
+  const climaState = useMemo(
+    () =>
+      buildClima({
+        screen,
+        project,
+        palette,
+        byRef: det?.byRef ?? null,
+        analyzing: analysis.status === 'preparing' || analysis.status === 'reading',
+        justAnalyzed,
+        focus: climaFocus,
+        flash: climaFlash,
+        analyzed: isAnalyzed(project),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [screen, project, palette.primary, palette.secondary, palette.accent, det, analysis.status, justAnalyzed, climaFocus, climaFlash],
+  );
   const themeKey = JSON.stringify(palette);
   useEffect(() => {
     applyTheme(buildTheme(palette));
@@ -817,7 +912,7 @@ function Workspace({ boot }: { boot: Boot }) {
     const from = screenRef.current;
     logEvent('eyedropper_start', { role, from });
     setEyedropper({ role, from });
-    if (from !== 'referencias') enter('referencias');
+    enter('referencias', undefined, 0);
   };
   const finishEyedropper = (hex: string | null, back = true) => {
     const cur = eyedropper;
@@ -897,9 +992,14 @@ function Workspace({ boot }: { boot: Boot }) {
   const reached = project.reached ?? 0;
   const status: StatusLine = activity
     ? { mode: 'activity', text: activity }
-    : jumpedFrom && stepIndex(screen) < stepIndex(jumpedFrom)
-      ? { mode: 'back', text: `Volviste a ${stepLabel(screen)}`, action: { label: `Seguir en ${stepLabel(jumpedFrom)} →`, run: () => go(jumpedFrom) } }
-      : { mode: 'location', text: locationText(project, screen, screen === 'capas' ? capaName : screen === 'probar' ? probarType : undefined) };
+    : {
+        mode: 'location',
+        // «Capas · paso 2 de 5»; las etapas de un solo paso dicen dónde estás con su detalle.
+        text:
+          substepCount(screen) > 1
+            ? `${stepLabel(screen)} · paso ${sub + 1} de ${substepCount(screen)}`
+            : locationText(project, screen, screen === 'capas' ? capaName : screen === 'probar' ? probarType : undefined),
+      };
 
   /** Ctrl+Shift+R: vuelve a armar el proyecto de ejemplo (con confirmación). Ctrl+Shift+E: descarga el registro de test. */
   const resetDemo = async () => {
@@ -940,29 +1040,38 @@ function Workspace({ boot }: { boot: Boot }) {
     if (blocked) {
       logEvent('blocked_click', { target: id, reason: blocked });
       notify(`${stepLabel(id)} · ${blocked}`);
-    } else enter(id);
+    } else {
+      setReturnTo(null);
+      enter(id);
+    }
   };
 
-  const enabled = !overlay && !isUploadOpen && !deleteRequest && !isLogOpen && !guideOpen && !briefOpen;
+  /** Ranuras de la barra fija: las etapas mandan ahí sus herramientas y su acción principal. */
+  const [barActions, setBarActions] = useState<HTMLDivElement | null>(null);
+  const [barPrimary, setBarPrimary] = useState<HTMLDivElement | null>(null);
+  const barSlots = useMemo(() => ({ actions: barActions, primary: barPrimary }), [barActions, barPrimary]);
+
+  const enabledBase = !overlay && !isUploadOpen && !deleteRequest && !isLogOpen && !guideOpen;
+  const enabled = enabledBase;
+  // Teclado (v6): → avanza (la acción del subpaso), ← vuelve al anterior. Las etapas que usan las flechas las toman antes.
+  useShortcuts(enabled, {
+    arrowright: () => {
+      const btn = document.querySelector<HTMLButtonElement>('footer [data-primary]');
+      if (!btn) return false;
+      btn.click();
+    },
+    arrowleft: () => (canPrev ? prevStep() : false),
+  });
   const notifyBlocked = useCallback((reason: string) => notify(reason), [notify]);
 
   return (
+    <ActionBarContext.Provider value={barSlots}>
+    <DeskContext.Provider value={{ dir: deskDir, enabled }}>
+    <ClimaContext.Provider value={climaApi}>
     <ColorContext.Provider value={{ ...colorCtx, eyedrop: startEyedropper }}>
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-bg text-ink print:h-auto print:overflow-visible">
-      {/* Un solo brillo por pantalla, con el color del Primario. En Referencias arranca neutro y se enciende al detectar el primer patrón. */}
-      <div aria-hidden="true" className="no-print pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        <div
-          className="glow"
-          data-neutral={(screen === 'referencias' && !isAnalyzed(project)) || screen === 'probar'}
-          style={
-            screen === 'revisar'
-              ? { left: '-22vmax', bottom: '-30vmax' }
-              : screen === 'probar'
-                ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
-                : { right: '-24vmax', top: '-34vmax' }
-          }
-        />
-      </div>
+      {/* Luces de clima (v7): tres luces de capa detrás de todo, que reaccionan a cada etapa */}
+      <Clima state={climaState} pulse={climaPulse} />
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:bg-ink focus:px-3 focus:py-2 focus:text-bg">
         Saltar al contenido
       </a>
@@ -971,7 +1080,7 @@ function Workspace({ boot }: { boot: Boot }) {
         projects={projectsList}
         onSelectProject={handleSelectProject}
         onNewProject={handleNewProject}
-        onEditBrief={() => setBriefOpen(true)}
+        onEditBrief={() => enter('brief')}
         onDeleteProject={() => setDeleteRequest('current')}
         onDeleteAllProjects={() => setDeleteRequest('all')}
         onExportBackup={handleExportBackup}
@@ -986,17 +1095,32 @@ function Workspace({ boot }: { boot: Boot }) {
           setGuideOpen(true);
         }}
         status={status}
+        crumb={crumbs(screen, sub)}
         save={saveState}
         nav={viewport === 'desktop' ? <StageNav project={project} current={screen} onGo={goStage} /> : undefined}
         onUndo={undo}
         canUndo={undoStack.current.length > 0}
       />
       {project.example && <ExampleBanner onStart={handleNewProject} />}
+      <SubstepRail project={project} stage={screen} current={sub} onGo={goSub} />
 
       <div className={`relative z-[1] flex min-h-0 flex-1 ${viewport === 'mobile' ? 'flex-col' : ''}`}>
-        <StepRail project={project} current={screen} viewport={viewport} onGoLayer={l => { const why = blockReason(projectRef.current, 'capas'); if (why) return notify(`Capas · ${why}`); enter('capas'); setGoLayer({ layer: l, n: Date.now() }); }} onGo={goStage} />
+        <StepRail project={project} current={screen} viewport={viewport} onGoLayer={l => { const why = blockReason(projectRef.current, 'capas'); if (why) return notify(`Capas · ${why}`); setReturnTo(null); enter('capas'); setGoLayer({ layer: l, n: Date.now() }); }} onGo={goStage} />
 
         <main id="main" tabIndex={-1} className={`relative min-h-0 min-w-0 flex-1 outline-none print:overflow-visible ${overlay ? 'print:hidden' : ''}`}>
+          {screen === 'brief' && (
+            <BriefScreen
+              key={project.id}
+              project={project}
+              enabled={enabled}
+              sub={sub}
+              onSub={goSub}
+              busy={briefBusy}
+              onField={handleBriefField}
+              onDraft={typed => void handleDraftBrief(typed)}
+              onNext={() => go('referencias')}
+            />
+          )}
           {screen === 'referencias' && (
             <ReferencesScreen
               key={project.id}
@@ -1004,7 +1128,7 @@ function Workspace({ boot }: { boot: Boot }) {
               enabled={enabled}
               mutate={mutate}
               analysis={analysis}
-              onAnalyze={handleAnalyze}
+              onAnalyze={() => void handleAnalyze()}
               onCancelAnalysis={() => analysisAbort.current?.abort()}
               onRequestReanalyze={requestReanalyze}
               onAddFiles={handleAddFiles}
@@ -1013,15 +1137,13 @@ function Workspace({ boot }: { boot: Boot }) {
               onDeleteRef={handleDeleteReference}
               onNext={() => go('revisar')}
               onBlocked={notifyBlocked}
-              onSubmitIntent={handleSubmitIntent}
-              briefBusy={briefBusy}
               focus={focusRef}
               eyedropper={eyedropper ? { label: eyedropper.role === 'primary' ? 'primario' : eyedropper.role === 'secondary' ? 'secundario' : 'acento', current: colorCtx.roles.find(r => r.key === eyedropper.role)?.hex ?? '#888888' } : null}
               onEyedropperDone={finishEyedropper}
               onNotify={notify}
             />
           )}
-          {screen === 'revisar' && <ReviewScreen key={project.id} project={project} enabled={enabled} apply={apply} mutate={mutate} onNext={() => go('capas')} />}
+          {screen === 'revisar' && <ReviewScreen key={project.id} project={project} enabled={enabled} apply={apply} mutate={mutate} sub={sub} onSub={goSub} onNext={() => go('capas', 'revisar')} />}
           {screen === 'capas' && <LayersScreen key={project.id} project={project} enabled={enabled} apply={apply} onNext={() => go('sistema', 'capas')} onBlocked={notifyBlocked} onLayer={setCapaName} onColorLive={handleColorLive} onColorCommit={handleColorCommit} onRoleLive={handleRoleLive} onRoleCommit={handleRoleCommit} notify={notify} goLayer={goLayer} />}
           {screen === 'sistema' && (
             <SystemScreen
@@ -1031,11 +1153,16 @@ function Workspace({ boot }: { boot: Boot }) {
               onNext={() => go('probar', 'sistema')}
               onBlocked={notifyBlocked}
               notify={notify}
-              onRoleLive={handleRoleLive}
-              onRoleCommit={handleRoleCommit}
               paletteMissing={paletteMissing.length}
               paletteBusy={paletteBusy}
               onCompletePalette={handleCompletePalette}
+              onSaveSheet={sheet => updateProject(p => ({ ...p, systemSheet: sheet }), project.id)}
+              sub={sub}
+              onSub={goSub}
+              onEditInLayers={l => {
+                jumpLink('capas', 0);
+                if (l) setGoLayer({ layer: l, n: Date.now() });
+              }}
             />
           )}
           {(screen === 'probar' || probarSeen === project.id) && (
@@ -1054,25 +1181,54 @@ function Workspace({ boot }: { boot: Boot }) {
                 onUndoable={pushUndo}
                 onType={setProbarType}
                 onBlocked={notifyBlocked}
+                active={screen === 'probar'}
+                sub={screen === 'probar' ? sub : savedSub(project, 'probar')}
+                onSub={i => enter('probar', undefined, i)}
               />
             </div>
-          )}
-          {briefOpen && (
-            <BriefPanel
-              brief={project.brief || project.description || ''}
-              onSave={handleSaveBrief}
-              onClose={() => setBriefOpen(false)}
-            />
           )}
         </main>
       </div>
 
-      <Notices notice={notice} onClose={() => setNotice(null)} />
-      {viewport === 'desktop' && (
-        <div className="no-print pointer-events-none fixed bottom-6 left-10 z-[60] max-w-[min(560px,calc(100vw-80px))]">
-          <StatusBar status={status} className="pointer-events-auto" />
-        </div>
+      {/* Barra de acción fija: 72 px, ancho completo, debajo del escenario (nada la tapa ni queda debajo).
+          Izquierda: estado y herramientas de la etapa. Derecha: la acción principal. */}
+      {viewport !== 'mobile' && (
+        <footer className="no-print surface-glass relative z-[30] grid h-[72px] shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 border-t border-line px-4 lg:px-10">
+          {/* «↩ Volver a…»: solo después de un salto por enlace */}
+          {returnTo && (
+            <button
+              type="button"
+              onClick={() => {
+                const r = returnTo;
+                setReturnTo(null);
+                enter(r.stage, undefined, r.sub);
+              }}
+              className="absolute bottom-full left-1/2 mb-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-bone px-4 py-2 text-[0.875rem] font-bold text-void shadow-float hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]"
+            >
+              ↩ Volver a {stepLabel(returnTo.stage)}
+              {substepCount(returnTo.stage) > 1 ? ` · ${SUBSTEPS[returnTo.stage][returnTo.sub]?.label ?? ''}` : ''}
+            </button>
+          )}
+          {/* Izquierda: ← Anterior y las herramientas de la etapa */}
+          <div className="flex min-w-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={prevStep}
+              disabled={!canPrev}
+              className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-[4px] px-3 text-[0.875rem] font-medium text-ink-2 underline-offset-4 hover:text-ink hover:underline disabled:cursor-not-allowed disabled:opacity-40 disabled:no-underline"
+            >
+              ← Anterior
+            </button>
+            <div ref={setBarActions} className="bar-tools flex min-w-0 items-center overflow-x-auto" />
+          </div>
+          {/* Centro: el estado */}
+          <StatusBar status={status} className="min-w-0 max-w-[36vw] justify-center" />
+          {/* Derecha: la acción del subpaso */}
+          <div ref={setBarPrimary} className="flex min-w-0 items-center justify-end" />
+        </footer>
       )}
+
+      <Notices notice={notice} onClose={() => setNotice(null)} />
       {guideOpen && <Guide onClose={() => setGuideOpen(false)} />}
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} onAddUrl={(url, extra) => void handleAddUrl(url, extra)} />
       <Modal open={!!deleteRequest} title={deleteRequest === 'all' ? 'Eliminar todos los proyectos' : 'Eliminar proyecto'} meta="No se puede deshacer" width={440} onClose={() => setDeleteRequest(null)}>
@@ -1109,5 +1265,8 @@ function Workspace({ boot }: { boot: Boot }) {
       {overlay?.kind === 'about' && <AboutView onBack={() => setOverlay(null)} />}
     </div>
     </ColorContext.Provider>
+    </ClimaContext.Provider>
+    </DeskContext.Provider>
+    </ActionBarContext.Provider>
   );
 }

@@ -6,13 +6,15 @@ import { loadPieceImage, savePieceImage, toDataUrl } from '../utils/pieceStore';
 import { compressImageString } from '../utils/imageCompressor';
 import { cropImage } from '../utils/parts';
 import { ImageColor, paletteFromImage } from '../utils/imagePalette';
-import { stackPalette, stackSystem } from '../utils/stackExport';
+import { stackSystem, systemPalette as toSystemPalette } from '../utils/stackExport';
+import { useColors } from './colorContext';
+import { useClima } from './climaContext';
 import { fullRule } from '../utils/layerRules';
 import { SHEET_NAME, sheetLabel } from '../pieces/model';
 import { MAX_CORE_IMAGES, MAX_DECISIONS, PIECE_TYPES, PromptInput, Selection, buildProbarPrompt, buildRecipe, pieceTypeInfo, selectDecisions } from '../utils/probar';
-import { BottomBar } from '../components/shell/BottomBar';
+import { BarButton, BottomBar, Primary } from '../components/shell/BottomBar';
+import { Desk, DeskQuestion, Shelf } from '../components/shell/Desk';
 import { ExportMenu } from '../components/ExportMenu';
-import { downloadPiecePng } from '../utils/exportKit';
 import { KeyButton, PieceImage } from './common';
 import { Notify } from './types';
 import { useViewport } from '../hooks/useViewport';
@@ -31,6 +33,11 @@ interface ProbarScreenProps {
   /** Informa qué tipo de pieza se está probando (línea de estado). */
   onType: (label: string) => void;
   onBlocked: (reason: string) => void;
+  /** Es la etapa abierta (la pantalla queda montada oculta para no cortar una generación). */
+  active: boolean;
+  /** Subpaso: 0 pieza · 1 texto y pedido · 2 comparar · 3 listo. */
+  sub: number;
+  onSub: (i: number) => void;
 }
 
 type Piece = GeneratedPiece & { imageUrl: string };
@@ -66,7 +73,7 @@ const StepLabel = ({ children }: { children: React.ReactNode }) => <span classNa
  * 05 · PROBAR. Aplica el sistema a una pieza concreta. Dos columnas: a la izquierda la pieza (paso 1) y la receta
  * (paso 2, sale sola de las capas); a la derecha el resultado (paso 3): dos variantes que se revisan contra el Primario.
  */
-export function ProbarScreen({ project, enabled, session, onSaveSession, onNotify, onActivity, onUndoable, onType, onBlocked }: ProbarScreenProps) {
+export function ProbarScreen({ project, enabled, session, onSaveSession, onNotify, onActivity, onUndoable, onType, onBlocked, active, sub, onSub }: ProbarScreenProps) {
   const system = useMemo(() => stackSystem(project), [project]);
   const [pieceType, setPieceType] = useState<PieceType>('logo');
   const [direct, setDirect] = useState(false);
@@ -165,7 +172,10 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
       setPaletteBusy(false);
     }
   };
-  const systemPalette = useMemo(() => stackPalette(project), [project]);
+  // La paleta del sistema es la misma de Capas y Sistema (los colores de la interfaz), no una inferida aparte.
+  const colorCtx = useColors();
+  const systemKey = `${colorCtx.palette.primary}|${colorCtx.palette.secondary}|${colorCtx.palette.accent}`;
+  const systemPalette = useMemo(() => toSystemPalette([colorCtx.palette.primary, colorCtx.palette.secondary, colorCtx.palette.accent]), [systemKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = (x: Pattern, layer: 1 | 2 | 3) => {
     // Con el límite de decisiones lleno no se suma nada más: avisa en vez de no hacer nada.
     if (!isOn(x.id) && decisions >= MAX_DECISIONS) {
@@ -186,10 +196,10 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
   const decisions = sel.core.length + sel.support.length + (sel.accent ? 1 : 0);
   const omittedIds = new Set(sel.omitted.map(x => x.id));
 
-  const promptInput = (): PromptInput => ({ type: pieceType, sel, direct, text: brandText, request: details, transparent: pieceType === 'logo' && transparent, palette: refPalette?.colors });
+  const promptInput = (): PromptInput => ({ type: pieceType, sel, direct, text: brandText, request: details, transparent: pieceType === 'logo' && transparent, palette: refPalette?.colors ?? systemPalette });
   const prompt = useMemo(
     () => buildProbarPrompt(project, promptInput()),
-    [project, sel, direct, brandText, details, pieceType, transparent, refPalette], // eslint-disable-line react-hooks/exhaustive-deps
+    [project, sel, direct, brandText, details, pieceType, transparent, refPalette, systemPalette], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   /* ---------- Pedido al servidor ---------- */
@@ -296,7 +306,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
       const anchorImageUrl = anchor?.imageUrl ? await toDataUrl(anchor.imageUrl) : undefined;
       const data = await post('/api/generate-application', {
         system,
-        project: { name: project.name, objective: project.objective, description: project.description },
+        project: { name: project.name, objective: project.objective, description: project.intent || '' },
         pieceType,
         brandText: brandText.trim(),
         details: details.trim(),
@@ -370,25 +380,29 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     return () => clearInterval(id);
   }, [busy]);
 
+  const clima = useClima();
   const toggleApprove = (p: Piece, n: number) => {
     const before = approved;
     const wasApproved = approved[p.pieceType] === p.id;
     setApproved(a => ({ ...a, [p.pieceType]: wasApproved ? undefined : p.id }));
     onUndoable(() => setApproved(before));
     if (!wasApproved) logEvent('approve', { kind: p.pieceType, variant: n });
+    // Clima: por 2 s el fondo toma los colores de la variante aprobada y vuelve.
+    if (!wasApproved && p.imageUrl)
+      paletteFromImage(p.imageUrl, 3)
+        .then(cols => clima.flash(cols.map(c => c.hex)))
+        .catch(() => {});
     if (!wasApproved) onNotify(`Aprobaste ${pieceTypeInfo(p.pieceType).label.toLowerCase()} · variante ${n}.`, { undo: true });
   };
 
   const zoomPiece = allPieces.find(p => p.id === zoomId) || null;
   const hasResult = slots.some(Boolean);
-  const primary =
+  const genPrimary =
     busy
       ? { label: 'Generando…', blocked: 'Hay una generación en curso: puede tardar hasta 90 segundos.', blockedLabel: 'Generando…', onClick: () => {}, onBlockedClick: onBlocked }
       : !direct && !sel.core.length
         ? { label: 'Generar 2 variantes', blocked: 'Necesita al menos una pieza en Primario: marcala en la receta (Editar).', blockedLabel: 'Primario vacío', onClick: () => {}, onBlockedClick: onBlocked }
-        : { label: hasResult ? 'Generar otras 2' : 'Generar 2 variantes', kbd: '⏎', onClick: () => void generate([0, 1]) };
-
-  useShortcuts(enabled, { enter: () => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick()) });
+        : { label: 'Generar 2 variantes', kbd: '⏎', onClick: () => void generate([0, 1]) };
 
   /* ---------- Receta: el detalle que se abre con «Editar» ---------- */
   const layerBlock = (layer: Layer, note: string, items: Pattern[], body: (x: Pattern) => React.ReactNode, emptyText: string) => (
@@ -435,6 +449,13 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
 
   const stateOf = (x: Pattern) => (omittedIds.has(x.id) ? 'out' : isOn(x.id) ? 'on' : 'off');
 
+  /** Qué dice la receta de una capa sin piezas en el pedido: si la capa está vacía o si esta pieza no la usa. */
+  const ARTICLE: Record<PieceType, string> = { logo: 'un logotipo', facade: 'una fachada', packaging: 'un packaging', poster: 'un afiche', post: 'un post', story: 'una story', web: 'una web', other: 'esta pieza' };
+  const emptyRecipe = (layer: Layer) => {
+    const all = layer === 1 ? recipe.core : layer === 2 ? recipe.support : recipe.accent;
+    if (!all.length) return 'No hay piezas en esta capa';
+    return `No se usa en ${ARTICLE[pieceType]} · ${all.length} ${all.length === 1 ? 'pieza disponible' : 'piezas disponibles'}`;
+  };
   const recipeRow = (layer: Layer, tag: string, names: string[]) => (
     <li key={layer} className={`layer-${layer} flex items-start gap-3 py-2`}>
       <span aria-hidden="true" className="mt-[7px] size-2 shrink-0 rounded-full" style={{ background: 'var(--layer-color)' }} />
@@ -443,7 +464,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
           <span className="text-[0.875rem] font-semibold">{SHEET_NAME[layer]}</span>
           <span className="font-mono text-[0.75rem] tracking-[0.06em] text-ink-2">{tag}</span>
         </span>
-        <span className="text-[0.875rem] leading-snug text-ink-2">{names.length ? names.join(' · ') : 'Nada de esta capa'}</span>
+        <span className="text-[0.875rem] leading-snug text-ink-2">{names.length ? names.join(' · ') : emptyRecipe(layer)}</span>
       </span>
     </li>
   );
@@ -452,6 +473,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
   const ratio = info.format === 'auto' ? '1 / 1' : info.format.replace(':', ' / ');
   const palettePreview = (refPalette ? refPalette.colors : systemPalette).slice(0, 5);
   const approvedPiece = byId(approved[pieceType]);
+  const anyApproved = Object.values(approved).some(Boolean);
 
   const variantCard = (slot: number) => {
     const id = slots[slot];
@@ -459,7 +481,8 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     const err = slotErrs[slot];
     const generating = busySlots.includes(slot);
     const letter = slot === 0 ? 'A' : 'B';
-    const frame = 'relative w-full overflow-hidden rounded-[4px] bg-surface';
+    // En pantallas anchas el marco crece hasta llenar el alto disponible; en angostas respeta la proporción de la pieza.
+    const frame = 'relative w-full overflow-hidden rounded-[4px] bg-surface min-[1100px]:!aspect-auto min-[1100px]:!max-h-none min-[1100px]:min-h-[280px] min-[1100px]:flex-1';
     const frameStyle: React.CSSProperties = { aspectRatio: ratio, maxHeight: 'calc(100vh - 330px)' };
 
     let body: React.ReactNode;
@@ -564,7 +587,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
     }
 
     return (
-      <li key={slot} className="flex min-w-0 flex-1 flex-col gap-3">
+      <li key={slot} className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
         <div className={frame} style={frameStyle}>
           {body}
         </div>
@@ -576,27 +599,38 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
   const progress = busy ? Math.min(0.94, 1 - Math.exp(-elapsed / 35)) : 0;
   const noun = info.label.toLowerCase();
 
-  const primaryBtn = (
-    <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        data-primary
-        aria-disabled={primary.blocked ? true : undefined}
-        onClick={() => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick())}
-        className={`inline-flex h-[48px] items-center justify-center gap-3 whitespace-nowrap rounded-full px-[26px] text-[1rem] font-bold transition-colors duration-150 ${primary.blocked ? 'cursor-not-allowed bg-white/10 text-ink-3' : 'bg-bone text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]'}`}
-      >
-        {primary.blocked ? primary.blockedLabel ?? primary.label : primary.label}
-        {primary.kbd && !primary.blocked && !mobile && <kbd className="text-[0.875rem] font-medium opacity-75">{primary.kbd}</kbd>}
-      </button>
-      {primary.blocked && !busy && <span className="text-[0.875rem] leading-snug text-ink-2">{primary.blocked}</span>}
-    </div>
-  );
+  /* ---------- Acción de cada subpaso ---------- */
+  const approvedHere = approvedPiece;
+  const anyApprovedPiece = approvedHere ?? CHIPS.map(t => byId(approved[t])).find(Boolean) ?? null;
+  const primary: Primary =
+    sub === 0
+      ? { label: 'Siguiente →', kbd: '⏎', onClick: () => onSub(1) }
+      : sub === 1
+        ? genPrimary.blocked
+          ? genPrimary
+          : { ...genPrimary, onClick: () => {
+              onSub(2);
+              void generate([0, 1]);
+            } }
+        : sub === 2
+          ? busy
+            ? genPrimary
+            : approvedHere
+              ? { label: 'Ver la aprobada →', kbd: '⏎', onClick: () => onSub(3) }
+              : { label: 'Ver la aprobada →', blocked: 'Aprobá una de las dos variantes para seguir.', blockedLabel: 'Aprobá una variante', onClick: () => {}, onBlockedClick: onBlocked }
+          : { label: 'Probar otra pieza →', kbd: '⏎', onClick: () => onSub(0) };
+  useShortcuts(enabled, { enter: () => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick()) });
 
-  return (
-    <div className="stage-enter relative h-full">
-      <div className="grid h-full min-h-0 grid-cols-1 gap-y-10 max-[1099px]:overflow-y-auto max-[1099px]:pb-16 min-[1100px]:grid-cols-[300px_minmax(0,1fr)_340px] min-[1100px]:gap-x-8">
-        {/* Izquierda: la receta */}
-        <aside className="order-3 flex min-h-0 flex-col gap-8 px-4 py-6 min-[1100px]:order-1 min-[1100px]:overflow-y-auto min-[1100px]:pb-10 min-[1100px]:pl-10 min-[1100px]:pr-0">
+  /* ---------- Estante: la receta ---------- */
+  const shelves: Shelf[] =
+    sub === 1 || sub === 2
+      ? [
+          {
+            id: 'receta',
+            label: 'Receta',
+            side: 'left',
+            content: (
+              <div className="flex flex-col gap-3">
           <section aria-label="La receta" className="flex flex-col gap-3">
             <div className="flex items-baseline justify-between gap-3">
               <StepLabel>LA RECETA</StepLabel>
@@ -659,7 +693,7 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                     ))}
                     {!(refPalette ? refPalette.colors : systemPalette).length && <span className="px-2 text-[0.875rem] text-ink-3">sin colores todavía</span>}
                   </div>
-                  <span className="text-[0.875rem] leading-snug text-ink-2">{refPalette ? `De la imagen «${refPalette.name}».` : 'La del sistema (se lee en Sistema con «Completar paleta»).'}</span>
+                  <span className="text-[0.875rem] leading-snug text-ink-2">{refPalette ? `De la imagen «${refPalette.name}».` : 'La del sistema: Primario, Secundario y Acento.'}</span>
                   <div className="flex flex-wrap gap-2">
                     <KeyButton label={refPalette ? 'Cambiar imagen' : 'Usar la de una imagen'} onClick={() => setPickerOpen(o => !o)} />
                     {refPalette && <KeyButton label="Volver a la del sistema" tone="ghost" onClick={() => setRefPalette(null)} />}
@@ -734,96 +768,136 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
               </div>
             )}
           </section>
-        </aside>
-
-        {/* Centro: el resultado, dos marcos lado a lado */}
-        <section aria-label="Resultado" aria-busy={busy} className="relative order-2 flex min-h-0 min-w-0 flex-col gap-5 px-4 py-6 min-[1100px]:overflow-y-auto min-[1100px]:px-2 min-[1100px]:pb-10">
-          <div aria-hidden="true" className="glow" style={{ width: '60%', left: '50%', top: '42%', transform: 'translate(-50%, -50%)', opacity: 0.2 }} />
-          <div className="relative flex flex-col gap-5">
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <StepLabel>RESULTADO</StepLabel>
-              {hasResult && <span className="text-[0.875rem] text-ink-2">Aprobá la que mejor respete el Primario{pieceType === 'logo' ? ': el logo aprobado se usa en las demás piezas' : ''}.</span>}
-            </div>
-            {!hasResult && !busy && !slotErrs.some(Boolean) && <h2 className="m-0 text-[clamp(1.5rem,2.4vw,2rem)] font-semibold leading-tight">Generá dos variantes de tu {noun}</h2>}
-
-            {busy && (
-              <div className="flex flex-col gap-2" role="status">
-                <div className="h-[3px] w-full overflow-hidden bg-white/10">
-                  <div className="h-full bg-bone transition-[width] duration-500" style={{ width: `${progress * 100}%` }} />
-                </div>
-                <span className="text-[0.875rem] text-ink-2">Puede tardar entre 30 y 90 segundos. No cierres la pestaña.</span>
               </div>
-            )}
+            ),
+          },
+        ]
+      : [];
 
-            <ul className="m-0 flex list-none gap-5 p-0 max-md:flex-col">{[0, 1].map(variantCard)}</ul>
-
-            <div className="flex flex-wrap items-center gap-3 pt-1">
+  /* ---------- La mesa según el subpaso ---------- */
+  let body: React.ReactNode;
+  let width: 'form' | 'wide' | 'full' = 'wide';
+  let scroll = true;
+  if (sub === 0) {
+    body = (
+      <div className="flex min-h-full flex-col justify-center gap-2 py-6">
+        <DeskQuestion>¿Qué querés probar?</DeskQuestion>
+        <div role="radiogroup" aria-label="Tipo de pieza" className="grid gap-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${mobile ? 140 : 190}px, 1fr))` }}>
+          {CHIPS.map(id => {
+            const t = pieceTypeInfo(id);
+            const on = pieceType === id;
+            const [w, h] = t.format === 'auto' ? [1, 1] : t.format.split(':').map(Number);
+            return (
               <button
+                key={id}
                 type="button"
-                disabled={!approvedPiece}
-                onClick={async () => {
-                  if (!approvedPiece) return;
-                  try {
-                    const n = (slots.indexOf(approvedPiece.id) as number) + 1 || 1;
-                    const file = await downloadPiecePng(project, approvedPiece.imageUrl, approvedPiece.pieceType, n);
-                    logEvent('export', { type: 'png', kind: approvedPiece.pieceType });
-                    onNotify(`Se descargó ${file}`);
-                  } catch (e: any) {
-                    onNotify('No se pudo descargar la imagen.', { tone: 'error', detail: e?.message });
-                  }
+                role="radio"
+                aria-checked={on}
+                onClick={() => setPieceType(id)}
+                onDoubleClick={() => {
+                  setPieceType(id);
+                  onSub(1);
                 }}
-                title={approvedPiece ? undefined : 'Aprobá una variante para exportarla'}
-                className="inline-flex h-11 items-center rounded-full bg-bone px-6 text-[0.875rem] font-bold text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-ink-3"
+                className="flex flex-col gap-3 rounded-[4px] p-4 text-left transition-colors duration-150 hover:bg-ink/5"
+                style={{ outline: on ? '2px solid var(--cc-text)' : '1px solid var(--cc-line)', outlineOffset: -1 }}
               >
-                Exportar PNG
+                {/* La proporción de la pieza, dibujada */}
+                <span className="flex h-[150px] items-center justify-center">
+                  <span className="block rounded-[2px]" style={{ aspectRatio: `${w} / ${h}`, height: h >= w ? '100%' : undefined, width: w > h ? '100%' : undefined, maxWidth: '100%', background: on ? 'var(--cc-primary)' : 'color-mix(in srgb, var(--cc-text) 14%, transparent)' }} />
+                </span>
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="text-[1.125rem] font-semibold">{t.label}</span>
+                  <span className="type-data text-[0.875rem] text-ink-2">{t.format === 'auto' ? 'libre' : t.format}</span>
+                </span>
+                {approved[id] && <span className="text-[0.875rem] font-semibold" style={{ color: GREEN }}>✓ Ya tiene una aprobada</span>}
               </button>
-              <ExportMenu project={project} notify={onNotify} />
+            );
+          })}
+        </div>
+      </div>
+    );
+  } else if (sub === 1) {
+    width = 'form';
+    body = (
+      <div className="flex min-h-full flex-col justify-center gap-6 py-6">
+        <DeskQuestion kicker={info.label}>¿Qué dice y qué pedís?</DeskQuestion>
+        <label className="flex flex-col gap-2">
+          <span className="type-label text-[0.75rem] tracking-[0.06em] text-ink-2">Texto que aparece · opcional</span>
+          <input value={brandText} onChange={e => setBrandText(e.target.value)} className="field-input" style={{ height: 56, fontSize: '1.25rem', fontWeight: 600 }} />
+        </label>
+        <label className="flex flex-col gap-2">
+          <span className="type-label text-[0.75rem] tracking-[0.06em] text-ink-2">Pedido libre · opcional</span>
+          <textarea rows={4} placeholder={info.placeholder} value={details} onChange={e => setRequests(r => ({ ...r, [pieceType]: e.target.value }))} className="field-input resize-y" style={{ fontSize: '1rem', lineHeight: 1.6 }} />
+        </label>
+        <p className="m-0 text-[0.9375rem] text-ink-2">
+          La receta sale sola de tus capas: {direct ? 'modo directo (sin el sistema).' : `${sel.core.length} del Primario, ${sel.support.length} del Secundario${sel.accent ? ' y un Acento' : ''}.`} Está en el estante «Receta», a la izquierda.
+        </p>
+        {genPrimary.blocked && !busy && <p className="m-0 text-[0.875rem] text-ink-2">{genPrimary.blocked}</p>}
+      </div>
+    );
+  } else if (sub === 2) {
+    width = 'full';
+    scroll = mobile;
+    body = (
+      <section aria-label="Resultado" aria-busy={busy} className="flex h-full flex-col gap-5 py-8">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <DeskQuestion kicker={info.label}>Compará</DeskQuestion>
+          {hasResult && <span className="mb-8 text-[0.9375rem] text-ink-2">Aprobá la que mejor respete el Primario{pieceType === 'logo' ? ': el logo aprobado se usa en las demás piezas' : ''}.</span>}
+        </div>
+        {busy && (
+          <div className="-mt-4 flex flex-col gap-2" role="status">
+            <div className="h-[3px] w-full overflow-hidden bg-white/10">
+              <div className="h-full bg-bone transition-[width] duration-500" style={{ width: `${progress * 100}%` }} />
+            </div>
+            <span className="text-[0.875rem] text-ink-2">Puede tardar entre 30 y 90 segundos. No cierres la pestaña.</span>
+          </div>
+        )}
+        <ul className="m-0 flex min-h-0 flex-1 list-none gap-6 p-0 max-md:flex-col">{[0, 1].map(variantCard)}</ul>
+      </section>
+    );
+  } else {
+    const p = anyApprovedPiece;
+    body = (
+      <div className="flex flex-col gap-8 pb-8">
+        <DeskQuestion kicker={p ? pieceTypeInfo(p.pieceType).label : undefined}>Listo</DeskQuestion>
+        {p ? (
+          <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+            <button type="button" onClick={() => setZoomId(p.id)} aria-label="Ampliar" className="block overflow-hidden rounded-[4px] bg-surface p-0">
+              <img src={p.imageUrl || undefined} alt={`${pieceTypeInfo(p.pieceType).label} aprobada`} className="max-h-[58vh] w-full object-contain" />
+            </button>
+            <div className="flex flex-col gap-4">
+              <span className="text-[1.125rem] font-semibold" style={{ color: GREEN }}>✓ Aprobada</span>
+              <span className="text-[1rem] text-ink-2">{directionLabel(p) || (p.mode === 'direct' ? 'Modo directo' : 'Con el sistema')}</span>
+              <span className="type-label mt-4 text-[0.75rem] text-ink-2">Exportar</span>
+              <ExportMenu project={project} notify={onNotify} inline />
             </div>
           </div>
-        </section>
-
-        {/* Derecha: la pieza y el pedido */}
-        <aside className="order-1 flex min-h-0 flex-col gap-8 px-4 pt-6 min-[1100px]:order-3 min-[1100px]:overflow-y-auto min-[1100px]:pb-10 min-[1100px]:pl-0 min-[1100px]:pr-10">
-          <section aria-label="Pieza y pedido" className="flex flex-col gap-4">
-            <StepLabel>PIEZA Y PEDIDO</StepLabel>
-            <h2 className="m-0 text-[1.375rem] font-bold leading-tight">¿Qué querés probar?</h2>
-            <div role="radiogroup" aria-label="Tipo de pieza" className="flex gap-2 max-md:-mx-6 max-md:flex-nowrap max-md:overflow-x-auto max-md:px-6 md:flex-wrap">
-              {CHIPS.map(id => {
-                const t = pieceTypeInfo(id);
-                const on = pieceType === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => setPieceType(id)}
-                    className={`h-9 shrink-0 rounded-[4px] px-4 text-[0.875rem] font-medium transition-colors duration-120 max-md:h-11 ${on ? 'bg-bone text-void' : 'bg-ink/10 text-ink-2 hover:text-ink'}`}
-                  >
-                    {t.label}
-                    {approved[id] && <span aria-label="aprobada"> ✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-[0.75rem] tracking-[0.06em] text-ink-2">TEXTO QUE APARECE · OPCIONAL</span>
-              <input value={brandText} onChange={e => setBrandText(e.target.value)} className="field-input" />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-[0.75rem] tracking-[0.06em] text-ink-2">PEDIDO LIBRE · OPCIONAL</span>
-              <textarea
-                rows={3}
-                placeholder={info.placeholder}
-                value={details}
-                onChange={e => setRequests(r => ({ ...r, [pieceType]: e.target.value }))}
-                className="field-input resize-y"
-              />
-            </label>
-          </section>
-          {primaryBtn}
-        </aside>
+        ) : (
+          <p className="m-0 text-[1.0625rem] text-ink-2">Todavía no aprobaste ninguna variante.</p>
+        )}
       </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full">
+      <Desk stepKey={`probar-${sub}`} width={width} scroll={scroll} shelves={shelves}>
+        {body}
+      </Desk>
+
+      {active && (
+        <BottomBar
+          actions={
+            sub === 2 ? (
+              <BarButton onClick={() => void generate([0, 1])} disabled={busy || (!direct && !sel.core.length)}>
+                Generar otras 2
+              </BarButton>
+            ) : undefined
+          }
+          extra={sub === 2 ? <ExportMenu project={project} notify={onNotify} disabled={anyApproved ? undefined : 'Aprobá una variante para exportar'} /> : undefined}
+          primary={primary}
+        />
+      )}
 
       <LightboxModal
         reference={zoomPiece ? { id: zoomPiece.id, name: `${pieceTypeInfo(zoomPiece.pieceType).label} · ${zoomPiece.mode === 'direct' ? 'directo' : 'con el sistema'}`, image: zoomPiece.imageUrl, createdAt: '' } : null}

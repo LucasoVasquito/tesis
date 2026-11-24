@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useViewport } from '../../hooks/useViewport';
 
 export interface Primary {
@@ -32,15 +33,24 @@ export function BarButton({ children, onClick, active, disabled, title, ariaLabe
 
 export const BarSep = () => <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-line-mid" />;
 
+/** Ranuras de la barra de acción fija (las pone App): herramientas a la izquierda, acción principal a la derecha. */
+export interface ActionBarSlots {
+  actions: HTMLElement | null;
+  primary: HTMLElement | null;
+}
+export const ActionBarContext = createContext<ActionBarSlots>({ actions: null, primary: null });
+
 /**
- * Barra inferior flotante: solo las acciones de la etapa y, a la derecha, el botón primario.
- * Escritorio y tablet: centrada sobre la escena, a 24px del borde, con una línea de ayuda encima.
+ * Barra de acción de la etapa.
+ * Escritorio y tablet: va dentro de la barra fija de App (72 px, ancho completo, debajo del escenario):
+ *   a la izquierda el estado y las herramientas, a la derecha `extra` (p. ej. Exportar) y la acción principal.
  * Móvil: pegada abajo a todo el ancho (con el área segura), el primario y un «⋯» con las acciones secundarias.
  */
-export function BottomBar({ help, actions, primary }: { help?: string; actions?: React.ReactNode; primary?: Primary }) {
+export function BottomBar({ help, actions, primary, extra }: { help?: string; actions?: React.ReactNode; primary?: Primary; /** Junto a la acción principal (Exportar). */ extra?: React.ReactNode }) {
   const viewport = useViewport();
   const mobile = viewport === 'mobile';
   const [more, setMore] = useState(false);
+  const slots = useContext(ActionBarContext);
 
   const primaryBtn = primary && (
     <button
@@ -84,23 +94,27 @@ export function BottomBar({ help, actions, primary }: { help?: string; actions?:
     );
   }
 
+  // Escritorio y tablet: a la barra fija.
   return (
-    <div className="no-print pointer-events-none absolute inset-x-0 bottom-6 z-30 flex flex-col items-center gap-2 px-4">
-      {help && (
-        <p className="pointer-events-none m-0 max-w-[640px] rounded-[4px] px-3 py-1 text-center text-[0.875rem] leading-snug text-ink-2" style={{ background: 'color-mix(in srgb, var(--cc-bg) 80%, transparent)' }}>
-          {help}
-        </p>
-      )}
-      <div
-        role="toolbar"
-        aria-label="Acciones de la etapa"
-        className="pointer-events-auto flex max-w-full items-center gap-1 rounded-[4px] p-[6px]"
-        style={{ background: 'var(--cc-surface)' }}
-      >
-        {actions && <div className={`flex min-w-0 items-center gap-1 overflow-x-auto ${viewport === 'tablet' ? '[&_button]:min-h-[44px]' : ''}`}>{actions}</div>}
-        {actions && primary && <BarSep />}
-        {primaryBtn}
-      </div>
-    </div>
+    <>
+      {slots.actions &&
+        (actions || help) &&
+        createPortal(
+          <div role="toolbar" aria-label="Herramientas de la etapa" className={`flex min-w-0 items-center gap-1 ${viewport === 'tablet' ? '[&_button]:min-h-[44px]' : ''}`}>
+            {actions}
+            {help && !actions && <span className="truncate text-[0.875rem] text-ink-2">{help}</span>}
+          </div>,
+          slots.actions,
+        )}
+      {slots.primary &&
+        (primary || extra) &&
+        createPortal(
+          <div className="flex items-center gap-3">
+            {extra}
+            {primaryBtn}
+          </div>,
+          slots.primary,
+        )}
+    </>
   );
 }

@@ -108,7 +108,7 @@ export interface PromptInput {
   request: string;
   transparent: boolean;
   /** Paleta sacada de una imagen de referencia: reemplaza a la del sistema. */
-  palette?: { hex: string; share: number }[];
+  palette?: { hex: string; name?: string; share?: number; layer?: Layer }[];
 }
 
 /**

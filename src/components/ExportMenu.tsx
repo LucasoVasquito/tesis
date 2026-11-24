@@ -11,7 +11,7 @@ import { logEvent } from '../utils/testLog';
  * Botón «Exportar» de la barra inferior (Sistema y Probar): PNG de la pieza aprobada, PDF del sistema
  * y Prompt / JSON para otra IA. Toda exportación avisa «Se descargó {archivo}».
  */
-export function ExportMenu({ project, notify, mobile, inline }: { project: Project; notify: Notify; mobile?: boolean; /** Las tres opciones a la vista (ficha de Sistema), sin desplegable. */ inline?: boolean }) {
+export function ExportMenu({ project, notify, mobile, inline, big, disabled }: { project: Project; notify: Notify; mobile?: boolean; /** Las tres opciones a la vista (ficha de Sistema), sin desplegable. */ inline?: boolean; /** Con `inline`: tres opciones grandes, una al lado de la otra. */ big?: boolean; /** Motivo por el que todavía no se puede exportar (se muestra al lado). */ disabled?: string }) {
   const colors = useColors();
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState(false);
@@ -74,7 +74,9 @@ export function ExportMenu({ project, notify, mobile, inline }: { project: Proje
     }
   };
 
-  const item = 'flex min-h-[44px] w-full flex-col items-start gap-[2px] rounded-[4px] px-3 py-2 text-left hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-75';
+  const item = big
+    ? 'flex min-h-[160px] w-full flex-col items-start justify-end gap-2 rounded-[4px] border border-line p-5 text-left transition-colors duration-150 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60 [&>span:first-child]:text-[1.25rem]'
+    : 'flex min-h-[44px] w-full flex-col items-start gap-[2px] rounded-[4px] px-3 py-2 text-left hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-75';
   const role = inline ? undefined : 'menuitem';
   const options = (
     <>
@@ -104,14 +106,17 @@ export function ExportMenu({ project, notify, mobile, inline }: { project: Proje
   return (
     <div ref={wrap} className="relative">
       {inline ? (
-        <div className="flex flex-col gap-1 rounded-[4px] bg-surface p-1">{options}</div>
+        big ? <div className="grid gap-4 md:grid-cols-3">{options}</div> : <div className="flex flex-col gap-1 rounded-[4px] bg-surface p-1">{options}</div>
       ) : (
         <>
-          <BarButton active={open} onClick={() => setOpen(o => !o)} ariaLabel="Exportar">
-            {busy ? 'Exportando…' : 'Exportar'} <span aria-hidden="true">▴</span>
-          </BarButton>
+          <span className="flex items-center gap-2">
+            {disabled && <span className="text-[0.875rem] text-ink-2">{disabled}</span>}
+            <BarButton active={open} disabled={!!disabled} title={disabled} onClick={() => setOpen(o => !o)} ariaLabel="Exportar">
+              {busy ? 'Exportando…' : 'Exportar'} <span aria-hidden="true">▾</span>
+            </BarButton>
+          </span>
           {open && (
-            <div role="menu" aria-label="Exportar" className="absolute bottom-full left-0 z-40 mb-3 flex w-[280px] flex-col gap-1 rounded-[4px] p-2" style={{ background: 'var(--cc-surface)' }}>
+            <div role="menu" aria-label="Exportar" className="absolute bottom-full right-0 z-40 mb-3 flex w-[280px] flex-col gap-1 rounded-[4px] p-2" style={{ background: 'var(--cc-surface)' }}>
               {options}
             </div>
           )}

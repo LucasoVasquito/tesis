@@ -5,7 +5,7 @@ import { rankLayers } from '../pieces/model';
 import { dedupePieces } from '../pieces/dedupe';
 
 /** Esquema actual: 2 = pila de láminas; 3 = sin partes como referencias; 4 = piezas (sugerencia / confirmada); 5 = moodboard en capas (origen USUARIO / AGENTE). */
-export const SCHEMA = 5;
+export const SCHEMA = 7;
 
 let seq = 0;
 /** ID único y ordenable por tiempo. */
@@ -63,14 +63,35 @@ export function migrateProject(input: any): Project {
     layerColors: Array.isArray(raw?.layerColors) && raw.layerColors.length === 3 ? raw.layerColors : undefined,
     roleColors: raw?.roleColors && typeof raw.roleColors === 'object' ? raw.roleColors : undefined,
     example: raw?.example ? true : undefined,
-    reached: Number.isInteger(raw?.reached) ? raw.reached : undefined,
+    // Esquema 6 suma la etapa 0 · Brief al principio: los índices guardados se corren uno.
+    reached: Number.isInteger(raw?.reached) ? raw.reached + ((raw?.schema ?? 0) < 6 ? 1 : 0) : undefined,
     done: Array.isArray(raw?.done) ? raw.done : undefined,
     visited: Array.isArray(raw?.visited) ? raw.visited : undefined,
     stale: Array.isArray(raw?.stale) ? raw.stale : undefined,
     reviewTotal: Number.isInteger(raw?.reviewTotal) ? raw.reviewTotal : undefined,
+    substep: raw?.substep && typeof raw.substep === 'object' ? raw.substep : undefined,
+    subVisited: raw?.subVisited && typeof raw.subVisited === 'object' ? raw.subVisited : undefined,
+    reviewSkipped: Array.isArray(raw?.reviewSkipped) ? raw.reviewSkipped : undefined,
+    systemSheet: raw?.systemSheet && Array.isArray(raw.systemSheet.rules) ? raw.systemSheet : undefined,
   };
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';
-  return dedupePieces(migrateToPieces(migrateToStack(p, raw), raw)).project;
+  const out = dedupePieces(migrateToPieces(migrateToStack(p, raw), raw)).project;
+  return (raw?.schema ?? 0) < 7 ? unifyBrief(out) : out;
+}
+
+/**
+ * Esquema 7: el brief tiene tres campos sin repetir (Nombre, En una frase, Objetivo).
+ * - Si la frase es igual al nombre, queda vacía (era una copia).
+ * - Objetivo, brief y descripción se juntan en el Objetivo, sin textos repetidos ni incluidos en otro.
+ */
+export function unifyBrief(p: Project): Project {
+  const norm = (x?: string) => (x ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const intent = norm(p.intent) === norm(p.name) ? '' : (p.intent ?? '').trim();
+  const texts = [p.objective, p.brief, p.description].map(x => (x ?? '').trim()).filter(Boolean);
+  const kept = texts.filter((t, i) => !texts.some((o, j) => j !== i && (norm(o) === norm(t) ? j < i : norm(o).includes(norm(t)))));
+  // Los títulos de pieza empiezan con mayúscula.
+  const patterns = p.patterns.map(x => (x.name && x.name[0] !== x.name[0].toLocaleUpperCase('es') ? { ...x, name: x.name[0].toLocaleUpperCase('es') + x.name.slice(1) } : x));
+  return { ...p, patterns, intent, objective: kept.join('\n\n'), brief: '', description: '' };
 }
 
 /**
@@ -320,7 +341,7 @@ export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { me
 export function migrateToPieces(p: Project, raw: any): Project {
   const moment = (): Project['moment'] => {
     const m = raw?.moment;
-    if (m === 'referencias' || m === 'revisar' || m === 'capas' || m === 'sistema' || m === 'probar') return m;
+    if (m === 'brief' || m === 'referencias' || m === 'revisar' || m === 'capas' || m === 'sistema' || m === 'probar') return m;
     if (m === 'moodboard' || m === 'subir' || m === 'ordenar') return 'referencias';
     if (raw?.view === 'front' || m === 'girar') return 'sistema';
     return 'referencias';

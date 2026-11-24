@@ -66,7 +66,8 @@ export async function buildAnalysisBody(p: Project, onProgress: (done: number, t
     references,
     projectName: p.name,
     objective: p.objective,
-    description: p.brief || p.description,
+    // La frase acompaña al objetivo como contexto (el brief y la descripción se unificaron en el objetivo).
+    description: p.intent || '',
     previousPatterns: p.patterns,
     confirmedPatterns: p.patterns.filter(x => x.confirmed && !ownIds.has(x.id)),
     discardedPatterns: p.patterns.filter(x => x.status === 'discarded'),

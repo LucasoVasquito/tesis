@@ -184,9 +184,12 @@ export function merge(p: Project, ids: string[]): ActionResult {
   };
 }
 
+/** Los títulos de pieza empiezan con mayúscula («Texturas plástico»). */
+export const capitalize = (s: string) => (s ? s.charAt(0).toLocaleUpperCase('es') + s.slice(1) : s);
+
 export function rename(p: Project, id: string, name: string): ActionResult {
   const x = find(p, id);
-  const clean = name.trim();
+  const clean = capitalize(name.trim());
   if (!x || !clean || clean === x.name) return { project: p, log: [] };
   return { project: touch(p, id, y => ({ ...y, name: clean })), log: [{ kind: 'pattern_edit', targetId: id, label: `«${x.name}» → «${clean}»` }], message: `Renombrada · ${clean}` };
 }
@@ -589,5 +592,40 @@ export function addRefParts(p: Project, refId: string, parts: { id: string; name
     project: { ...p, references: [...p.references, ...fresh] },
     log: [{ kind: 'layer', targetId: refId, label: `Desglose de ${r.name}`, reason: fresh.map(x => x.name).join(' · ') }],
     message: `${r.name} desglosada en ${fresh.length} recortes: juntalos con ⇧ + clic y G`,
+  };
+}
+
+/**
+ * Patrón armado por el diseñador en el lienzo: junta varias referencias que comparten algo.
+ * Nace confirmado y en la capa que eligió; pesa más que lo del agente y el análisis no lo reescribe.
+ */
+export function createUserPiece(p: Project, refIds: string[], name: string, layer: Layer, note?: string): ActionResult & { id?: string } {
+  const ids = [...new Set(refIds)].filter(id => p.references.some(r => r.id === id));
+  const clean = capitalize(name.trim());
+  if (ids.length < 2 || !clean) return { project: p, log: [] };
+  const id = `pat_user_${Date.now().toString(36)}`;
+  const piece: Pattern = {
+    id,
+    name: clean,
+    category: 'graphic_elements',
+    description: note?.trim() || `Lo que comparten estas ${ids.length} referencias, según el diseñador.`,
+    evidence: ids,
+    confidence: 1,
+    status: 'confirmed',
+    relatedObservations: [],
+    origin: 'user',
+    confirmed: true,
+    evidenceLocked: true,
+    layer,
+    audited: true,
+    revealed: false,
+    fragmentIds: [],
+    cover: { refId: ids[0] },
+  };
+  return {
+    project: { ...p, patterns: [...p.patterns, piece] },
+    log: [{ kind: 'pattern_edit', targetId: id, label: `Patrón tuyo · ${clean}`, reason: `${ids.length} referencias · ${SHEET_NAME[layer]}` }],
+    message: `Creaste «${clean}» en ${SHEET_NAME[layer]} con ${ids.length} referencias.`,
+    id,
   };
 }

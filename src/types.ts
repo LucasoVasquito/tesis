@@ -184,7 +184,14 @@ export type Layer = 1 | 2 | 3;
 
 /** Los tres momentos del flujo (reemplazan a las 5 etapas). */
 /** Las tres pantallas: 01 MOODBOARD · 02 SISTEMA · 03 PROBAR. */
-export type Moment = 'referencias' | 'revisar' | 'capas' | 'sistema' | 'probar';
+/** Reglas de uso (3 a 5 frases cortas) y estilos de letra del sistema, redactados por el agente. */
+export interface SystemSheet {
+  sig: string;
+  rules: string[];
+  fonts: { style: string; use?: string; kind?: string }[];
+}
+
+export type Moment = 'brief' | 'referencias' | 'revisar' | 'capas' | 'sistema' | 'probar';
 
 /** Costado: láminas separadas en profundidad. Frente: la Síntesis, como página editorial. */
 export type StackView = 'side' | 'front';
@@ -430,7 +437,7 @@ export interface Project {
   roleColors?: Partial<Record<'primary' | 'secondary' | 'accent', string>>;
   /** Colores de capa calculados con la paleta del proyecto (color camaleón): Primario, Secundario, Acento. */
   layerColors?: [string, string, string];
-  /** Etapa más avanzada alcanzada (0 a 4). */
+  /** Etapa más avanzada alcanzada (0 = Brief a 5 = Probar). */
   reached?: number;
   /** Etapas que se completaron al avanzar (Capas y Sistema). */
   done?: Moment[];
@@ -440,6 +447,14 @@ export interface Project {
   stale?: Moment[];
   /** Cuántas sugerencias había al empezar la revisión. */
   reviewTotal?: number;
+  /** Último subpaso abierto de cada etapa (memoria de lugar: al reabrir se vuelve ahí). */
+  substep?: Partial<Record<Moment, number>>;
+  /** Subpasos por los que ya se pasó, por etapa (marca ✓ en el riel). */
+  subVisited?: Partial<Record<Moment, number[]>>;
+  /** Sugerencias que el usuario saltó en Revisar (para «Lo que decidiste»). */
+  reviewSkipped?: string[];
+  /** Ficha de Sistema redactada por el agente: reglas de uso y estilos de letra. `sig` = piezas con las que se redactó. */
+  systemSheet?: SystemSheet;
   /** Proyecto de ejemplo (muestra el cartel "EMPEZAR EL MÍO"). */
   example?: boolean;
 }
