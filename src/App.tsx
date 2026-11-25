@@ -43,7 +43,7 @@ import { SystemScreen } from './screens/SystemScreen';
 import { ExampleBanner, Guide, guideDone } from './screens/Guide';
 import { BriefScreen } from './screens/BriefScreen';
 import { MutateOptions, NotifyOptions } from './screens/types';
-import { DEMO_ID, EXAMPLE_ID, OLD_EXAMPLE_ID, buildDemo, demoRequested } from './utils/demo';
+import { DEMO_ID, EXAMPLE_ID, OLD_EXAMPLE_ID, asExample, buildDemo, demoRequested } from './utils/demo';
 import { clearTestLog, downloadTestLog, logEvent, setLogStage, testMode } from './utils/testLog';
 import { useViewport } from './hooks/useViewport';
 import { STEPS, blockReason, isAnalyzed, locationText, stepIndex, stepLabel } from './utils/steps';
@@ -117,7 +117,7 @@ export default function App() {
           try {
             const { project } = await restoreBackup(await fetchExample(), list.map(p => p.id));
             if (project.id === EXAMPLE_ID) {
-              const example = { ...project, example: true, moment: 'referencias' as Moment };
+              const example = asExample(project);
               list.push(example);
               if (active === OLD_EXAMPLE_ID) active = example.id;
               await saveProjects(list, active, new Set([example.id]));
@@ -131,7 +131,7 @@ export default function App() {
       }
       try {
         const { project } = await restoreBackup(await fetchExample(), []);
-        const example = { ...project, example: true, moment: 'referencias' as Moment };
+        const example = asExample(project);
         setBoot({ projects: [example], activeId: example.id });
       } catch {
         const p = createEmptyProject();
@@ -476,7 +476,7 @@ function Workspace({ boot }: { boot: Boot }) {
 
   const importBackupText = async (text: string, example = false) => {
     const { project: imported } = await restoreBackup(text, projectsList.map(x => x.id));
-    const p = example ? { ...imported, example: true, moment: 'referencias' as Moment } : imported;
+    const p = example ? asExample(imported) : imported;
     // Un proyecto vacío de relleno se reemplaza por el importado.
     const isBlank = (x: Project) => !x.name.trim() && !x.intent?.trim() && !x.references.length && !x.patterns.length;
     setProjectsList(list => [...list.filter(x => !isBlank(x)), p]);

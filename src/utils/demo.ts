@@ -5,6 +5,12 @@ export const DEMO_ID = 'proj_demo_badder';
 /** El ejemplo actual (Badder) y el anterior (Badder Hamburguesería): quien ya había abierto el anterior pasa al nuevo. */
 export const EXAMPLE_ID = 'proj_1795292408137';
 export const OLD_EXAMPLE_ID = 'proj_mvss64wg00';
+
+/**
+ * El ejemplo se abre desde el principio, en el primer paso del Brief: quien lo mira lo recorre hacia adelante
+ * (todo está hecho y marcado ✓) y puede volver atrás cuando quiera. Para abrirlo en otra pantalla, cambiá `moment`.
+ */
+export const asExample = (p: Project): Project => ({ ...p, example: true, moment: 'brief', substep: { ...(p.substep ?? {}), brief: 0 } });
 export const demoRequested = () => {
   try {
     return new URLSearchParams(location.search).get('demo') === 'badder';
