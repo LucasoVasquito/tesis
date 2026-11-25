@@ -36,8 +36,6 @@ interface TopBarProps {
   /** Deshacer el último cambio. */
   onUndo?: () => void;
   canUndo?: boolean;
-  /** Proyecto de ejemplo: muestra «Ejemplo · Empezar el mío» arriba a la derecha (escritorio y tablet). */
-  onStartOwn?: () => void;
 }
 
 /** Línea de estado: dónde estás, qué está haciendo el agente o que volviste atrás. Una línea de texto con un punto de 8 px que late mientras trabaja. */
@@ -230,14 +228,6 @@ export function TopBar(props: TopBarProps) {
 
       {/* Guardado y ayuda */}
       <div className="flex min-w-0 flex-1 basis-0 items-center justify-end gap-4 max-[1100px]:flex-none">
-        {!mobile && props.onStartOwn && (
-          <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[0.8125rem] text-ink-2">
-            Proyecto de ejemplo
-            <button type="button" onClick={props.onStartOwn} className="h-7 rounded-full bg-bone px-3 text-[0.8125rem] font-bold text-void transition-opacity duration-150 hover:opacity-90">
-              Empezar el mío
-            </button>
-          </span>
-        )}
         <SaveIndicator state={props.save} dot={mobile} />
         {!mobile && props.onUndo && (
           <button type="button" onClick={props.onUndo} disabled={!props.canUndo} className="whitespace-nowrap rounded-[4px] px-2 py-2 text-[0.875rem] font-medium text-ink-2 underline-offset-4 hover:text-ink hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:hover:text-ink-2" style={{ minHeight: viewport === 'desktop' ? undefined : 44 }}>

@@ -40,7 +40,7 @@ import { ReferencesScreen } from './screens/ReferencesScreen';
 import { ReviewScreen } from './screens/ReviewScreen';
 import { LayersScreen } from './screens/LayersScreen';
 import { SystemScreen } from './screens/SystemScreen';
-import { ExampleBanner, Guide, guideDone } from './screens/Guide';
+import { Guide, guideDone } from './screens/Guide';
 import { BriefScreen } from './screens/BriefScreen';
 import { MutateOptions, NotifyOptions } from './screens/types';
 import { DEMO_ID, EXAMPLE_ID, OLD_EXAMPLE_ID, asExample, buildDemo, demoRequested } from './utils/demo';
@@ -1116,9 +1116,7 @@ function Workspace({ boot }: { boot: Boot }) {
         nav={viewport === 'desktop' ? <StageNav project={project} current={screen} onGo={goStage} /> : undefined}
         onUndo={undo}
         canUndo={undoStack.current.length > 0}
-        onStartOwn={project.example ? handleNewProject : undefined}
       />
-      {project.example && viewport === 'mobile' && <ExampleBanner onStart={handleNewProject} />}
       <SubstepRail project={project} stage={screen} current={sub} onGo={goSub} />
 
       <div className={`relative z-[1] flex min-h-0 flex-1 ${viewport === 'mobile' ? 'flex-col' : ''}`}>
