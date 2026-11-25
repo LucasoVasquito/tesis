@@ -37,10 +37,31 @@ async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   return (await fetch(dataUrl)).blob();
 }
 
+/**
+ * Pasa la imagen a WebP (hasta 2048 px de lado) si así pesa menos. Las piezas generadas y los resultados importados
+ * llegan en PNG o JPEG de varios MB; en WebP pesan una fracción y se ven igual. GIF y SVG se dejan como están.
+ */
+async function shrinkImage(blob: Blob): Promise<Blob> {
+  if (!/^image\/(png|jpeg|bmp)$/.test(blob.type)) return blob;
+  try {
+    const bmp = await createImageBitmap(blob);
+    const k = Math.min(1, 2048 / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bmp.width * k));
+    canvas.height = Math.max(1, Math.round(bmp.height * k));
+    canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close();
+    const out = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
+    return out && out.type === 'image/webp' && out.size < blob.size ? out : blob;
+  } catch {
+    return blob;
+  }
+}
+
 /** Guarda la imagen de una pieza (data URL, blob: o http). */
 export async function savePieceImage(projectId: string, pieceId: string, src: string): Promise<void> {
   try {
-    const blob = await dataUrlToBlob(src);
+    const blob = await shrinkImage(await dataUrlToBlob(src));
     await tx('readwrite', s => s.put(blob, key(projectId, pieceId)));
   } catch (e) {
     console.warn('No se pudo guardar la imagen de la pieza', pieceId, e);

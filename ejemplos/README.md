@@ -1,6 +1,6 @@
 # Ejemplos
 
-Proyectos de muestra para mostrar la app.
+Proyecto de muestra para mostrar la app. La app y el servidor cargan **el primer `.json`** de esta carpeta, así que debe haber uno solo.
 
 ## Cargar un ejemplo
 1. Abrir la app (`iniciar.bat` o `npm run dev`).
