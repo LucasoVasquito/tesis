@@ -153,6 +153,11 @@ export function buildProbarPrompt(p: Project, o: PromptInput): string {
 
   lines.push('', '# 7 · Constraints');
   if (!o.direct) lines.push('- Do not add elements foreign to the system. Everything visible must come from the core, support or accent above.');
+  if (!o.direct) {
+    // Reglas de uso del sistema: las del diseñador primero.
+    const rules = [...(p.systemSheet?.userRules ?? []), ...(p.systemSheet?.rules ?? [])].map(r => r.trim()).filter(Boolean).slice(0, 8);
+    rules.forEach(r => lines.push(`- System rule: ${r}`));
+  }
   if (o.transparent) lines.push('- Background: transparent, with the artwork alone.');
   lines.push('- Spell every word exactly as given. Keep text short.');
   return lines.join('\n');

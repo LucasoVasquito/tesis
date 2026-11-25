@@ -7,8 +7,8 @@ interface CropProps {
   crop?: CropBox;
   /** Proporción de la imagen de origen (ancho / alto), para que el recorte no se deforme. Si falta, se mide. */
   sourceRatio?: number;
-  /** 'contain' respeta la proporción del recorte; 'cover' llena la caja sin deformar. */
-  fit?: 'contain' | 'cover';
+  /** 'inside' muestra el recorte entero dentro de la caja, sin cortar nada; 'contain' respeta la proporción del recorte; 'cover' llena la caja sin deformar. */
+  fit?: 'contain' | 'cover' | 'inside';
   className?: string;
   style?: React.CSSProperties;
   alt: string;
@@ -47,13 +47,13 @@ function useSourceRatio(image: string, given?: number, needed = true) {
  */
 export function Crop({ image, crop, sourceRatio, fit = 'contain', className, style, alt }: CropProps) {
   const c = crop ?? { x: 0, y: 0, w: 1, h: 1 };
-  const ratio = useSourceRatio(image, sourceRatio, !!crop);
+  const ratio = useSourceRatio(image, sourceRatio, !!crop || fit === 'inside');
   const src = ratio > 0 ? ratio : 1;
   const ref = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el || !crop || fit !== 'cover') return;
+    if (!el || fit === 'contain') return;
     const read = () => setBox({ w: el.clientWidth, h: el.clientHeight });
     read();
     const ro = new ResizeObserver(read);
@@ -63,8 +63,18 @@ export function Crop({ image, crop, sourceRatio, fit = 'contain', className, sty
 
   const pos = (start: number, size: number) => (size >= 1 ? 0 : (start / (1 - size)) * 100);
   let bg: React.CSSProperties;
-  if (!crop) {
-    bg = { backgroundImage: `url("${image}")`, backgroundSize: 'cover', backgroundPosition: 'center' };
+  if (fit === 'inside' && box.w > 0 && box.h > 0 && ratio > 0) {
+    // Entero y centrado: una caja interior con la proporción exacta del fragmento, para que no se vea nada de lo que lo rodea.
+    const s = Math.min(box.w / (c.w * ratio), box.h / c.h);
+    const iw = c.w * ratio * s;
+    const ih = c.h * s;
+    return (
+      <div ref={ref} role="img" aria-label={alt} className={className} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}>
+        <div style={{ width: iw, height: ih, backgroundImage: `url("${image}")`, backgroundSize: `${100 / c.w}% ${100 / c.h}%`, backgroundPosition: `${pos(c.x, c.w)}% ${pos(c.y, c.h)}%`, backgroundRepeat: 'no-repeat' }} />
+      </div>
+    );
+  } else if (!crop) {
+    bg = { backgroundImage: `url("${image}")`, backgroundSize: fit === 'inside' ? 'contain' : 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' };
   } else if (fit === 'cover' && box.w > 0 && box.h > 0 && ratio > 0) {
     // La imagen de origen se escala lo justo para que el recorte cubra la caja, centrado, sin deformarse.
     const s = Math.max(box.w / (c.w * ratio), box.h / c.h); // alto, en px, de la imagen de origen entera

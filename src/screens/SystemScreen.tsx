@@ -14,6 +14,7 @@ import { Desk, DeskQuestion, Shelf } from '../components/shell/Desk';
 import { PieceThumb } from './common';
 import { PieceRule } from './PieceRule';
 import { SUBSTEPS } from '../utils/substeps';
+import { tallyText } from '../utils/results';
 
 interface SystemScreenProps {
   project: Project;
@@ -25,7 +26,8 @@ interface SystemScreenProps {
   paletteBusy: boolean;
   onCompletePalette: () => void;
   /** Guarda la ficha redactada por el agente (reglas y estilos de letra). */
-  onSaveSheet: (sheet: SystemSheet) => void;
+  /** `drafted`: lo redactó el agente. Las reglas del usuario se toman de lo último guardado, no de lo que había al pedirlo. */
+  onSaveSheet: (sheet: SystemSheet, drafted?: boolean) => void;
   /** Subpaso: 0 Paleta · 1 Tipografía · 2 Primario · 3 Secundario · 4 Acento · 5 Reglas · 6 Exportar. */
   sub: number;
   onSub: (i: number) => void;
@@ -38,20 +40,125 @@ const HEAD: Record<Layer, string> = { 1: 'clamp(80px, 9vw, 132px)', 2: 'clamp(52
 
 /** Quién ubicó la pieza. */
 function Origin({ piece, suggestion }: { piece: Pattern; suggestion: boolean }) {
-  if (piece.origin === 'user') return <span className="type-label self-start rounded-[3px] bg-bone px-[6px] py-[1px] text-[0.75rem] text-void">Tuyo</span>;
-  return <span className="type-label self-start text-[0.75rem] text-ink-2">{suggestion ? 'Detectado · sugerencia' : 'Detectado'}</span>;
+  if (piece.origin === 'user') return <span className="type-label self-start rounded-[3px] bg-bone px-[6px] py-[1px] text-[0.75rem] text-void">Usuario</span>;
+  return <span className="type-label self-start text-[0.75rem] text-ink-2">{suggestion ? 'Agente · sugerencia' : 'Agente'}</span>;
 }
 
-/** Espécimen «Aa» aproximado según el tipo de letra. */
-const SPECIMEN: Record<string, React.CSSProperties> = {
-  condensed: { fontFamily: 'var(--font-display)', textTransform: 'uppercase', fontWeight: 900 },
-  mono: { fontFamily: 'var(--font-mono, ui-monospace, monospace)', fontWeight: 600 },
-  serif: { fontFamily: 'var(--font-serif, Georgia, serif)', fontWeight: 600 },
-  script: { fontFamily: 'var(--font-serif, Georgia, serif)', fontStyle: 'italic', fontWeight: 500 },
-  rounded: { fontFamily: 'ui-rounded, var(--font-sans)', fontWeight: 800 },
-  grotesk: { fontFamily: 'var(--font-sans)', fontWeight: 900 },
-  wide: { fontFamily: 'var(--font-sans)', fontWeight: 800, letterSpacing: '0.08em' },
+/** Ejemplo tipográfico: una fuente libre real (Google Fonts) por tipo de letra. */
+interface Specimen {
+  family: string;
+  style: React.CSSProperties;
+}
+const SPECIMEN: Record<string, Specimen> = {
+  condensed: { family: 'Big Shoulders Display', style: { fontFamily: '"Big Shoulders Display", Impact, sans-serif', fontWeight: 900, textTransform: 'uppercase' } },
+  mono: { family: 'Space Mono', style: { fontFamily: '"Space Mono", ui-monospace, monospace', fontWeight: 700 } },
+  serif: { family: 'Playfair Display', style: { fontFamily: '"Playfair Display", Georgia, serif', fontWeight: 800 } },
+  script: { family: 'Caveat Brush', style: { fontFamily: '"Caveat Brush", cursive', fontWeight: 400 } },
+  rounded: { family: 'Nunito Black', style: { fontFamily: 'Nunito, ui-rounded, sans-serif', fontWeight: 900 } },
+  grotesk: { family: 'Archivo Black', style: { fontFamily: '"Archivo Black", Arial, sans-serif', fontWeight: 400 } },
+  wide: { family: 'Syncopate', style: { fontFamily: 'Syncopate, sans-serif', fontWeight: 700 } },
+  blackletter: { family: 'Pirata One', style: { fontFamily: '"Pirata One", serif', fontWeight: 400 } },
+  bubble: { family: 'Bowlby One', style: { fontFamily: '"Bowlby One", sans-serif', fontWeight: 400 } },
+  display3d: { family: 'Bungee Shade', style: { fontFamily: '"Bungee Shade", sans-serif', fontWeight: 400 } },
+  stencil: { family: 'Black Ops One', style: { fontFamily: '"Black Ops One", sans-serif', fontWeight: 400 } },
 };
+
+/**
+ * Qué fuente mostrar: primero lo que dice la descripción del estilo («gótica fracturada», «burbuja orgánica»…),
+ * porque la clasificación del agente suele ser genérica; después su `kind`.
+ */
+function specimenFor(f: { style: string; kind?: string }): Specimen {
+  const t = f.style.toLowerCase();
+  const by: [RegExp, string][] = [
+    [/g[oó]tic|fractur|blackletter|black letter|b[aá]rbar/, 'blackletter'],
+    [/burbuja|bubble|fluid|org[aá]nic|l[ií]quid|inflad/, 'bubble'],
+    [/tridimension|3s?d|perspectiv|extrud|sombr/, 'display3d'],
+    [/stencil|plantilla|militar/, 'stencil'],
+    [/mono|t[eé]cnic|m[aá]quina/, 'mono'],
+    [/serif|serifa|editorial cl[aá]sic/, 'serif'],
+    [/manuscrit|script|cursiv|pincel|brush/, 'script'],
+    [/redonde|rounded/, 'rounded'],
+    [/condensad|angosta|rotulad/, 'condensed'],
+    [/extendid|ancha|wide/, 'wide'],
+  ];
+  const hit = by.find(([re]) => re.test(t));
+  return SPECIMEN[hit ? hit[1] : f.kind ?? ''] ?? SPECIMEN.grotesk;
+}
+
+/** Una regla de uso: se toca para editarla; Enter guarda, Esc cancela, vacía se borra. */
+function RuleRow({ n, text, mine, onSave }: { n: number; text: string; mine?: boolean; onSave: (t: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(text);
+  const done = (save: boolean) => {
+    setEditing(false);
+    if (save && draft.trim() !== text) onSave(draft.trim());
+    else setDraft(text);
+  };
+  return (
+    <li className="flex items-baseline gap-6 border-t border-line py-5">
+      <span className="type-data w-8 shrink-0 text-[1rem] text-ink-2">{String(n).padStart(2, '0')}</span>
+      {editing ? (
+        <textarea
+          autoFocus
+          rows={2}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={() => done(true)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              done(true);
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              done(false);
+            }
+          }}
+          aria-label={`Regla ${n}`}
+          className="field-input min-w-0 flex-1"
+          style={{ fontSize: '1.25rem', fontWeight: 600, lineHeight: 1.35, resize: 'vertical' }}
+        />
+      ) : (
+        <button type="button" onClick={() => { setDraft(text); setEditing(true); }} title="Tocá para editar" className="group flex min-w-0 flex-1 items-baseline justify-between gap-4 text-left">
+          <span className="text-[clamp(1.25rem,2vw,1.75rem)] font-semibold leading-snug">{text}</span>
+          <span className="no-print flex shrink-0 items-baseline gap-3 text-[0.875rem] text-ink-2">
+            {mine && <span className="type-label rounded-[3px] bg-bone px-[6px] py-[1px] text-[0.75rem] text-void">Usuario</span>}
+            <span className="underline underline-offset-4 group-hover:text-ink">Editar</span>
+          </span>
+        </button>
+      )}
+    </li>
+  );
+}
+
+/** Campo para escribir una regla nueva. */
+function NewRule({ onAdd }: { onAdd: (t: string) => void }) {
+  const [v, setV] = useState('');
+  return (
+    <div className="flex flex-col gap-2">
+      <textarea
+        autoFocus
+        rows={2}
+        value={v}
+        onChange={e => setV(e.target.value)}
+        onBlur={() => onAdd(v.trim())}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onAdd(v.trim());
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onAdd('');
+          }
+        }}
+        aria-label="Regla nueva"
+        placeholder="Ej.: El acento verde solo va en sellos de advertencia."
+        className="field-input"
+        style={{ fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.35, resize: 'vertical' }}
+      />
+      <span className="text-[0.8125rem] text-ink-2">Enter guarda · Esc cancela</span>
+    </div>
+  );
+}
 
 /** Firma de las piezas ubicadas: si cambia, la ficha se vuelve a redactar. */
 const sheetSig = (p: Project) =>
@@ -103,11 +210,12 @@ export function SystemScreen(props: SystemScreenProps) {
           name: project.name,
           palette: colors.palette,
           pieces: pieces.map(x => ({ layer: x.layer, category: x.category, name: x.name, description: x.description })),
+          userRules: sheet?.userRules ?? [],
         }),
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok || !result.success) throw new Error(result.details || result.error || `HTTP ${res.status}`);
-      props.onSaveSheet({ sig, rules: result.data.rules ?? [], fonts: result.data.fonts ?? [] });
+      props.onSaveSheet({ sig, rules: result.data.rules ?? [], fonts: result.data.fonts ?? [] }, true);
     } catch (err: any) {
       setSheetError('No se pudieron redactar las reglas.');
       console.warn(err);
@@ -162,17 +270,22 @@ export function SystemScreen(props: SystemScreenProps) {
 
   const typography = sheet?.fonts.length ? (
     <ul className="m-0 flex list-none flex-col p-0" style={{ opacity: fresh ? 1 : 0.6 }}>
-      {sheet.fonts.map(f => (
-        <li key={f.style} className="flex items-center gap-8 border-t border-line py-6">
-          <span aria-hidden="true" className="w-[160px] shrink-0 text-[6rem] leading-none" style={SPECIMEN[f.kind ?? ''] ?? { fontWeight: 700 }}>
-            Aa
-          </span>
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="text-[1.5rem] font-semibold leading-tight">{f.style}</span>
-            {f.use && <span className="text-[1rem] text-ink-2">{f.use}</span>}
-          </span>
-        </li>
-      ))}
+      {sheet.fonts.map(f => {
+        const sp = specimenFor(f);
+        const word = (project.name || 'Aa').split(/s[—–-]s/)[0].trim().split(/s+/)[0];
+        return (
+          <li key={f.style} className="grid items-center gap-x-10 gap-y-3 border-t border-line py-8 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+            <span aria-label={`Ejemplo: ${word}`} className="min-w-0 break-words text-[clamp(3.5rem,7vw,6rem)] leading-[1.05]" style={sp.style}>
+              {word}
+            </span>
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="text-[1.5rem] font-semibold leading-tight">{f.style}</span>
+              {f.use && <span className="text-[1rem] text-ink-2">{f.use}</span>}
+              <span className="type-data mt-1 text-[0.875rem] text-ink-2">Parecida a {sp.family}</span>
+            </span>
+          </li>
+        );
+      })}
     </ul>
   ) : (
     <p className="m-0 text-[1rem] text-ink-2">{sheetBusy ? 'Leyendo los estilos de letra…' : 'Todavía no se detectó ninguna.'}</p>
@@ -203,13 +316,14 @@ export function SystemScreen(props: SystemScreenProps) {
                 <h3 className="m-0 text-[2rem] font-semibold leading-[1.1]">{lead.name}</h3>
                 <p className="m-0 max-w-[68ch] text-[1.0625rem] leading-[1.6]">{fullRule(lead) || 'Todavía sin regla redactada.'}</p>
                 <span className="type-data text-[0.875rem] text-ink-2">En {evidenceText(lead, project)}</span>
+                {tallyText(project, lead.id) && <span className="type-data text-[0.875rem] text-ink-2">En pruebas: {tallyText(project, lead.id)}</span>}
               </div>
             </div>
-            {/* Las demás, en fila */}
+            {/* Las demás, en grilla: todas a la vista, sin deslizar */}
             {rest.length > 0 && (
-              <div className="flex gap-5 overflow-x-auto pb-2">
+              <div className="grid gap-x-5 gap-y-8" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
                 {rest.map(x => (
-                  <div key={x.id} className="flex w-[220px] shrink-0 flex-col gap-2">
+                  <div key={x.id} className="flex min-w-0 flex-col gap-2">
                     <PieceThumb piece={x} project={project} className="aspect-[4/5] w-full rounded-[4px] bg-raised" style={{ opacity: suggestion(x) ? 0.85 : 1 }} word={l !== 3} />
                     <span className="text-[1rem] font-semibold leading-tight">{x.name}</span>
                     <PieceRule piece={x} project={project} short={rule(x)} />
@@ -225,19 +339,50 @@ export function SystemScreen(props: SystemScreenProps) {
     );
   };
 
+  /** Guarda la ficha conservando lo demás. Sin ficha todavía, sig vacío: así se sigue redactando la del agente. */
+  const saveSheet = (patch: Partial<SystemSheet>) => props.onSaveSheet({ sig: sheet?.sig ?? '', rules: sheet?.rules ?? [], fonts: sheet?.fonts ?? [], userRules: sheet?.userRules, ...patch });
+  const mine = sheet?.userRules ?? [];
+  const theirs = sheet?.rules ?? [];
+  const [addingRule, setAddingRule] = useState(false);
+  const total = mine.length + theirs.length;
+
   const rules = (
     <div className="flex flex-col gap-4">
-      {sheet?.rules.length ? (
+      {total ? (
         <ol className="m-0 flex list-none flex-col p-0" style={{ opacity: fresh ? 1 : 0.6 }}>
-          {sheet.rules.map((r, i) => (
-            <li key={r} className="flex items-baseline gap-6 border-t border-line py-5">
-              <span className="type-data w-8 shrink-0 text-[1rem] text-ink-2">{String(i + 1).padStart(2, '0')}</span>
-              <span className="text-[clamp(1.25rem,2vw,1.75rem)] font-semibold leading-snug">{r}</span>
-            </li>
+          {mine.map((r, i) => (
+            <RuleRow
+              key={`m${i}${r}`}
+              n={i + 1}
+              text={r}
+              mine
+              onSave={t => saveSheet({ userRules: t ? mine.map((x, j) => (j === i ? t : x)) : mine.filter((_, j) => j !== i) })}
+            />
+          ))}
+          {theirs.map((r, i) => (
+            <RuleRow
+              key={`a${i}${r}`}
+              n={mine.length + i + 1}
+              text={r}
+              // Al editar una del agente pasa a ser tuya: el agente ya no la reescribe.
+              onSave={t => saveSheet({ rules: theirs.filter((_, j) => j !== i), userRules: t && t !== r ? [...mine, t] : mine })}
+            />
           ))}
         </ol>
       ) : (
         <p className="m-0 text-[1rem] text-ink-2">{sheetBusy ? 'Redactando las reglas…' : 'Sin reglas todavía.'}</p>
+      )}
+      {addingRule ? (
+        <NewRule
+          onAdd={t => {
+            setAddingRule(false);
+            if (t) saveSheet({ userRules: [...mine, t] });
+          }}
+        />
+      ) : (
+        <button type="button" data-guide="rules-add" onClick={() => setAddingRule(true)} className="no-print self-start text-[0.9375rem] font-bold text-ink underline underline-offset-4 hover:no-underline">
+          + Escribir una regla
+        </button>
       )}
       {sheetError && (
         <p role="alert" className="m-0 text-[0.875rem] text-error-ink">
@@ -246,10 +391,11 @@ export function SystemScreen(props: SystemScreenProps) {
       )}
       {!sheetBusy && (sheet || sheetError) && (
         <button type="button" onClick={() => void draftSheet()} className="no-print self-start text-[0.9375rem] text-ink-2 underline underline-offset-4 hover:text-ink">
-          {fresh ? 'Volver a redactar' : 'Actualizar con los cambios'}
+          {fresh ? 'Volver a redactar las del agente' : 'Actualizar con los cambios'}
         </button>
       )}
       {sheetBusy && sheet && <span className="text-[0.875rem] text-ink-2">Actualizando…</span>}
+      <p className="m-0 max-w-[62ch] text-[0.875rem] text-ink-2">Las reglas van en lo que exportás. Las tuyas van primero y el agente no las reescribe. Tocá una regla para editarla; si la dejás vacía, se borra.</p>
     </div>
   );
 

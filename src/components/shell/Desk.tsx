@@ -111,9 +111,9 @@ export function Desk({
 /** Título de la mesa: la pregunta del subpaso (Display). */
 export function DeskQuestion({ children, kicker }: { children: React.ReactNode; kicker?: React.ReactNode }) {
   return (
-    <header className="mb-8 flex flex-col gap-2">
+    <header className="mb-10 flex flex-col gap-2">
       {kicker && <span className="type-data text-[0.875rem] text-ink-2">{kicker}</span>}
-      <h1 data-headline className="type-stage m-0" style={{ fontSize: 'clamp(40px, 5vw, 72px)', lineHeight: 0.95 }}>
+      <h1 data-headline className="type-stage m-0" style={{ fontSize: 'clamp(40px, 5vw, 72px)', lineHeight: 1.04 }}>
         {children}
       </h1>
     </header>

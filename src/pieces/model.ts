@@ -1,6 +1,7 @@
 import { CropBox, Layer, LayerPosition, LogKind, Pattern, PatternGroup, Project, Reference } from '../types';
 import { dedupePieces } from './dedupe';
 import { corpusRefs, evidenceCount, isLayer, layerInfo } from '../utils/layers';
+import { resultFactor } from '../utils/results';
 
 /**
  * Piezas: cualquier elemento del sistema (tipografía, textura, color, personaje, composición).
@@ -56,8 +57,11 @@ export function pieceWeight(x: { layer?: Layer | null; origin?: 'agent' | 'user'
 }
 
 /** Por peso (lo del usuario primero) y, a igual peso, por evidencia. Si el usuario ordenó a mano (rank), manda ese orden. */
+/** El peso de la pieza ajustado por lo que mostraron las pruebas con otras IA. */
+export const weightIn = (p: Project, x: Pattern) => pieceWeight(x) * resultFactor(p, x.id);
+
 export const byWeight = (p: Project) => (a: Pattern, b: Pattern) =>
-  (a.rank !== undefined && b.rank !== undefined ? a.rank - b.rank : 0) || pieceWeight(b) - pieceWeight(a) || evidenceCount(b, p) - evidenceCount(a, p);
+  (a.rank !== undefined && b.rank !== undefined ? a.rank - b.rank : 0) || weightIn(p, b) - weightIn(p, a) || evidenceCount(b, p) - evidenceCount(a, p);
 
 /** Piezas de una capa, ordenadas por peso: lo del usuario primero. */
 export function piecesIn(p: Project, l: Layer): Pattern[] {
@@ -92,6 +96,8 @@ export const proposedLayer = (x: Pattern, p: Project, ranks = rankLayers(p)): La
 
 const touch = (p: Project, id: string, fn: (x: Pattern) => Pattern): Project => ({ ...p, patterns: p.patterns.map(x => (x.id === id ? fn(x) : x)) });
 const find = (p: Project, id: string) => p.patterns.find(x => x.id === id);
+/** Al confirmar o ubicar una pieza que estaba en «Sin decidir», recupera el origen que tenía. */
+const settle = (y: Pattern): Pattern => ({ ...y, origin: y.priorOrigin ?? y.origin, priorOrigin: undefined });
 
 /** ⏎ · Confirmar: la sugerencia queda fija (borde lleno). */
 export function confirm(p: Project, ids: string[]): ActionResult {
@@ -100,7 +106,7 @@ export function confirm(p: Project, ids: string[]): ActionResult {
   for (const id of ids) {
     const x = find(project, id);
     if (!x || !isLayer(x.layer) || x.confirmed) continue;
-    project = touch(project, id, y => ({ ...y, confirmed: true, status: 'confirmed' }));
+    project = touch(project, id, y => settle({ ...y, confirmed: true, status: 'confirmed' }));
     log.push({ kind: 'confirm', targetId: id, label: `${x.name} confirmada en ${SHEET_NAME[x.layer]}` });
   }
   return { project, log, message: log.length === 1 ? log[0].label : log.length ? `${log.length} piezas confirmadas` : undefined };
@@ -115,7 +121,7 @@ export function place(p: Project, id: string, l: Layer): ActionResult {
   if (!x) return { project: p, log: [] };
   const from = isLayer(x.layer) ? SHEET_NAME[x.layer] : 'sin capa';
   return {
-    project: touch(p, id, y => ({ ...y, layer: l, origin: 'user', confirmed: true, status: 'confirmed' })),
+    project: touch(p, id, y => settle({ ...y, layer: l, confirmed: true, status: 'confirmed' })),
     log: [{ kind: 'layer', targetId: id, label: `${x.name} → ${SHEET_NAME[l]}`, reason: x.layer === l ? undefined : `Estaba en ${from}` }],
     message: `${x.name} → ${SHEET_NAME[l]}`,
   };
@@ -154,13 +160,29 @@ export function restore(p: Project, id: string): ActionResult {
   };
 }
 
+/**
+ * Devolver una aceptada a «Sin decidir»: vuelve a ser una sugerencia en su misma capa.
+ * Es reversible: si la pieza era del usuario, al confirmarla de nuevo recupera ese origen.
+ * Lo que armó el diseñador a mano (patrones propios) no se puede des-decidir: para eso se descarta.
+ */
+export const canUndecide = (x: Pattern) => !x.evidenceLocked && !x.id.startsWith('pat_user_');
+export function undecide(p: Project, id: string): ActionResult {
+  const x = find(p, id);
+  if (!x || !canUndecide(x)) return { project: p, log: [] };
+  return {
+    project: touch(p, id, y => ({ ...y, priorOrigin: y.origin === 'user' ? 'user' : y.priorOrigin, origin: 'agent', confirmed: false, status: 'detected' })),
+    log: [{ kind: 'restore', targetId: id, label: `${x.name} vuelve a sin decidir` }],
+    message: `«${x.name}» vuelve a Sin decidir.`,
+  };
+}
+
 /** Recuperar una descartada en la revisión: vuelve a su capa sugerida, ya aceptada. */
 export function recover(p: Project, id: string): ActionResult {
   const x = find(p, id);
   if (!x) return { project: p, log: [] };
   const l = isLayer(x.layer) ? x.layer : proposedLayer(x, p);
   return {
-    project: touch(p, id, y => ({ ...y, status: 'confirmed', layer: l, confirmed: true })),
+    project: touch(p, id, y => settle({ ...y, status: 'confirmed', layer: l, confirmed: true })),
     log: [{ kind: 'restore', targetId: id, label: `${x.name} recuperada en ${SHEET_NAME[l]}` }],
     message: `Recuperaste «${x.name}» en ${SHEET_NAME[l]}.`,
   };
@@ -624,7 +646,7 @@ export function createUserPiece(p: Project, refIds: string[], name: string, laye
   };
   return {
     project: { ...p, patterns: [...p.patterns, piece] },
-    log: [{ kind: 'pattern_edit', targetId: id, label: `Patrón tuyo · ${clean}`, reason: `${ids.length} referencias · ${SHEET_NAME[layer]}` }],
+    log: [{ kind: 'pattern_edit', targetId: id, label: `Patrón del usuario · ${clean}`, reason: `${ids.length} referencias · ${SHEET_NAME[layer]}` }],
     message: `Creaste «${clean}» en ${SHEET_NAME[layer]} con ${ids.length} referencias.`,
     id,
   };

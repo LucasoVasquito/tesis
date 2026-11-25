@@ -6,12 +6,13 @@ import { corpusRefs, evidenceCount, isLayer } from '../utils/layers';
 import { LAYER_QUESTION } from '../utils/layerQuestions';
 import { oneLine, shortRule } from '../utils/layerRules';
 import { logEvent } from '../utils/testLog';
-import { ActionResult, SHEET_NAME, evidenceText, isSuggestion, piecesIn, place, rename } from '../pieces/model';
+import { ActionResult, SHEET_NAME, evidenceText, isSuggestion, move, piecesIn, place, rename, takeOut } from '../pieces/model';
 import { BarButton, BarSep, BottomBar } from '../components/shell/BottomBar';
 import { ColorEditor, ColorsPanel } from '../components/ColorEditor';
 import { PieceThumb } from './common';
 import { PieceRule } from './PieceRule';
 import { RoleKey, useColors } from './colorContext';
+import { proposalFor, tallyText } from '../utils/results';
 import { Notify } from './types';
 import { useClima } from './climaContext';
 
@@ -306,6 +307,27 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
+  /** Lo que se ofrece dentro del modal de una pieza: lo que mostraron las pruebas y qué hacer con ella. */
+  const extrasOf = (x: Pattern) => {
+    const pr = proposalFor(project, x.id);
+    const tally = tallyText(project, x.id);
+    const actions: { label: string; run: () => void; quiet?: boolean }[] = [];
+    if (pr) {
+      actions.push({
+        label: pr.kind === 'out' ? 'Sacarla del sistema' : pr.kind === 'raise' ? 'Subirla de capa' : 'Bajarla de capa',
+        run: () => (pr.kind === 'out' ? apply(p => takeOut(p, x.id), `Sacaste «${x.name}» del sistema.`) : apply(p => move(p, x.id, pr.kind === 'raise' ? 1 : -1))),
+      });
+    }
+    actions.push({ label: 'Descartar pieza', run: () => apply(p => takeOut(p, x.id), `Descartaste «${x.name}». Podés recuperarla en Revisar.`), quiet: true });
+    const note = pr || tally ? (
+      <>
+        {tally && <span>En pruebas: {tally}</span>}
+        {pr && <span className="font-semibold">{pr.text}</span>}
+      </>
+    ) : undefined;
+    return { actions, note };
+  };
+
   /* ---------- Dibujo ---------- */
   const card = (x: Pattern, l: Layer) => {
     const sel = selectedId === x.id;
@@ -322,36 +344,16 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
         <PieceThumb piece={x} project={project} className="aspect-[4/5] w-full rounded-[4px] bg-raised" onSwatch={isColor ? () => { setSelectedId(x.id); setColorFor(x.id); } : undefined} />
         <span className="text-[1rem] font-semibold leading-tight">{x.name}</span>
         <span className="truncate font-mono text-[0.875rem] text-ink-2">
-          {x.origin === 'user' ? 'TUYO' : suggestion ? 'DETECTADO · SUGERENCIA' : 'DETECTADO'} · {evidenceCount(x, project)}/{total}
+          {x.origin === 'user' ? 'USUARIO' : suggestion ? 'AGENTE · SUGERENCIA' : 'AGENTE'} · {evidenceCount(x, project)}/{total}
         </span>
         {/* Texto corto y «Ver completo» (abre un modal): no arrastra ni elige la pieza */}
         <span className="cursor-auto" onPointerDown={e => e.stopPropagation()}>
-          <PieceRule piece={x} project={project} short={l === 3 ? oneLine(x) : shortRule(x)} />
+          <PieceRule piece={x} project={project} short={l === 3 ? oneLine(x) : shortRule(x)} {...extrasOf(x)} />
         </span>
         {/* Al pasar el mouse: cómo se mueve */}
         {!touchUi && (
           <span aria-hidden="true" className="pointer-events-none absolute left-3 top-3 hidden items-center gap-1 rounded-[4px] bg-void/80 px-2 py-[3px] text-[0.75rem] font-semibold text-bone group-hover:flex">
             <span className="text-[0.875rem] leading-none">⠿</span> Arrastrá para mover
-          </span>
-        )}
-        {/* Tres puntos para enviarla directo a otra capa */}
-        {!touchUi && (
-          <span className="absolute right-3 top-3 hidden items-center gap-[6px] rounded-[4px] bg-void/80 px-[6px] py-[5px] group-hover:flex" onPointerDown={e => e.stopPropagation()}>
-            {LAYERS.map(t => (
-              <button
-                key={t}
-                type="button"
-                aria-label={`Enviar «${x.name}» a ${SHEET_NAME[t]}`}
-                title={`Enviar a ${SHEET_NAME[t]}`}
-                disabled={t === l}
-                onClick={e => {
-                  e.stopPropagation();
-                  moveToLayer(x, t);
-                }}
-                className="size-3 rounded-full p-0 disabled:cursor-default disabled:opacity-30"
-                style={{ background: t === l ? 'transparent' : layerVar(t), border: `1.5px solid ${layerVar(t)}`, boxShadow: `0 0 0 1px ${edgeVar(t)}` }}
-              />
-            ))}
           </span>
         )}
       </div>
@@ -438,7 +440,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
         {selected.systemHypothesis?.trim() && selected.systemHypothesis.trim() !== selected.description?.trim() && <p className="m-0 text-ink-2">{selected.systemHypothesis.trim()}</p>}
         {!selected.description?.trim() && !selected.systemHypothesis?.trim() && <p className="m-0 text-ink-2">Todavía sin regla redactada.</p>}
         <span className="type-data text-ink-2">
-          {selected.origin === 'user' ? 'TUYO' : 'DETECTADO'} · En {evidenceText(selected, project)}
+          {selected.origin === 'user' ? 'USUARIO' : 'AGENTE'} · En {evidenceText(selected, project)}
         </span>
       </div>
     </section>
@@ -458,7 +460,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
             key={l}
             data-drop-zone={l}
             className={`layer-${l} flex min-w-0 flex-1 flex-col justify-center gap-[2px] rounded-[4px] px-4 py-3`}
-            style={{ minHeight: mobile ? 64 : 88, background: 'var(--cc-surface)', outline: hot ? '1px dotted var(--cc-text)' : undefined, outlineOffset: -4, opacity: here ? 0.75 : 1 }}
+            style={{ minHeight: mobile ? 64 : 'clamp(56px, 11vh, 88px)', background: 'var(--cc-surface)', outline: hot ? '1px dotted var(--cc-text)' : undefined, outlineOffset: -4, opacity: here ? 0.75 : 1 }}
           >
             <span className="flex items-baseline gap-2">
               <span className="layer-headline" style={{ fontSize: 30, fontWeight: 700, color: hot ? 'var(--layer-head)' : 'var(--cc-text-muted)', textDecoration: hot ? undefined : 'none' }}>
@@ -672,19 +674,6 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
               <BarButton onClick={() => setColorFor(selected.id)}>
                 Color <kbd className="font-mono text-[0.875rem] opacity-75">C</kbd>
               </BarButton>
-            )}
-            {selected && isLayer(selected.layer) && (
-              <>
-                {!mobile && <BarSep />}
-                <span className="px-1 text-[0.875rem] text-ink-2">Mover a</span>
-                {LAYERS.map(l => (
-                  <BarButton key={l} disabled={selected.layer === l} onClick={() => moveToLayer(selected, l)}>
-                    <span aria-hidden="true" className="layer-dot size-2 rounded-full" style={{ background: layerVar(l), boxShadow: `0 0 0 1px ${edgeVar(l)}` }} />
-                    {SHEET_NAME[l]}
-                    <kbd className="font-mono text-[0.875rem] opacity-75">{l}</kbd>
-                  </BarButton>
-                ))}
-              </>
             )}
           </>
         }

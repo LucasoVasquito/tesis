@@ -3,8 +3,12 @@ import { SHEET_NAME, livePieces, outPieces, piecesIn, suggestions } from '../pie
 import { approvedCount, isAnalyzed, stepLabel } from './steps';
 import { corpusRefs } from './layers';
 
-/** ¿Ya hay variantes generadas en Probar? */
-const hasRounds = (p: Project) => (p.applications?.stack?.rounds ?? []).some(r => r.pieces.length > 0);
+/** Tandas con variantes generadas en Probar. */
+const roundCount = (p: Project) => (p.applications?.stack?.rounds ?? []).filter(r => r.pieces.length > 0).length;
+/** ¿Ya hay variantes de la pieza que se está probando? (lo anterior a «Probar otra pieza» no cuenta) */
+const hasRounds = (p: Project) => roundCount(p) > (p.probarBase?.rounds ?? 0);
+/** ¿Ya se aprobó la pieza que se está probando? */
+const hasApproved = (p: Project) => Object.values(p.applications?.stack?.approved ?? {}).some(id => !!id && !(p.probarBase?.approved ?? []).includes(id));
 
 /**
  * La mesa despejada (v6): cada etapa se divide en subpasos; cada subpaso responde una sola pregunta
@@ -30,7 +34,7 @@ export const SUBSTEPS: Record<Moment, Substep[]> = {
   referencias: [{ id: 'lienzo', label: 'Referencias', question: 'Tus referencias' }],
   revisar: [
     { id: 'sugerencias', label: 'Sugerencias', question: 'Sugerencia' },
-    { id: 'decidido', label: 'Lo que decidiste', question: 'Lo que decidiste' },
+    { id: 'decidido', label: 'Piezas revisadas', question: 'Piezas revisadas' },
   ],
   // Capas queda como el recorrido en profundidad (una sola pantalla, sin subpasos).
   capas: [{ id: 'capas', label: 'Capas', question: 'Capas' }],
@@ -69,7 +73,7 @@ export function subDone(p: Project, m: Moment, i: number): boolean {
     return !!p.done?.includes('revisar');
   }
   if (m === 'referencias') return isAnalyzed(p);
-  if (m === 'probar') return i === 2 ? hasRounds(p) : i === 3 ? approvedCount(p) > 0 : !!p.subVisited?.probar?.includes(i);
+  if (m === 'probar') return i === 2 ? hasRounds(p) : i === 3 ? hasApproved(p) : !!p.subVisited?.probar?.includes(i);
   // Las demás: un subpaso está hecho cuando ya se pasó por él.
   return !!p.subVisited?.[m]?.includes(i);
 }
@@ -78,7 +82,7 @@ export function subDone(p: Project, m: Moment, i: number): boolean {
 export function subBlocked(p: Project, m: Moment, i: number): string | null {
   if (m === 'revisar' && i === 0 && isAnalyzed(p) && suggestions(p).length === 0) return 'Ya revisaste todas las sugerencias.';
   if (m === 'probar' && i === 2 && !hasRounds(p)) return 'Generá variantes primero.';
-  if (m === 'probar' && i === 3 && approvedCount(p) === 0) return 'Aprobá una variante primero.';
+  if (m === 'probar' && i === 3 && !hasApproved(p)) return 'Aprobá una variante primero.';
   return null;
 }
 

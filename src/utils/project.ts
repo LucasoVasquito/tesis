@@ -35,7 +35,13 @@ function renameLegacyKeys(raw: any): any {
         return { ...rest, origin: origin(f?.origin), agentSuggestedLayer: f?.agentSuggestedLayer ?? aiSuggestedLayer };
       })
     : raw?.fragments;
-  return { ...raw, patterns, fragments };
+  // Una sola vez: antes, mover una pieza de capa la marcaba como «usuario» aunque la hubiera detectado el agente.
+  // Solo se corrigen las que no tienen señales de haberlas armado el diseñador (id propio, grupo o evidencia fijada).
+  const fixed =
+    raw?.originFixed || !Array.isArray(patterns)
+      ? patterns
+      : patterns.map((x: any) => (x?.origin === 'user' && !String(x.id ?? '').startsWith('pat_user_') && !x.evidenceLocked && !x.designerGroup && !x.isGroup ? { ...x, origin: 'agent' } : x));
+  return { ...raw, patterns: fixed, fragments, originFixed: true };
 }
 
 /** Normaliza un proyecto guardado (versiones anteriores o datos incompletos). */
@@ -59,6 +65,7 @@ export function migrateProject(input: any): Project {
     groups: Array.isArray(raw?.groups) ? raw.groups : [],
     lastBackupAt: typeof raw?.lastBackupAt === 'string' ? raw.lastBackupAt : undefined,
     applications: raw?.applications && typeof raw.applications === 'object' ? raw.applications : {},
+    results: Array.isArray(raw?.results) ? raw.results : undefined,
     patternGroups: Array.isArray(raw?.patternGroups) ? raw.patternGroups : undefined,
     layerColors: Array.isArray(raw?.layerColors) && raw.layerColors.length === 3 ? raw.layerColors : undefined,
     roleColors: raw?.roleColors && typeof raw.roleColors === 'object' ? raw.roleColors : undefined,
@@ -72,6 +79,8 @@ export function migrateProject(input: any): Project {
     substep: raw?.substep && typeof raw.substep === 'object' ? raw.substep : undefined,
     subVisited: raw?.subVisited && typeof raw.subVisited === 'object' ? raw.subVisited : undefined,
     reviewSkipped: Array.isArray(raw?.reviewSkipped) ? raw.reviewSkipped : undefined,
+    originFixed: raw?.originFixed ? true : undefined,
+    probarBase: raw?.probarBase && typeof raw.probarBase === 'object' && Array.isArray(raw.probarBase.approved) ? raw.probarBase : undefined,
     systemSheet: raw?.systemSheet && Array.isArray(raw.systemSheet.rules) ? raw.systemSheet : undefined,
   };
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';

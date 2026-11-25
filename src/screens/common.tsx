@@ -11,7 +11,7 @@ export function PieceImage({ piece, project, className, style }: { piece: Patter
   const refId = piece.cover?.refId && project.references.some(r => r.id === piece.cover!.refId) ? piece.cover.refId : piece.evidence.find(id => project.references.some(r => r.id === id));
   const ref = refId ? project.references.find(r => r.id === refId) : undefined;
   if (!ref) return <span className={`block bg-raised ${className ?? ''}`} style={style} />;
-  return <Crop image={ref.image} crop={piece.cover?.refId === ref.id ? piece.cover.crop : undefined} fit="cover" alt={piece.name} className={className} style={style} />;
+  return <Crop image={ref.image} crop={piece.cover?.refId === ref.id ? piece.cover.crop : undefined} fit="inside" alt={piece.name} className={className} style={style} />;
 }
 
 /** Color de una pieza de color: de su descripción o del desglose de su evidencia. */
@@ -82,7 +82,9 @@ export function PieceThumb({ piece, project, className, style, word, onSwatch }:
   const ink = hex ? bestOn(hex, INK, BONE) : BONE;
   const label = hex && <span>{hex.toUpperCase()}</span>;
   const labelStyle: React.CSSProperties = { color: ink };
-  const typo = word !== false && piece.category === 'typography' && !!brand;
+  // El nombre de la marca solo sirve de espécimen si no hay un fragmento real de lo relevado que mostrar.
+  const hasFragment = [piece.cover?.refId, ...piece.evidence].some(id => !!id && project.references.some(r => r.id === id));
+  const typo = word !== false && piece.category === 'typography' && !!brand && !hasFragment;
   return (
     <div className={`relative overflow-hidden ${className ?? ''}`} style={{ ...style, background: hex ? hex : typo ? 'var(--cc-surface)' : undefined, boxShadow: hex ? 'inset 0 0 0 1px var(--cc-line)' : undefined }}>
       {stripes && (

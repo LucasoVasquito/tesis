@@ -91,7 +91,9 @@ const LAYER_KEY: Record<Layer, 'nucleo' | 'secundario' | 'acento'> = { 1: 'nucle
 export interface ExportJson {
   project: string;
   palette: { primary: string; secondary: string; accent: string };
-  layers: Record<'nucleo' | 'secundario' | 'acento', { question: string; pieces: { name: string; type: string; value?: string; rule: string; evidence: string; source: 'tuyo' | 'detectado' }[] }>;
+  layers: Record<'nucleo' | 'secundario' | 'acento', { question: string; pieces: { name: string; type: string; value?: string; rule: string; evidence: string; source: 'usuario' | 'agente' }[] }>;
+  /** Reglas de uso del sistema: las del diseñador primero. */
+  rules: { text: string; source: 'usuario' | 'agente' }[];
   approved: { kind: string; variant: number; file: string }[];
 }
 
@@ -110,13 +112,17 @@ export function buildExportJson(project: Project, palette: Palette, pieceColor: 
       ...(x.category === 'color' && pieceColor(x.id) ? { value: pieceColor(x.id)!.toUpperCase() } : {}),
       rule: l === 1 ? fullRule(x) : l === 2 ? shortRule(x) : oneLine(x),
       evidence: `${evidenceCount(x, project)}/${total}`,
-      source: (x.origin === 'user' ? 'tuyo' : 'detectado') as 'tuyo' | 'detectado',
+      source: (x.origin === 'user' ? 'usuario' : 'agente') as 'usuario' | 'agente',
     })),
   });
   return {
     project: project.name || project.intent || 'Proyecto',
     palette: { primary: hexOf(palette.primary), secondary: hexOf(palette.secondary), accent: hexOf(palette.accent) },
     layers: { nucleo: layer(1), secundario: layer(2), acento: layer(3) },
+    rules: [
+      ...(project.systemSheet?.userRules ?? []).map(text => ({ text, source: 'usuario' as const })),
+      ...(project.systemSheet?.rules ?? []).map(text => ({ text, source: 'agente' as const })),
+    ],
     approved: approvedPieces(project).map(a => ({ kind: pieceTypeInfo(a.kind).label.toLowerCase(), variant: a.variant, file: pngName(project, a.kind, a.variant) })),
   };
 }
@@ -138,6 +144,8 @@ export function buildExportPrompt(j: ExportJson): string {
     list('acento'),
     '',
     `Paleta: primario ${j.palette.primary}, secundario ${j.palette.secondary}, acento ${j.palette.accent}.`,
+    ...(j.rules.length ? ['', 'Reglas de uso (respetalas):', ...j.rules.map(r => `- ${r.text}`)] : []),
+    '',
     'No agregues elementos ajenos al sistema. Escribí cada palabra tal como se indica.',
   ].join('\n');
 }
@@ -208,6 +216,11 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
       layerPages.push(`<section class="page"><small>CAPA ${l}</small><div class="head" style="font-size:${size}pt;font-weight:${l === 1 ? 900 : 700};color:${head};${under !== 'transparent' ? `text-decoration:underline 3px ${under};text-underline-offset:5px;` : ''}">${esc(SHEET_NAME[l])}</div><h2>${esc(LAYER_QUESTION[l])}</h2><div class="grid">${cards.join('') || '<p>Sin piezas.</p>'}</div></section>`);
     }
 
+    const allRules = [...(project.systemSheet?.userRules ?? []), ...(project.systemSheet?.rules ?? [])];
+    const rulesPage = allRules.length
+      ? `<section class="page"><small>REGLAS DE USO</small><h2>Cómo se usa el sistema</h2><ol class="rules">${allRules.map(r => `<li>${esc(r)}</li>`).join('')}</ol></section>`
+      : '';
+
     const approved = approvedPieces(project);
     const approvedCards = (
       await Promise.all(
@@ -234,6 +247,7 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
       .card img { width: 100%; aspect-ratio: 16/10; object-fit: cover; display: block; margin-bottom: 2mm }
       .card b { display: block; font-size: 10pt } .card p { margin: 1mm 0; font-size: 8pt; color: ${muted} }
       .hex { font: 700 8pt Manrope, Arial, sans-serif; margin: -9mm 0 2mm 2mm; position: relative; background: ${bg}; display: inline-flex; gap: 6px; align-items: center; padding: 1mm }
+      .rules { margin: 0; padding-left: 8mm; display: flex; flex-direction: column; gap: 6mm; font-size: 14pt; font-weight: 600; line-height: 1.35 }
       .roles { display: flex; flex-direction: column; gap: 6mm; margin-top: 10mm }
       .role { display: flex; gap: 6mm; align-items: center } .role b { font-size: 14pt } .role code { font: 500 9pt Manrope, Arial, sans-serif; color: ${muted} }
     </style></head><body>
@@ -243,6 +257,7 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
         ${roles.map(([r, c]) => `<div class="role">${swatch(c, true)}<div><b>${r}</b><br><code>${esc(hexOf(c))} · ${esc(fmtOklch(parseColor(c) ?? [0, 0, 0]))}</code></div></div>`).join('')}
       </div></section>
       ${layerPages.join('')}
+      ${rulesPage}
       ${approvedCards ? `<section class="page"><small>PIEZAS APROBADAS</small><h2>Aplicado</h2><div class="grid" style="grid-template-columns:repeat(2,1fr)">${approvedCards}</div></section>` : ''}
     </body></html>`;
     win.document.open();

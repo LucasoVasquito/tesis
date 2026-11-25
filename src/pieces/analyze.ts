@@ -3,6 +3,7 @@ import { corpusRefs } from '../utils/layers';
 import { cropImage } from '../utils/parts';
 import { compressImageString } from '../utils/imageCompressor';
 import { SplitPart, coverFrom, livePieces } from './model';
+import { resultsForAnalysis } from '../utils/results';
 
 export type AnalysisState =
   | { status: 'idle' }
@@ -74,6 +75,7 @@ export async function buildAnalysisBody(p: Project, onProgress: (done: number, t
     feedback: p.feedback,
     designerGroups: [],
     stackPatterns,
+    testResults: resultsForAnalysis(p),
   };
 }
 

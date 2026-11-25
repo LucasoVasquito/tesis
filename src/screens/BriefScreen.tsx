@@ -64,16 +64,6 @@ export function BriefScreen(props: BriefScreenProps) {
   };
 
   const canDraft = !!(draft.intent.trim() || draft.objective.trim());
-  const help = (
-    <div className="flex flex-col gap-3 text-[0.9375rem] leading-[1.6] text-ink-2">
-      <p className="m-0">El brief orienta al agente: con esto lee el corpus con intención, qué buscar y qué dejar de lado.</p>
-      <p className="m-0">Nada es obligatorio. Podés seguir sin completarlo y volver cuando quieras desde el menú del proyecto.</p>
-      <p className="m-0">
-        <kbd>⏎</kbd> o <kbd>→</kbd> sigue · <kbd>←</kbd> vuelve.
-      </p>
-    </div>
-  );
-
   /* ---------- Resumen: cada campo se edita con un clic ---------- */
   const [editing, setEditing] = useState<Field | null>(null);
   useEffect(() => setEditing(null), [sub]);
@@ -126,20 +116,21 @@ export function BriefScreen(props: BriefScreenProps) {
   let body: React.ReactNode;
   if (sub === 0)
     body = (
-      <input value={draft.name} onChange={e => set('name', e.target.value)} onBlur={() => commit('name')} onKeyDown={onEnter} autoFocus aria-label="Nombre del proyecto" placeholder="Ej: Badder Hamburguesería" className="field-input" style={BIG} />
+      <input value={draft.name} onChange={e => set('name', e.target.value)} onBlur={() => commit('name')} onKeyDown={onEnter} autoFocus aria-label="Nombre del proyecto" placeholder="Ej: Badder Hamburguesería" className="field-input field-big" style={BIG} />
     );
   else if (sub === 1)
     body = (
-      <input
+      <GrowArea
         value={draft.intent}
         onChange={e => set('intent', e.target.value)}
         onBlur={() => commit('intent')}
         onKeyDown={onEnter}
         autoFocus
+        rows={1}
         aria-label="En una frase"
         placeholder="Ej: hamburguesería urbana con estética de cartel industrial"
-        className="field-input"
-        style={BIG}
+        className="field-input field-big"
+        style={{ ...BIG, height: undefined, minHeight: 72 }}
       />
     );
   else if (sub === 2)
@@ -184,7 +175,7 @@ export function BriefScreen(props: BriefScreenProps) {
 
   return (
     <>
-      <Desk stepKey={`brief-${sub}`} width="form" shelves={[{ id: 'ayuda', label: 'Ayuda', side: 'right', content: help }]}>
+      <Desk stepKey={`brief-${sub}`} width="form">
         <div className="flex min-h-full flex-col justify-center py-6">
           <DeskQuestion>{SUBSTEPS.brief[sub].question}</DeskQuestion>
           {body}

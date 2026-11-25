@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Layer, Pattern, Project } from '../types';
 import { useShortcuts } from '../hooks/useAuditShortcuts';
 import { evidenceCount } from '../utils/layers';
-import { ActionResult, SHEET_NAME, confirm, evidenceText, isSuggestion, livePieces, outPieces, piecesIn, place, proposedLayer, recover, rename, suggestions, takeOut } from '../pieces/model';
+import { ActionResult, SHEET_NAME, confirm, evidenceText, isSuggestion, livePieces, outPieces, piecesIn, place, proposedLayer, recover, rename, suggestions, takeOut, undecide, canUndecide } from '../pieces/model';
 import { reviewProgress, summary } from '../utils/steps';
 import { LAYER_QUESTION } from '../utils/layerQuestions';
 import { useViewport } from '../hooks/useViewport';
@@ -168,20 +168,6 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext, sub, onS
         </div>
       ),
     },
-    {
-      id: 'ayuda',
-      label: 'Ayuda',
-      side: 'right',
-      content: (
-        <ul className="m-0 flex list-none flex-col gap-2 p-0 text-[0.9375rem] leading-[1.5] text-ink-2">
-          <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> elige la capa</li>
-          <li><kbd>⏎</kbd> o <kbd>→</kbd> confirma y pasa a la siguiente</li>
-          <li><kbd>X</kbd> descarta · <kbd>S</kbd> salta por ahora</li>
-          <li><kbd>←</kbd> vuelve al paso anterior</li>
-          <li>El nombre se puede editar antes de confirmar.</li>
-        </ul>
-      ),
-    },
   ];
 
   /* ---------- 2 · Lo que decidiste: pestañas Aceptadas · Sin decidir · Descartadas, a todo el ancho ---------- */
@@ -205,7 +191,9 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext, sub, onS
     ];
 
     /** Tarjeta legible: miniatura grande, el nombre completo y una acción en texto. */
-    const card = (x: Pattern, note: string, action?: { label: string; run: () => void }, tag?: string) => (
+    const card = (x: Pattern, note: string, actions?: { label: string; run: () => void } | { label: string; run: () => void }[], tag?: string) => {
+      const list = !actions ? [] : Array.isArray(actions) ? actions : [actions];
+      return (
       <li key={x.id} className="flex min-w-0 flex-col gap-2">
         <button type="button" onClick={() => setDetail(x)} title="Ver completo" className="group flex flex-col gap-2 text-left">
           <PieceThumb piece={x} project={project} className="aspect-[4/3] w-full rounded-[4px] bg-raised transition-transform duration-150 group-hover:scale-[1.01]" word={false} />
@@ -214,14 +202,17 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext, sub, onS
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.875rem] text-ink-2">
           {tag && <span className="rounded-[3px] bg-ink/10 px-[6px] py-[1px] text-[0.8125rem] font-semibold text-ink">{tag}</span>}
           <span>{note}</span>
-          {action && (
-            <button type="button" onClick={action.run} className="ml-auto font-bold text-ink underline underline-offset-4 hover:no-underline" style={{ minHeight: mobile ? 44 : undefined }}>
-              {action.label}
-            </button>
-          )}
+          <span className="ml-auto flex gap-4">
+            {list.map(a => (
+              <button key={a.label} type="button" onClick={a.run} className="font-bold text-ink underline underline-offset-4 hover:no-underline" style={{ minHeight: mobile ? 44 : undefined }}>
+                {a.label}
+              </button>
+            ))}
+          </span>
         </span>
       </li>
-    );
+      );
+    };
     const grid = (children: React.ReactNode) => (
       <ul className="m-0 grid list-none gap-x-6 gap-y-8 p-0" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${mobile ? 150 : 220}px, 1fr))` }}>
         {children}
@@ -232,25 +223,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext, sub, onS
     let content: React.ReactNode;
     if (tab === 'acc') {
       content = accepted.length ? (
-        <div className="flex flex-col gap-10">
-          {LAYERS.map(l => {
-            const list = accepted.filter(x => x.layer === l);
-            if (!list.length) return null;
-            return (
-              <section key={l} className={`layer-${l} flex flex-col gap-4`} aria-label={SHEET_NAME[l]}>
-                <h2 className="m-0 flex items-baseline gap-3">
-                  <span className="layer-headline" style={{ fontSize: l === 1 ? 40 : l === 2 ? 32 : 26, textDecoration: 'none' }}>
-                    {SHEET_NAME[l]}
-                  </span>
-                  <span className="type-data text-[0.875rem] text-ink-2">
-                    {list.length} {list.length === 1 ? 'pieza' : 'piezas'}
-                  </span>
-                </h2>
-                {grid(list.map(x => card(x, x.origin === 'user' ? 'Tuya' : 'Detectada')))}
-              </section>
-            );
-          })}
-        </div>
+        grid(accepted.map(x => card(x, x.origin === 'user' ? 'Usuario' : 'Agente', undefined, SHEET_NAME[x.layer as Layer])))
       ) : (
         empty('Todavía no aceptaste ninguna.')
       );
@@ -278,7 +251,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext, sub, onS
             {/* Título solo; a la derecha, alineado a la base, lo que queda por decidir */}
             <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
               <h1 data-headline className="type-stage m-0" style={{ fontSize: 'clamp(40px, 5vw, 72px)', lineHeight: 0.95 }}>
-                Lo que decidiste
+                Piezas revisadas
               </h1>
               {pending ? (
                 <div className="flex items-center gap-4 pb-1">
@@ -294,7 +267,7 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext, sub, onS
               )}
             </header>
             {/* Pestañas: una lista por vez, a todo el ancho */}
-            <div role="tablist" aria-label="Lo que decidiste" className="flex flex-wrap gap-2 border-b border-line">
+            <div role="tablist" aria-label="Piezas revisadas" className="flex flex-wrap gap-2 border-b border-line">
               {TABS.map(t => (
                 <button
                   key={t.key}
@@ -315,7 +288,23 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext, sub, onS
           </div>
         </Desk>
         <BottomBar primary={{ label: 'Seguir a Capas →', kbd: '⏎', onClick: onNext }} />
-        {detail && <PieceModal piece={project.patterns.find(p => p.id === detail.id) ?? detail} project={project} onClose={() => setDetail(null)} />}
+        {detail &&
+          (() => {
+            const x = project.patterns.find(p => p.id === detail.id) ?? detail;
+            const out = x.status === 'discarded';
+            const undecided = !out && isSuggestion(x);
+            const done = (fn: (p: Project) => ActionResult, notice: string) => {
+              apply(fn, notice);
+              setDetail(null);
+            };
+            const actions = out
+              ? [{ label: 'Recuperar', run: () => done(p => recover(p, x.id), `Recuperaste «${x.name}» en ${SHEET_NAME[proposedLayer(x, project)]}.`) }]
+              : [
+                  ...(undecided ? [{ label: 'Decidir', run: () => { setDetail(null); reviewNow(x); } }] : canUndecide(x) ? [{ label: 'Pasar a Sin decidir', run: () => done(p => undecide(p, x.id), `«${x.name}» vuelve a Sin decidir.`) }] : []),
+                  { label: 'Descartar', run: () => done(p => takeOut(p, x.id), `Descartaste «${x.name}».`), quiet: true },
+                ];
+            return <PieceModal piece={x} project={project} onClose={() => setDetail(null)} actions={actions} />;
+          })()}
       </>
     );
   }
@@ -344,12 +333,28 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext, sub, onS
               {progress.reviewed > 0 ? ` · ${progress.reviewed} ya decididas` : ''}
             </span>
             {queue.length > 1 && (
-              <span className="flex items-center gap-1">
-                <button type="button" onClick={() => browse(-1)} aria-label="Sugerencia anterior" title="Anterior (←)" className="flex size-9 items-center justify-center rounded-full bg-ink/10 text-[1.125rem] text-ink hover:bg-ink/20">
-                  ‹
+              <span className="flex items-center gap-2" role="group" aria-label="Moverte entre las sugerencias">
+                <button
+                  type="button"
+                  onClick={() => browse(-1)}
+                  aria-label="Sugerencia anterior"
+                  title="Anterior (←)"
+                  className="inline-flex items-center gap-2 rounded-full border border-line-strong px-4 text-[0.9375rem] font-semibold text-ink transition-colors duration-150 hover:bg-ink/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  style={{ height: mobile ? 44 : 40 }}
+                >
+                  <span aria-hidden="true">←</span>
+                  Anterior
                 </button>
-                <button type="button" onClick={() => browse(1)} aria-label="Sugerencia siguiente" title="Siguiente (→)" className="flex size-9 items-center justify-center rounded-full bg-ink/10 text-[1.125rem] text-ink hover:bg-ink/20">
-                  ›
+                <button
+                  type="button"
+                  onClick={() => browse(1)}
+                  aria-label="Sugerencia siguiente"
+                  title="Siguiente (→)"
+                  className="inline-flex items-center gap-2 rounded-full bg-bone px-4 text-[0.9375rem] font-semibold text-void transition-opacity duration-150 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  style={{ height: mobile ? 44 : 40 }}
+                >
+                  Siguiente
+                  <span aria-hidden="true">→</span>
                 </button>
               </span>
             )}
@@ -403,11 +408,9 @@ export function ReviewScreen({ project, enabled, apply, mutate, onNext, sub, onS
             )}
           </div>
           {evidenceRefs.length > 0 && (
-            // Tira con scroll horizontal y desvanecido en el borde derecho: nada queda cortado sin aviso.
             <div
               aria-label="Evidencia"
-              className="flex gap-2 overflow-x-auto pb-1"
-              style={evidenceRefs.length > 6 ? { maskImage: 'linear-gradient(to right, #000 85%, transparent)', WebkitMaskImage: 'linear-gradient(to right, #000 85%, transparent)' } : undefined}
+              className="flex flex-wrap gap-2"
             >
               {evidenceRefs.map(r => (
                 <Crop key={r.id} image={r.image} fit="cover" alt={r.name} className="aspect-square w-[72px] shrink-0 rounded-[3px] bg-raised" />

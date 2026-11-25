@@ -193,6 +193,7 @@ app.post("/api/analyze-references", async (req, res) => {
       discardedPatterns = [],
       feedback = [],
       designerGroups = [],
+      testResults,
       // Pila de láminas: patrones definidos por el diseñador con fragmentos (opcional).
       stackPatterns = [],
     } = req.body;
@@ -267,7 +268,16 @@ Todos los demás patrones que devuelvas son hallazgos tuyos que el diseñador NO
 `
         : "";
 
-      const previousContext = `${stackContext}
+      const testContext = testResults?.tests
+        ? `
+PRUEBAS REALES DEL SISTEMA (el diseñador probó el sistema (con otras IA u otros diseñadores) y evaluó cada pieza; son evidencia de uso, no hipótesis):
+${(testResults.pieces || []).map((p: any) => `- [${p.id}] "${p.name}": funcionó ${p.worked}, falló ${p.failed}, ignorada ${p.ignored}`).join('\n')}
+${(testResults.captions || []).length ? `Epígrafes del diseñador sobre los resultados:
+${testResults.captions.map((c: any) => `- (${c.ai}) ${c.caption}`).join('\n')}
+` : ''}Cómo usarlo: no inflés patrones que fallaron en las pruebas y prestá atención a lo que piden los epígrafes. Si una pieza funcionó siempre, es un rasgo firme del sistema. Si la IA ignoró una pieza, puede estar redactada de forma poco clara: mencionalo en "overallInsight".
+`
+        : '';
+      const previousContext = `${stackContext}${testContext}
 HISTORIAL DE DECISIONES PREVIAS DEL DISEÑADOR:
 - Patrones ya confirmados por el diseñador: ${JSON.stringify(confirmedPatterns.filter((p: any) => p.origin !== 'user').map((p: any) => ({ id: p.id, name: p.name, category: p.category, assignedSystem: p.assignedSystemId })))}
 ${confirmedPatterns.some((p: any) => p.origin === 'user') ? `
@@ -792,6 +802,7 @@ app.post("/api/system-sheet", async (req, res) => {
   try {
     const pieces: any[] = Array.isArray(req.body?.pieces) ? req.body.pieces.slice(0, 40) : [];
     const palette: any = req.body?.palette || {};
+    const userRules: string[] = (Array.isArray(req.body?.userRules) ? req.body.userRules : []).map((r: any) => String(r || "").slice(0, 200)).filter(Boolean).slice(0, 12);
     if (!pieces.length) return res.status(400).json({ error: "Se requieren piezas." });
     const LAYER = ["", "PRIMARIO (define el sistema)", "SECUNDARIO (lo acompaña)", "ACENTO (aparece poco)"];
     const list = pieces
@@ -802,10 +813,14 @@ app.post("/api/system-sheet", async (req, res) => {
 ${list}
 
 Paleta: Primario ${String(palette.primary || "?")}, Secundario ${String(palette.secondary || "?")}, Acento ${String(palette.accent || "?")}.
+${userRules.length ? `
+REGLAS QUE YA ESCRIBIÓ EL DISEÑADOR (son criterio suyo: no las repitas ni las contradigas; tus reglas las complementan):
+${userRules.map(r => `- ${r}`).join("\n")}
+` : ""}
 
 Devolvé, en español rioplatense:
 - rules: entre 3 y 5 REGLAS DE USO del sistema. Cada una es una frase corta e imperativa o normativa (máximo 12 palabras) que dice cómo se usa o se combina algo: dónde va, dónde no, cuántas veces, sobre qué. Ejemplos del tipo buscado: "El naranja nunca va sobre fotografía.", "La tipografía display solo en titulares.", "Los sellos circulares van una vez por pieza.". NO repitas ni parafrasees los nombres de las piezas como si fueran reglas; no describas, normá. El Primario manda: al menos dos reglas sobre él.
-- fonts: los estilos de letra presentes (de 1 a 3), como clasificación tipográfica corta, no como nombre de pieza. Ejemplos: "Display condensada rotulada", "Mono técnica", "Grotesca pesada". Para cada uno: style (2 a 4 palabras), use (dónde se usa, máximo 6 palabras) y kind: uno de "condensed", "mono", "serif", "script", "rounded", "grotesk", "wide". Si no hay piezas tipográficas, deducilo de lo que haya o devolvé una lista vacía.`;
+- fonts: los estilos de letra presentes (de 1 a 3), como clasificación tipográfica corta, no como nombre de pieza. Ejemplos: "Display condensada rotulada", "Mono técnica", "Grotesca pesada". Para cada uno: style (2 a 4 palabras), use (dónde se usa, máximo 6 palabras) y kind: uno de "condensed", "mono", "serif", "script", "rounded", "grotesk", "wide", "blackletter" (gótica), "bubble" (burbuja orgánica), "display3d" (tridimensional) o "stencil". Si no hay piezas tipográficas, deducilo de lo que haya o devolvé una lista vacía.`;
     const ai = getGeminiClient();
     const response = await generateContentWithRetry(ai, {
       model: "gemini-3.5-flash",

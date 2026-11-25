@@ -38,6 +38,10 @@ interface ProbarScreenProps {
   /** Subpaso: 0 pieza · 1 texto y pedido · 2 comparar · 3 listo. */
   sub: number;
   onSub: (i: number) => void;
+  /** Abre la pieza aprobada en Resultados para evaluarla y anotarla, igual que una importada. */
+  onEvaluate?: (pieceId: string, label: string) => void;
+  /** Se empieza otra pieza: los ✓ del riel vuelven a cero. */
+  onNewPiece?: () => void;
 }
 
 type Piece = GeneratedPiece & { imageUrl: string };
@@ -63,8 +67,8 @@ function directionLabel(p: { direction: string; pieceType: PieceType }) {
 }
 
 function OriginTag({ piece }: { piece: Pattern }) {
-  if (piece.origin === 'user') return <span className="type-label shrink-0 bg-bone px-1 text-[0.75rem] text-void">TUYO</span>;
-  return <span className="type-label shrink-0 text-[0.75rem] text-ink-2">Detectado</span>;
+  if (piece.origin === 'user') return <span className="type-label shrink-0 bg-bone px-1 text-[0.75rem] text-void">USUARIO</span>;
+  return <span className="type-label shrink-0 text-[0.75rem] text-ink-2">Agente</span>;
 }
 
 const StepLabel = ({ children }: { children: React.ReactNode }) => <span className="type-label text-[0.75rem] text-ink-2">{children}</span>;
@@ -73,7 +77,7 @@ const StepLabel = ({ children }: { children: React.ReactNode }) => <span classNa
  * 05 · PROBAR. Aplica el sistema a una pieza concreta. Dos columnas: a la izquierda la pieza (paso 1) y la receta
  * (paso 2, sale sola de las capas); a la derecha el resultado (paso 3): dos variantes que se revisan contra el Primario.
  */
-export function ProbarScreen({ project, enabled, session, onSaveSession, onNotify, onActivity, onUndoable, onType, onBlocked, active, sub, onSub }: ProbarScreenProps) {
+export function ProbarScreen({ project, enabled, session, onSaveSession, onNotify, onActivity, onUndoable, onType, onBlocked, active, sub, onSub, onEvaluate, onNewPiece }: ProbarScreenProps) {
   const system = useMemo(() => stackSystem(project), [project]);
   const [pieceType, setPieceType] = useState<PieceType>('logo');
   const [direct, setDirect] = useState(false);
@@ -618,7 +622,10 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
             : approvedHere
               ? { label: 'Ver la aprobada →', kbd: '⏎', onClick: () => onSub(3) }
               : { label: 'Ver la aprobada →', blocked: 'Aprobá una de las dos variantes para seguir.', blockedLabel: 'Aprobá una variante', onClick: () => {}, onBlockedClick: onBlocked }
-          : { label: 'Probar otra pieza →', kbd: '⏎', onClick: () => onSub(0) };
+          : { label: 'Probar otra pieza →', kbd: '⏎', onClick: () => {
+            onNewPiece?.();
+            onSub(0);
+          } };
   useShortcuts(enabled, { enter: () => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick()) });
 
   /* ---------- Estante: la receta ---------- */
@@ -787,14 +794,19 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
             const t = pieceTypeInfo(id);
             const on = pieceType === id;
             const [w, h] = t.format === 'auto' ? [1, 1] : t.format.split(':').map(Number);
+            const shown = approved[id] ? images[approved[id]!] : undefined;
             return (
+              <div key={id} className="flex flex-col gap-2">
               <button
-                key={id}
                 type="button"
                 role="radio"
                 aria-checked={on}
-                onClick={() => setPieceType(id)}
+                onClick={() => {
+                  if (id !== pieceType) onNewPiece?.();
+                  setPieceType(id);
+                }}
                 onDoubleClick={() => {
+                  if (id !== pieceType) onNewPiece?.();
                   setPieceType(id);
                   onSub(1);
                 }}
@@ -803,7 +815,11 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
               >
                 {/* La proporción de la pieza, dibujada */}
                 <span className="flex h-[150px] items-center justify-center">
-                  <span className="block rounded-[2px]" style={{ aspectRatio: `${w} / ${h}`, height: h >= w ? '100%' : undefined, width: w > h ? '100%' : undefined, maxWidth: '100%', background: on ? 'var(--cc-primary)' : 'color-mix(in srgb, var(--cc-text) 14%, transparent)' }} />
+                  {shown ? (
+                    <img src={shown} alt={`${t.label} aprobado`} className="max-h-full max-w-full rounded-[2px] object-contain" />
+                  ) : (
+                    <span className="block rounded-[2px]" style={{ aspectRatio: `${w} / ${h}`, height: h >= w ? '100%' : undefined, width: w > h ? '100%' : undefined, maxWidth: '100%', background: on ? 'var(--cc-primary)' : 'color-mix(in srgb, var(--cc-text) 14%, transparent)' }} />
+                  )}
                 </span>
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="text-[1.125rem] font-semibold">{t.label}</span>
@@ -811,6 +827,12 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
                 </span>
                 {approved[id] && <span className="text-[0.875rem] font-semibold" style={{ color: GREEN }}>✓ Ya tiene una aprobada</span>}
               </button>
+              {approved[id] && onEvaluate && (
+                <button type="button" onClick={() => onEvaluate(approved[id]!, t.label)} className="self-start px-1 text-[0.875rem] font-bold text-ink underline underline-offset-4 hover:no-underline">
+                  Evaluar y anotar →
+                </button>
+              )}
+              </div>
             );
           })}
         </div>

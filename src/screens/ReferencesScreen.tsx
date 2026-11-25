@@ -647,7 +647,7 @@ export function ReferencesScreen(props: Props) {
     } catch {
       return;
     }
-    props.onNotify?.(mobile ? 'Un dedo mueve; dos dedos hacen zoom. Tocá una imagen y arrastrá las esquinas para cambiar el tamaño.' : 'Rueda para moverte, Ctrl + rueda para zoom. Arrastrá las esquinas para cambiar el tamaño. Esto queda en «? Ayuda».');
+    props.onNotify?.(mobile ? 'Un dedo mueve; dos dedos hacen zoom. Tocá una imagen y arrastrá las esquinas para cambiar el tamaño.' : 'Rueda para moverte, Ctrl + rueda para zoom. Arrastrá las esquinas para cambiar el tamaño. Esto queda en «Ayuda».');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refs.length > 0]);
 
@@ -723,13 +723,22 @@ export function ReferencesScreen(props: Props) {
         style={{
           top: collapsed ? stripC : stripH,
           cursor: ey ? 'crosshair' : spacePan || drag.current?.kind === 'pan' ? 'grabbing' : 'grab',
-          backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--cc-text) 9%, transparent) 1px, transparent 1.2px)',
-          backgroundSize: `${dots}px ${dots}px`,
-          backgroundPosition: `${cam.x}px ${cam.y}px`,
           outline: dragOver ? '2px dashed color-mix(in srgb, var(--cc-text) 50%, transparent)' : undefined,
           outlineOffset: -8,
         }}
       >
+        {/* Retícula de puntos: va en su propia capa y se desvanece en los bordes, para que el lienzo no marque un rectángulo contra el fondo */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--cc-text) 9%, transparent) 1px, transparent 1.2px)',
+            backgroundSize: `${dots}px ${dots}px`,
+            backgroundPosition: `${cam.x}px ${cam.y}px`,
+            maskImage: 'radial-gradient(ellipse 75% 80% at 50% 50%, #000 35%, transparent 100%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 75% 80% at 50% 50%, #000 35%, transparent 100%)',
+          }}
+        />
         <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.z})` }}>
           {sorted.map(r => {
             const b = boxOf(r);
@@ -768,7 +777,15 @@ export function ReferencesScreen(props: Props) {
                     {pickIdx + 1}
                   </span>
                 )}
-                {own && (
+                {own && b.w * cam.z < 150 && (
+                  // Con la imagen chica en pantalla no entra un rótulo: se marcan las capas con barritas de color.
+                  <span className="pointer-events-none absolute flex flex-col items-start" style={{ left: 4 / cam.z, bottom: 4 / cam.z, gap: 3 / cam.z }}>
+                    {own.slice(0, 3).map(o => (
+                      <span key={o.name} className={o.layer ? `layer-${o.layer}` : ''} style={{ width: 22 / cam.z, height: 5 / cam.z, borderRadius: 2 / cam.z, background: 'var(--layer-color, var(--cc-text))', boxShadow: `0 0 0 ${1 / cam.z}px rgba(10,10,10,.8)` }} />
+                    ))}
+                  </span>
+                )}
+                {own && b.w * cam.z >= 150 && (
                   <span className="pointer-events-none absolute flex max-w-full flex-col items-start" style={{ left: 6 / cam.z, bottom: 6 / cam.z, gap: 3 / cam.z }}>
                     {own.slice(0, 2).map(o => (
                       <span key={o.name} className={`${o.layer ? `layer-${o.layer}` : ''} max-w-full truncate rounded-[3px] font-semibold leading-tight`} style={{ fontSize: Math.max(10, 12 / cam.z), padding: `${2 / cam.z}px ${6 / cam.z}px`, background: 'rgba(10,10,10,.8)', color: 'var(--cc-text)', boxShadow: `inset ${3 / cam.z}px 0 0 var(--layer-color, var(--cc-text))` }}>
@@ -886,7 +903,7 @@ export function ReferencesScreen(props: Props) {
               <span className="type-label text-[0.75rem] text-ink-2">Crear patrón · {picked.length} referencias</span>
               <span className="text-[1.375rem] font-semibold">¿Qué tienen en común?</span>
             </div>
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="flex flex-wrap gap-2">
               {picked.map(id => {
                 const r = refs.find(x => x.id === id);
                 return r ? <img key={id} src={r.image} alt={r.name} className="size-14 shrink-0 rounded-[3px] object-cover" /> : null;
@@ -934,7 +951,7 @@ export function ReferencesScreen(props: Props) {
         </div>
       )}
 
-      {/* Franja fija: título de etapa y, si hay, la frase del brief (se edita en 0 · Brief) */}
+      {/* Franja fija: el título de la etapa (el brief se lee y se edita en 0 · Brief) */}
       {!ey && (
         <header
           className={`absolute inset-x-0 top-0 z-20 flex gap-3 px-4 pb-3 lg:px-10 ${mobile ? 'flex-col justify-end' : 'items-end justify-between gap-6'}`}
@@ -944,11 +961,6 @@ export function ReferencesScreen(props: Props) {
           <h1 data-headline className="type-stage m-0 text-ink" style={collapsed ? { fontSize: 32, lineHeight: 1 } : mobile ? { fontSize: 40 } : { fontSize: 'clamp(40px, 5vw, 72px)', lineHeight: 0.95 }}>
             Tus referencias
           </h1>
-          {!collapsed && (project.intent?.trim() || project.name.trim()) && (
-            <p className={`m-0 pb-2 text-[1rem] leading-snug text-ink-2 ${mobile ? '' : 'max-w-[min(440px,45%)] text-right'}`}>
-              {project.intent?.trim() || project.name.trim()}
-            </p>
-          )}
         </header>
       )}
 

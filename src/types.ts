@@ -127,6 +127,8 @@ export interface CropBox {
 export type PartKind = 'typography' | 'logo' | 'mascot' | 'illustration' | 'photo' | 'texture' | 'graphic' | 'other';
 
 export interface Pattern {
+  /** Si era del usuario y se lo devolvió a «Sin decidir»: se recupera al volver a confirmarlo. */
+  priorOrigin?: 'user';
   id: string;
   name: string;
   category: PatternCategory;
@@ -187,7 +189,10 @@ export type Layer = 1 | 2 | 3;
 /** Reglas de uso (3 a 5 frases cortas) y estilos de letra del sistema, redactados por el agente. */
 export interface SystemSheet {
   sig: string;
+  /** Reglas que redactó el agente (se reescriben al cambiar las piezas). */
   rules: string[];
+  /** Reglas que escribió el diseñador: el agente no las toca y van primero. */
+  userRules?: string[];
   fonts: { style: string; use?: string; kind?: string }[];
 }
 
@@ -417,6 +422,8 @@ export interface Project {
   lastBackupAt?: string;
   /** Etapa 06: todo lo generado para cada sistema (las imágenes viven en IndexedDB). */
   applications?: Record<string, ApplicationSession>;
+  /** Resultados importados de otras IA (bitácora) y lo que el diseñador evaluó en ellos. */
+  results?: ImportedResult[];
 
   /* ---------- Pila de láminas ---------- */
   /** Versión del esquema (2 = pila de láminas). */
@@ -453,6 +460,10 @@ export interface Project {
   subVisited?: Partial<Record<Moment, number[]>>;
   /** Sugerencias que el usuario saltó en Revisar (para «Lo que decidiste»). */
   reviewSkipped?: string[];
+  /** Al empezar otra pieza en Probar: cuánto había ya, para que los ✓ del riel cuenten solo lo de la pieza nueva. */
+  probarBase?: { rounds: number; approved: string[] };
+  /** Ya se corrigieron los orígenes que la app marcaba mal como «usuario» al mover una pieza de capa. */
+  originFixed?: boolean;
   /** Ficha de Sistema redactada por el agente: reglas de uso y estilos de letra. `sig` = piezas con las que se redactó. */
   systemSheet?: SystemSheet;
   /** Proyecto de ejemplo (muestra el cartel "EMPEZAR EL MÍO"). */
@@ -627,4 +638,25 @@ export interface VisualSystemExportData {
     notes?: string;
     image: string;
   }>;
+}
+
+/** Cómo le fue a una pieza del sistema en un resultado importado. */
+export type Verdict = 'worked' | 'failed' | 'ignored';
+
+/** Resultado generado fuera de la app (ChatGPT, Claude, Gemini…) y cargado como bitácora. */
+export interface ImportedResult {
+  id: string;
+  /** Qué IA lo hizo (texto libre). */
+  ai: string;
+  createdAt: string;
+  /** Lo que la IA comentó después de generar. */
+  comment?: string;
+  /** Epígrafe del diseñador: lo que el sistema debe tener en cuenta. */
+  caption?: string;
+  /** Claves de las imágenes en IndexedDB (pieceStore), en orden. */
+  imageIds: string[];
+  /** Si es una pieza generada y aprobada en Probar: su id. Se evalúa igual que una importada. */
+  pieceId?: string;
+  /** Veredicto del diseñador por pieza del sistema (id del patrón). */
+  verdicts: Record<string, Verdict>;
 }

@@ -239,7 +239,7 @@ export function TopBar(props: TopBarProps) {
           </button>
         )}
         <button type="button" onClick={props.onOpenHelp} className="rounded-[4px] px-2 py-2 text-[0.875rem] font-medium text-ink-2 underline-offset-4 hover:text-ink hover:underline" style={{ minHeight: viewport === 'desktop' ? undefined : 44 }}>
-          ? Ayuda
+          Ayuda
         </button>
       </div>
     </header>
