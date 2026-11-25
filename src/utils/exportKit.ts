@@ -1,6 +1,8 @@
-import { Layer, PieceType, Project } from '../types';
+import { Layer, PieceType, Project, SystemBoundary } from '../types';
 import { corpusRefs, evidenceCount } from './layers';
-import { fullRule, oneLine, shortRule } from './layerRules';
+import { fullRule, oneLine, sentenceRule, shortRule } from './layerRules';
+import { structureRules } from './structure';
+import { boundaryInfo } from './boundary';
 import { LAYER_QUESTION } from './layerQuestions';
 import { Palette, buildTheme, fmtOklch, oklchToHex, parseColor } from './derivePalette';
 import { SHEET_NAME, piecesIn } from '../pieces/model';
@@ -90,8 +92,16 @@ const LAYER_KEY: Record<Layer, 'nucleo' | 'secundario' | 'acento'> = { 1: 'nucle
 
 export interface ExportJson {
   project: string;
+  /** La marca en una frase (del brief). */
+  intent?: string;
+  /** Lo que se quiere lograr (del brief): la actitud que las piezas solas no dicen. */
+  objective?: string;
   palette: { primary: string; secondary: string; accent: string };
+  /** Límite del sistema: qué puede entrar desde afuera (fuente única). */
+  boundary: { mode: SystemBoundary; label: string; description: string };
   layers: Record<'nucleo' | 'secundario' | 'acento', { question: string; pieces: { name: string; type: string; value?: string; rule: string; evidence: string; source: 'usuario' | 'agente' }[] }>;
+  /** Estructura: cómo se arma una pieza por dentro, en cualquier formato. Las del diseñador primero. */
+  structure: { text: string; source: 'usuario' | 'agente'; evidence?: string }[];
   /** Reglas de uso del sistema: las del diseñador primero. */
   rules: { text: string; source: 'usuario' | 'agente' }[];
   approved: { kind: string; variant: number; file: string }[];
@@ -110,15 +120,21 @@ export function buildExportJson(project: Project, palette: Palette, pieceColor: 
       name: x.name,
       type: x.category === 'color' ? 'color' : x.category.replace(/_/g, ' '),
       ...(x.category === 'color' && pieceColor(x.id) ? { value: pieceColor(x.id)!.toUpperCase() } : {}),
-      rule: l === 1 ? fullRule(x) : l === 2 ? shortRule(x) : oneLine(x),
+      // Para otra IA, la oración entera: una frase cortada con «…» confunde.
+      rule: l === 1 ? fullRule(x) : sentenceRule(x),
       evidence: `${evidenceCount(x, project)}/${total}`,
       source: (x.origin === 'user' ? 'usuario' : 'agente') as 'usuario' | 'agente',
     })),
   });
+  const b = boundaryInfo(project.boundary);
   return {
     project: project.name || project.intent || 'Proyecto',
+    ...(project.intent?.trim() && project.intent.trim() !== project.name.trim() ? { intent: project.intent.trim() } : {}),
+    ...(project.objective.trim() ? { objective: project.objective.trim().replace(/\s*\n\s*/g, ' ') } : {}),
     palette: { primary: hexOf(palette.primary), secondary: hexOf(palette.secondary), accent: hexOf(palette.accent) },
+    boundary: { mode: b.id, label: b.label, description: b.short },
     layers: { nucleo: layer(1), secundario: layer(2), acento: layer(3) },
+    structure: structureRules(project).map(r => ({ text: r.text, source: r.source, ...(r.refIds.length ? { evidence: `${r.refIds.length}/${total}` } : {}) })),
     rules: [
       ...(project.systemSheet?.userRules ?? []).map(text => ({ text, source: 'usuario' as const })),
       ...(project.systemSheet?.rules ?? []).map(text => ({ text, source: 'agente' as const })),
@@ -129,10 +145,14 @@ export function buildExportJson(project: Project, palette: Palette, pieceColor: 
 
 /** Prompt en texto natural, generado a partir del JSON. */
 export function buildExportPrompt(j: ExportJson): string {
+  const b = boundaryInfo(j.boundary?.mode);
   const list = (key: 'nucleo' | 'secundario' | 'acento') =>
     j.layers[key].pieces.map(p => `- ${p.name}${p.value ? ` (${p.value})` : ''}${p.rule ? `: ${p.rule}` : ''}`).join('\n') || '- (nada en esta capa)';
   return [
     `Diseñá para ${j.project}.`,
+    // La intención del brief: sin ella la IA recibe ingredientes y reglas, pero no la actitud.
+    ...(j.intent ? [`Qué es: ${j.intent}`] : []),
+    ...(j.objective ? [`Qué se busca: ${j.objective}`] : []),
     '',
     `Obligatorio (Primario) · ${LAYER_QUESTION[1]}`,
     list('nucleo'),
@@ -142,11 +162,12 @@ export function buildExportPrompt(j: ExportJson): string {
     '',
     `Usá con moderación (Acento) · ${LAYER_QUESTION[3]}`,
     list('acento'),
+    ...(j.structure.length ? ['', 'Estructura · Cómo se arma cada pieza por dentro, en cualquier formato:', ...j.structure.map(r => `- ${r.text}`)] : []),
     '',
     `Paleta: primario ${j.palette.primary}, secundario ${j.palette.secondary}, acento ${j.palette.accent}.`,
     ...(j.rules.length ? ['', 'Reglas de uso (respetalas):', ...j.rules.map(r => `- ${r.text}`)] : []),
     '',
-    'No agregues elementos ajenos al sistema. Escribí cada palabra tal como se indica.',
+    b.exportPrompt,
   ].join('\n');
 }
 
@@ -216,10 +237,17 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
       layerPages.push(`<section class="page"><small>CAPA ${l}</small><div class="head" style="font-size:${size}pt;font-weight:${l === 1 ? 900 : 700};color:${head};${under !== 'transparent' ? `text-decoration:underline 3px ${under};text-underline-offset:5px;` : ''}">${esc(SHEET_NAME[l])}</div><h2>${esc(LAYER_QUESTION[l])}</h2><div class="grid">${cards.join('') || '<p>Sin piezas.</p>'}</div></section>`);
     }
 
-    const allRules = [...(project.systemSheet?.userRules ?? []), ...(project.systemSheet?.rules ?? [])];
-    const rulesPage = allRules.length
-      ? `<section class="page"><small>REGLAS DE USO</small><h2>Cómo se usa el sistema</h2><ol class="rules">${allRules.map(r => `<li>${esc(r)}</li>`).join('')}</ol></section>`
+    const allStructure = structureRules(project);
+    const structurePage = allStructure.length
+      ? `<section class="page"><small>ESTRUCTURA</small><h2>Cómo se arma una pieza por dentro</h2><ol class="rules">${allStructure.map(r => `<li>${esc(r.text)}</li>`).join('')}</ol></section>`
       : '';
+
+    const b = boundaryInfo(project.boundary);
+    const allRules = [...(project.systemSheet?.userRules ?? []), ...(project.systemSheet?.rules ?? [])];
+    const rulesPage =
+      allRules.length || project.boundary
+        ? `<section class="page"><small>REGLAS DE USO</small><h2>Cómo se usa el sistema</h2><p style="font-size:12pt;margin:0 0 8mm"><b>Límite del sistema: ${esc(b.label)}.</b> ${esc(b.short)}</p>${allRules.length ? `<ol class="rules">${allRules.map(r => `<li>${esc(r)}</li>`).join('')}</ol>` : ''}</section>`
+        : '';
 
     const approved = approvedPieces(project);
     const approvedCards = (
@@ -257,6 +285,7 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
         ${roles.map(([r, c]) => `<div class="role">${swatch(c, true)}<div><b>${r}</b><br><code>${esc(hexOf(c))} · ${esc(fmtOklch(parseColor(c) ?? [0, 0, 0]))}</code></div></div>`).join('')}
       </div></section>
       ${layerPages.join('')}
+      ${structurePage}
       ${rulesPage}
       ${approvedCards ? `<section class="page"><small>PIEZAS APROBADAS</small><h2>Aplicado</h2><div class="grid" style="grid-template-columns:repeat(2,1fr)">${approvedCards}</div></section>` : ''}
     </body></html>`;

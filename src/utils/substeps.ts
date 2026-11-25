@@ -44,6 +44,7 @@ export const SUBSTEPS: Record<Moment, Substep[]> = {
     { id: 'primario', label: 'Primario', question: 'Primario' },
     { id: 'secundario', label: 'Secundario', question: 'Secundario' },
     { id: 'acento', label: 'Acento', question: 'Acento' },
+    { id: 'estructura', label: 'Estructura', question: 'Estructura' },
     { id: 'reglas', label: 'Reglas', question: 'Reglas' },
     { id: 'exportar', label: 'Exportar', question: 'Exportar' },
   ],

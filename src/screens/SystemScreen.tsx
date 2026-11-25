@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useColors } from './colorContext';
-import { Layer, Pattern, Project, SystemSheet } from '../types';
+import { Layer, Pattern, Project, StructureSheet, SystemBoundary, SystemSheet } from '../types';
 import { useShortcuts } from '../hooks/useAuditShortcuts';
-import { evidenceCount } from '../utils/layers';
+import { corpusRefs, evidenceCount } from '../utils/layers';
 import { fullRule, oneLine, shortRule } from '../utils/layerRules';
 import { bestOn, BONE, INK } from '../utils/derivePalette';
 import { ExportMenu } from '../components/ExportMenu';
@@ -15,6 +15,9 @@ import { PieceThumb } from './common';
 import { PieceRule } from './PieceRule';
 import { SUBSTEPS } from '../utils/substeps';
 import { tallyText } from '../utils/results';
+import { compressImageString } from '../utils/imageCompressor';
+import { looksStructural, looksUsage, structureRefs, structureRules, structureSig } from '../utils/structure';
+import { BOUNDARIES, boundaryInfo, detectBoundaryRule } from '../utils/boundary';
 
 interface SystemScreenProps {
   project: Project;
@@ -28,7 +31,11 @@ interface SystemScreenProps {
   /** Guarda la ficha redactada por el agente (reglas y estilos de letra). */
   /** `drafted`: lo redactó el agente. Las reglas del usuario se toman de lo último guardado, no de lo que había al pedirlo. */
   onSaveSheet: (sheet: SystemSheet, drafted?: boolean) => void;
-  /** Subpaso: 0 Paleta · 1 Tipografía · 2 Primario · 3 Secundario · 4 Acento · 5 Reglas · 6 Exportar. */
+  /** Guarda la estructura. `drafted`: la leyó el agente (se conservan las reglas del usuario guardadas). */
+  onSaveStructure: (sheet: StructureSheet, drafted?: boolean) => void;
+  /** Guarda el límite del sistema (qué puede entrar desde afuera). */
+  onSaveBoundary: (boundary: SystemBoundary) => void;
+  /** Subpaso: 0 Paleta · 1 Tipografía · 2 Primario · 3 Secundario · 4 Acento · 5 Estructura · 6 Reglas · 7 Exportar. */
   sub: number;
   onSub: (i: number) => void;
   /** «Editar en Capas»: salta a Capas (a la capa indicada, si hay) y deja la píldora para volver. */
@@ -86,7 +93,7 @@ function specimenFor(f: { style: string; kind?: string }): Specimen {
 }
 
 /** Una regla de uso: se toca para editarla; Enter guarda, Esc cancela, vacía se borra. */
-function RuleRow({ n, text, mine, onSave }: { n: number; text: string; mine?: boolean; onSave: (t: string) => void }) {
+function RuleRow({ n, text, mine, note, onSave }: { n: number; text: string; mine?: boolean; note?: React.ReactNode; onSave: (t: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
   const done = (save: boolean) => {
@@ -118,20 +125,23 @@ function RuleRow({ n, text, mine, onSave }: { n: number; text: string; mine?: bo
           style={{ fontSize: '1.25rem', fontWeight: 600, lineHeight: 1.35, resize: 'vertical' }}
         />
       ) : (
-        <button type="button" onClick={() => { setDraft(text); setEditing(true); }} title="Tocá para editar" className="group flex min-w-0 flex-1 items-baseline justify-between gap-4 text-left">
-          <span className="text-[clamp(1.25rem,2vw,1.75rem)] font-semibold leading-snug">{text}</span>
-          <span className="no-print flex shrink-0 items-baseline gap-3 text-[0.875rem] text-ink-2">
-            {mine && <span className="type-label rounded-[3px] bg-bone px-[6px] py-[1px] text-[0.75rem] text-void">Usuario</span>}
-            <span className="underline underline-offset-4 group-hover:text-ink">Editar</span>
-          </span>
-        </button>
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <button type="button" onClick={() => { setDraft(text); setEditing(true); }} title="Tocá para editar" className="group flex min-w-0 items-baseline justify-between gap-4 text-left">
+            <span className="text-[clamp(1.25rem,2vw,1.75rem)] font-semibold leading-snug">{text}</span>
+            <span className="no-print flex shrink-0 items-baseline gap-3 text-[0.875rem] text-ink-2">
+              {mine && <span className="type-label rounded-[3px] bg-bone px-[6px] py-[1px] text-[0.75rem] text-void">Usuario</span>}
+              <span className="underline underline-offset-4 group-hover:text-ink">Editar</span>
+            </span>
+          </button>
+          {note && <div className="type-data text-[0.875rem] font-normal text-ink-2">{note}</div>}
+        </div>
       )}
     </li>
   );
 }
 
 /** Campo para escribir una regla nueva. */
-function NewRule({ onAdd }: { onAdd: (t: string) => void }) {
+function NewRule({ onAdd, placeholder = 'Ej.: El acento verde solo va en sellos de advertencia.', label = 'Regla nueva' }: { onAdd: (t: string) => void; placeholder?: string; label?: string }) {
   const [v, setV] = useState('');
   return (
     <div className="flex flex-col gap-2">
@@ -150,8 +160,8 @@ function NewRule({ onAdd }: { onAdd: (t: string) => void }) {
             onAdd('');
           }
         }}
-        aria-label="Regla nueva"
-        placeholder="Ej.: El acento verde solo va en sellos de advertencia."
+        aria-label={label}
+        placeholder={placeholder}
         className="field-input"
         style={{ fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.35, resize: 'vertical' }}
       />
@@ -160,26 +170,39 @@ function NewRule({ onAdd }: { onAdd: (t: string) => void }) {
   );
 }
 
-/** Firma de las piezas ubicadas: si cambia, la ficha se vuelve a redactar. */
+/** Firma de las reglas de uso: cambia si cambian las piezas, el límite o cualquier regla del usuario. */
 const sheetSig = (p: Project) =>
-  livePieces(p)
-    .filter(x => x.layer)
-    .map(x => `${x.id}:${x.layer}:${x.name}`)
-    .sort()
-    .join('|');
+  [
+    `b:${p.boundary ?? 'closed'}`,
+    ...(p.systemSheet?.userRules ?? []).map(r => `u:${r}`),
+    ...(p.structureSheet?.userRules ?? []).map(r => `s:${r}`),
+    ...livePieces(p)
+      .filter(x => x.layer)
+      .map(x => `${x.id}:${x.layer}:${x.name}`)
+      .sort(),
+  ].join('|');
 
 /** Capa de Capas donde se edita cada subpaso de Sistema (null: Capas tal como estaba). */
-const EDIT_AT: Record<number, Layer | null> = { 0: null, 1: null, 2: 1, 3: 2, 4: 3, 5: null };
+// La estructura no se edita en Capas: se lee de las referencias y se corrige acá mismo.
+const EDIT_AT: Record<number, Layer | null> = { 0: null, 1: null, 2: 1, 3: 2, 4: 3, 6: null };
 
 /**
- * 04 · SISTEMA en siete subpasos (v6): leer, no editar. Paleta · Tipografía · Primario · Secundario · Acento · Reglas · Exportar.
+ * 04 · SISTEMA en ocho subpasos: leer, no editar. Paleta · Tipografía · Primario · Secundario · Acento · Estructura · Reglas · Exportar.
  * Cada subpaso tiene «Editar en Capas». En Exportar, «Ver todo» muestra el pliego completo.
  */
 export function SystemScreen(props: SystemScreenProps) {
   const { project, sub } = props;
   const colors = useColors();
   const [all, setAll] = useState(false);
-  useEffect(() => setAll(false), [sub]);
+  const [addingRule, setAddingRule] = useState(false);
+  const [addingStructure, setAddingStructure] = useState(false);
+  const [pendingBoundary, setPendingBoundary] = useState<{ side: 'usage' | 'structure'; text: string; suggested: SystemBoundary } | null>(null);
+  useEffect(() => {
+    setAll(false);
+    setAddingRule(false);
+    setAddingStructure(false);
+    setPendingBoundary(null);
+  }, [sub]);
 
   const core = piecesIn(project, 1);
   const support = piecesIn(project, 2);
@@ -196,10 +219,13 @@ export function SystemScreen(props: SystemScreenProps) {
   const [sheetBusy, setSheetBusy] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const tried = useRef<string | null>(null);
+  const latestSig = useRef(sig);
+  latestSig.current = sig;
   const draftSheet = async () => {
     const pieces = livePieces(project).filter(x => x.layer);
     if (!pieces.length) return;
-    tried.current = sig;
+    const reqSig = sig;
+    tried.current = reqSig;
     setSheetBusy(true);
     setSheetError(null);
     try {
@@ -209,25 +235,24 @@ export function SystemScreen(props: SystemScreenProps) {
         body: JSON.stringify({
           name: project.name,
           palette: colors.palette,
+          boundary: project.boundary ?? 'closed',
           pieces: pieces.map(x => ({ layer: x.layer, category: x.category, name: x.name, description: x.description })),
           userRules: sheet?.userRules ?? [],
+          // La estructura ya escrita: las reglas de uso no la repiten ni la contradicen.
+          structureRules: structureRules(project).map(r => r.text),
         }),
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok || !result.success) throw new Error(result.details || result.error || `HTTP ${res.status}`);
-      props.onSaveSheet({ sig, rules: result.data.rules ?? [], fonts: result.data.fonts ?? [] }, true);
+      if (latestSig.current !== reqSig) return;
+      props.onSaveSheet({ sig: reqSig, rules: result.data.rules ?? [], fonts: result.data.fonts ?? [] }, true);
     } catch (err: any) {
-      setSheetError('No se pudieron redactar las reglas.');
+      if (latestSig.current === reqSig) setSheetError('No se pudieron redactar las reglas.');
       console.warn(err);
     } finally {
       setSheetBusy(false);
     }
   };
-  // Se redacta sola al entrar si las piezas cambiaron (una vez por cambio).
-  useEffect(() => {
-    if (!fresh && !sheetBusy && tried.current !== sig && sig) void draftSheet();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sig, fresh]);
 
   /* ---------- Acción del subpaso ---------- */
   const last = sub === SUBSTEPS.sistema.length - 1;
@@ -343,11 +368,98 @@ export function SystemScreen(props: SystemScreenProps) {
   const saveSheet = (patch: Partial<SystemSheet>) => props.onSaveSheet({ sig: sheet?.sig ?? '', rules: sheet?.rules ?? [], fonts: sheet?.fonts ?? [], userRules: sheet?.userRules, ...patch });
   const mine = sheet?.userRules ?? [];
   const theirs = sheet?.rules ?? [];
-  const [addingRule, setAddingRule] = useState(false);
   const total = mine.length + theirs.length;
+  const currentBoundary = project.boundary ?? 'closed';
+
+  const boundaryNote = (text: string, onPromote: (b: SystemBoundary) => void) => {
+    const b = detectBoundaryRule(text);
+    if (!b) return null;
+    const info = boundaryInfo(b);
+    return (
+      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-pending-ink">
+        <span>Esta regla define el límite del sistema (qué entra de afuera).</span>
+        <button
+          type="button"
+          onClick={() => onPromote(b)}
+          className="no-print font-semibold text-ink underline underline-offset-4 hover:no-underline"
+        >
+          Pasar a «{info.label}» y quitar esta regla
+        </button>
+      </span>
+    );
+  };
+
+  const pendingBox = (side: 'usage' | 'structure', onKeep: (text: string) => void) => {
+    if (!pendingBoundary || pendingBoundary.side !== side) return null;
+    const info = boundaryInfo(pendingBoundary.suggested);
+    return (
+      <div role="status" className="flex flex-col gap-3 rounded-[4px] border border-line-strong bg-surface p-4">
+        <p className="m-0 text-[0.9375rem] leading-snug text-ink">
+          «{pendingBoundary.text}» toca el límite del sistema. Conviene elegirlo arriba en <b>Límite del sistema</b> para que mande en todo el export y en Probar, sin dejarlo como regla suelta:
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              props.onSaveBoundary(pendingBoundary.suggested);
+              setPendingBoundary(null);
+            }}
+            className="rounded-full bg-bone px-4 py-1.5 text-[0.875rem] font-bold text-void"
+          >
+            Usar «{info.label}»
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onKeep(pendingBoundary.text);
+              setPendingBoundary(null);
+            }}
+            className="text-[0.875rem] text-ink-2 underline underline-offset-4 hover:text-ink"
+          >
+            Dejar como regla igual
+          </button>
+          <button type="button" onClick={() => setPendingBoundary(null)} className="text-[0.875rem] text-ink-2 underline underline-offset-4 hover:text-ink">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const boundarySelector = (
+    <div className="flex flex-col gap-3 pb-2">
+      <div className="flex flex-col gap-1">
+        <span className="type-label text-[0.75rem] text-ink-2">Límite del sistema · qué puede entrar de afuera</span>
+        <span className="text-[0.875rem] text-ink-2">Una sola decisión que manda en el export, en Probar y en las reglas del agente.</span>
+      </div>
+      <div role="radiogroup" aria-label="Límite del sistema" className="grid gap-3 md:grid-cols-3">
+        {BOUNDARIES.map(b => {
+          const active = currentBoundary === b.id;
+          return (
+            <button
+              key={b.id}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => {
+                if (!active) props.onSaveBoundary(b.id);
+              }}
+              className={`flex flex-col items-start gap-1 rounded-[4px] border p-4 text-left transition-colors duration-150 ${
+                active ? 'border-bone bg-bone text-void' : 'border-line text-ink hover:border-line-strong hover:bg-ink/5'
+              }`}
+            >
+              <span className="text-[1rem] font-bold leading-tight">{b.label}</span>
+              <span className={`text-[0.875rem] leading-snug ${active ? 'text-void/80' : 'text-ink-2'}`}>{b.short}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   const rules = (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
+      {boundarySelector}
       {total ? (
         <ol className="m-0 flex list-none flex-col p-0" style={{ opacity: fresh ? 1 : 0.6 }}>
           {mine.map((r, i) => (
@@ -356,6 +468,12 @@ export function SystemScreen(props: SystemScreenProps) {
               n={i + 1}
               text={r}
               mine
+              note={
+                boundaryNote(r, b => {
+                  props.onSaveBoundary(b);
+                  saveSheet({ userRules: mine.filter((_, j) => j !== i) });
+                }) ?? (looksStructural(project, r) ? 'Parece de Estructura: habla de la pieza entera, no de un elemento.' : undefined)
+              }
               onSave={t => saveSheet({ userRules: t ? mine.map((x, j) => (j === i ? t : x)) : mine.filter((_, j) => j !== i) })}
             />
           ))}
@@ -372,11 +490,15 @@ export function SystemScreen(props: SystemScreenProps) {
       ) : (
         <p className="m-0 text-[1rem] text-ink-2">{sheetBusy ? 'Redactando las reglas…' : 'Sin reglas todavía.'}</p>
       )}
+      {pendingBox('usage', t => saveSheet({ userRules: [...mine, t] }))}
       {addingRule ? (
         <NewRule
           onAdd={t => {
             setAddingRule(false);
-            if (t) saveSheet({ userRules: [...mine, t] });
+            if (!t) return;
+            const suggested = detectBoundaryRule(t);
+            if (suggested) setPendingBoundary({ side: 'usage', text: t, suggested });
+            else saveSheet({ userRules: [...mine, t] });
           }}
         />
       ) : (
@@ -395,11 +517,158 @@ export function SystemScreen(props: SystemScreenProps) {
         </button>
       )}
       {sheetBusy && sheet && <span className="text-[0.875rem] text-ink-2">Actualizando…</span>}
-      <p className="m-0 max-w-[62ch] text-[0.875rem] text-ink-2">Las reglas van en lo que exportás. Las tuyas van primero y el agente no las reescribe. Tocá una regla para editarla; si la dejás vacía, se borra.</p>
+      <p className="m-0 max-w-[62ch] text-[0.875rem] text-ink-2">Cada regla de uso habla de un elemento; lo que vale para la pieza entera va en Estructura. Las reglas van en lo que exportás. Las tuyas van primero y el agente no las reescribe. Tocá una regla para editarla; si la dejás vacía, se borra.</p>
     </div>
   );
 
-  const sectionOf = (i: number) => (i === 0 ? palette : i === 1 ? typography : i <= 4 ? layerSection((i - 1) as Layer) : rules);
+  /* ---------- Estructura: cómo se arma una pieza por dentro (se lee mirando las referencias) ---------- */
+  const sSig = structureSig(project);
+  const sSheet = project.structureSheet;
+  const sFresh = sSheet?.sig === sSig;
+  const sMine = sSheet?.userRules ?? [];
+  const sTheirs = sSheet?.rules ?? [];
+  const [sBusy, setSBusy] = useState(false);
+  const [sError, setSError] = useState<string | null>(null);
+  const sTried = useRef<string | null>(null);
+  const latestSSig = useRef(sSig);
+  latestSSig.current = sSig;
+  const saveStructure = (patch: Partial<StructureSheet>) => props.onSaveStructure({ sig: sSheet?.sig ?? '', rules: sTheirs, userRules: sSheet?.userRules, ...patch });
+  const draftStructure = async () => {
+    const refs = structureRefs(project);
+    if (refs.length < 2) return;
+    const reqSig = sSig;
+    sTried.current = reqSig;
+    setSBusy(true);
+    setSError(null);
+    try {
+      const references = await Promise.all(
+        refs.map(async r => ({ id: r.id, image: await compressImageString(r.image, { maxWidth: 768, maxHeight: 768, quality: 0.75 }).catch(() => r.image) })),
+      );
+      const res = await fetch('/api/system-structure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: project.name,
+          // La actitud del brief («maximalista, caótico»): las imágenes solas no dicen cuánto pesa.
+          intent: project.intent,
+          objective: project.objective,
+          boundary: project.boundary ?? 'closed',
+          references,
+          pieces: livePieces(project).filter(x => x.layer).map(x => ({ layer: x.layer, name: x.name })),
+          userRules: sMine,
+          // Las reglas de uso ya escritas: la estructura no las repite ni las contradice.
+          usageRules: [...mine, ...theirs],
+        }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.success) throw new Error(result.details || result.error || `HTTP ${res.status}`);
+      if (latestSSig.current !== reqSig) return;
+      props.onSaveStructure({ sig: reqSig, rules: result.data.rules ?? [] }, true);
+    } catch (err: any) {
+      if (latestSSig.current === reqSig) setSError('No se pudo leer la estructura.');
+      console.warn(err);
+    } finally {
+      setSBusy(false);
+    }
+  };
+  // Al cambiar piezas, referencias, límite o reglas del usuario en cualquiera de los dos lados, se actualizan ambas listas del agente.
+  const looking = sub === 5 || sub === 6 || last;
+  const waitStructureFirst = sub === 5 && !sFresh && sTried.current !== sSig && !!sSig && structureRefs(project).length >= 2;
+  useEffect(() => {
+    if (!fresh && !sheetBusy && !sBusy && !waitStructureFirst && tried.current !== sig && sig) void draftSheet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig, fresh, sheetBusy, sBusy, waitStructureFirst]);
+
+  const waitSheetFirst = sub !== 5 && !fresh && tried.current !== sig && !!sig && livePieces(project).some(x => x.layer);
+  useEffect(() => {
+    if (looking && !sFresh && !sBusy && !sheetBusy && !waitSheetFirst && sTried.current !== sSig && sSig) void draftStructure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [looking, sSig, sFresh, sBusy, sheetBusy, waitSheetFirst]);
+  const refNote = (ids: string[]) => {
+    const total = corpusRefs(project).length;
+    return ids.length ? `Se ve en ${ids.length} de ${total} referencias` : undefined;
+  };
+
+  const structure = (
+    <div className="flex flex-col gap-4">
+      <p className="m-0 max-w-[62ch] text-[1.0625rem] leading-[1.6] text-ink-2">
+        Las capas dicen qué elementos tiene la marca. La estructura dice cómo se ordenan dentro de una pieza: cuánto se llena, qué tan grande es lo grande, qué va al centro y qué a los bordes. Sirve para cualquier formato.
+      </p>
+      {sMine.length + sTheirs.length ? (
+        <ol className="m-0 flex list-none flex-col p-0" style={{ opacity: sFresh || !sTheirs.length ? 1 : 0.6 }}>
+          {sMine.map((r, i) => (
+            <RuleRow
+              key={`m${i}${r}`}
+              n={i + 1}
+              text={r}
+              mine
+              note={
+                boundaryNote(r, b => {
+                  props.onSaveBoundary(b);
+                  saveStructure({ userRules: sMine.filter((_, j) => j !== i) });
+                }) ?? (looksUsage(project, r) ? 'Parece una regla de uso: habla de un elemento, no de la pieza entera.' : undefined)
+              }
+              onSave={t => saveStructure({ userRules: t ? sMine.map((x, j) => (j === i ? t : x)) : sMine.filter((_, j) => j !== i) })}
+            />
+          ))}
+          {sTheirs.map((r, i) => (
+            <RuleRow
+              key={`a${i}${r.text}`}
+              n={sMine.length + i + 1}
+              text={r.text}
+              note={refNote(r.refIds)}
+              // Al editar una del agente pasa a ser tuya: el agente ya no la reescribe.
+              onSave={t => saveStructure({ rules: sTheirs.filter((_, j) => j !== i), userRules: t && t !== r.text ? [...sMine, t] : sMine })}
+            />
+          ))}
+        </ol>
+      ) : (
+        <p className="m-0 text-[1rem] text-ink-2">
+          {sBusy ? `Mirando cómo se arman tus referencias · ${structureRefs(project).length} imágenes…` : structureRefs(project).length < 2 ? 'Hacen falta al menos dos referencias.' : 'Sin estructura todavía.'}
+        </p>
+      )}
+      {pendingBox('structure', t => saveStructure({ userRules: [...sMine, t] }))}
+      {addingStructure ? (
+        <NewRule
+          label="Regla de estructura nueva"
+          placeholder="Ej.: El titular ocupa todo el ancho; el resto es diez veces más chico."
+          onAdd={t => {
+            setAddingStructure(false);
+            if (!t) return;
+            const suggested = detectBoundaryRule(t);
+            if (suggested) setPendingBoundary({ side: 'structure', text: t, suggested });
+            else saveStructure({ userRules: [...sMine, t] });
+          }}
+        />
+      ) : (
+        <button type="button" data-guide="structure-add" onClick={() => setAddingStructure(true)} className="no-print self-start text-[0.9375rem] font-bold text-ink underline underline-offset-4 hover:no-underline">
+          + Escribir una regla de estructura
+        </button>
+      )}
+      {sError && (
+        <p role="alert" className="m-0 text-[0.875rem] text-error-ink">
+          {sError}
+        </p>
+      )}
+      {!sBusy && (sSheet || sError) && (
+        <button type="button" onClick={() => void draftStructure()} className="no-print self-start text-[0.9375rem] text-ink-2 underline underline-offset-4 hover:text-ink">
+          {sFresh ? 'Volver a leer la estructura' : 'Actualizar con las referencias nuevas'}
+        </button>
+      )}
+      {sBusy && sSheet && <span className="text-[0.875rem] text-ink-2">Leyendo…</span>}
+      {!all && (
+        <p className="m-0 max-w-[62ch] text-[0.875rem] text-ink-2">
+          Límite actual: <b>{boundaryInfo(currentBoundary).label}</b> ({boundaryInfo(currentBoundary).short}){' '}
+          <button type="button" onClick={() => props.onSub(6)} className="no-print font-semibold text-ink underline underline-offset-4 hover:no-underline">
+            Cambiar en Reglas
+          </button>
+        </p>
+      )}
+      <p className="m-0 max-w-[62ch] text-[0.875rem] text-ink-2">La estructura va en lo que exportás y en Probar. Las tuyas van primero y el agente no las reescribe.</p>
+    </div>
+  );
+
+  const sectionOf = (i: number) => (i === 0 ? palette : i === 1 ? typography : i <= 4 ? layerSection((i - 1) as Layer) : i === 5 ? structure : rules);
   const titleOf = (i: number) =>
     i >= 2 && i <= 4 ? (
       <h1 data-headline className={`layer-${i - 1} layer-headline m-0 mb-6`} style={{ fontSize: HEAD[(i - 1) as Layer] }}>
@@ -452,7 +721,7 @@ export function SystemScreen(props: SystemScreenProps) {
         {all ? (
           <div className="flex flex-col gap-20">
             <span className="text-[1.375rem] font-semibold">{project.name.trim() || project.intent?.trim() || 'Sistema visual'}</span>
-            {[0, 1, 2, 3, 4, 5].map(i => (
+            {[0, 1, 2, 3, 4, 5, 6].map(i => (
               <section key={i} className="flex flex-col gap-6" aria-label={SUBSTEPS.sistema[i].label}>
                 {i >= 2 && i <= 4 ? titleOf(i) : <h2 className="type-label m-0 text-[0.875rem] text-ink-2">{SUBSTEPS.sistema[i].label}</h2>}
                 {sectionOf(i)}

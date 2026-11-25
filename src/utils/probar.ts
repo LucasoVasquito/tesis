@@ -1,5 +1,7 @@
 import { Layer, Pattern, PatternCategory, PieceType, Project } from '../types';
-import { fullRule, oneLine, shortRule } from './layerRules';
+import { fullRule, sentenceRule } from './layerRules';
+import { structureRules } from './structure';
+import { boundaryInfo } from './boundary';
 import { piecesIn } from '../pieces/model';
 import { stackPalette } from './stackExport';
 
@@ -114,7 +116,7 @@ export interface PromptInput {
 /**
  * El pedido, siempre en este orden:
  * 1 tipo de pieza y formato · 2 Primario (obligatorio) · 3 Secundario (secundario) · 4 Acento (detalle menor)
- * 5 paleta, en proporción según la capa · 6 texto y pedido libre · 7 restricciones.
+ * 5 estructura · 6 paleta, en proporción según la capa · 7 texto y pedido libre · 8 restricciones.
  */
 export function buildProbarPrompt(p: Project, o: PromptInput): string {
   const info = pieceTypeInfo(o.type);
@@ -128,31 +130,37 @@ export function buildProbarPrompt(p: Project, o: PromptInput): string {
   if (!o.direct) {
     if (o.sel.core.length) {
       lines.push('', '# 2 · Core (mandatory: it must dominate and be clearly recognizable, in this order of weight)');
-      o.sel.core.forEach(x => lines.push(`- It must have: ${x.name}${fullRule(x) ? ` — ${fullRule(x).slice(0, 500)}` : ''}`));
+      o.sel.core.forEach(x => lines.push(`- It must have: ${x.name}${fullRule(x) ? ` — ${fullRule(x).slice(0, 700)}` : ''}`));
     }
     if (o.sel.support.length) {
       lines.push('', '# 3 · Support (secondary: present but never competing with the core)');
-      o.sel.support.forEach(x => lines.push(`- Incorporate: ${x.name}${shortRule(x) ? ` — ${shortRule(x)}` : ''}`));
+      o.sel.support.forEach(x => lines.push(`- Incorporate: ${x.name}${sentenceRule(x) ? ` — ${sentenceRule(x)}` : ''}`));
     }
     if (o.sel.accent) {
       lines.push('', '# 4 · Accent (minor detail)');
-      lines.push(`- A detail of ${o.sel.accent.name}${oneLine(o.sel.accent) ? ` (${oneLine(o.sel.accent)})` : ''}, in very little surface. Use it once, never as a background.`);
+      lines.push(`- A detail of ${o.sel.accent.name}${sentenceRule(o.sel.accent) ? ` (${sentenceRule(o.sel.accent)})` : ''}, in very little surface. Use it once, never as a background.`);
+    }
+    // Estructura: cómo se ordena la pieza por dentro. Las capas dicen qué; esto, cómo.
+    const structure = structureRules(p).map(r => r.text.trim()).slice(0, 6);
+    if (structure.length) {
+      lines.push('', '# 5 · Structure (how the piece is organized inside: density, scale, hierarchy, placement; adapt it to this format)');
+      structure.forEach(r => lines.push(`- ${r}`));
     }
   }
 
   if (palette.length) {
-    lines.push('', '# 5 · Palette (use only these colors, in this proportion)');
+    lines.push('', '# 6 · Palette (use only these colors, in this proportion)');
     palette.forEach(c => lines.push(`- ${c.hex.toUpperCase()}${c.name ? ` · ${c.name}` : ''} — about ${pct(c.share)}${c.layer ? ` (${LAYER_EN[c.layer]})` : ''}`));
   }
 
   if (o.text.trim() || o.request.trim()) {
-    lines.push('', '# 6 · Text and request');
+    lines.push('', '# 7 · Text and request');
     if (o.text.trim()) lines.push(`Text to render exactly, spelled as given: "${o.text.trim()}".`);
     if (o.request.trim()) lines.push(`What the designer asks for: ${o.request.trim()}`);
   }
 
-  lines.push('', '# 7 · Constraints');
-  if (!o.direct) lines.push('- Do not add elements foreign to the system. Everything visible must come from the core, support or accent above.');
+  lines.push('', '# 8 · Constraints');
+  if (!o.direct) lines.push(boundaryInfo(p.boundary).probarLine);
   if (!o.direct) {
     // Reglas de uso del sistema: las del diseñador primero.
     const rules = [...(p.systemSheet?.userRules ?? []), ...(p.systemSheet?.rules ?? [])].map(r => r.trim()).filter(Boolean).slice(0, 8);

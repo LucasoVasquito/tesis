@@ -797,12 +797,22 @@ Devolvé:
 // 2c-quater. Ficha del sistema: reglas y estilos de letra
 // ==========================================
 // Las reglas son reglas (frases cortas de uso), no títulos de pieza. Las tipografías son estilos de letra, no nombres de pieza.
+// Los textos del límite viven en un solo lugar (src/utils/boundaryCopy.json), compartido con la app.
+// Se lee del disco en cada pedido, como el .env: si se editan los textos, no hace falta reiniciar.
+const BOUNDARY_COPY_PATH = path_1.default.join(process.cwd(), "src", "utils", "boundaryCopy.json");
+const boundaryCopyOf = (raw) => {
+    const all = JSON.parse(fs_1.default.readFileSync(BOUNDARY_COPY_PATH, "utf8"));
+    const c = raw === "open_type" || raw === "open" || raw === "closed" ? all[raw] : all.closed;
+    return { ai: c.aiContext, fill: c.structureFillRule };
+};
 app.post("/api/system-sheet", async (req, res) => {
     dotenv_1.default.config({ override: true });
     try {
         const pieces = Array.isArray(req.body?.pieces) ? req.body.pieces.slice(0, 40) : [];
         const palette = req.body?.palette || {};
+        const boundary = boundaryCopyOf(req.body?.boundary);
         const userRules = (Array.isArray(req.body?.userRules) ? req.body.userRules : []).map((r) => String(r || "").slice(0, 200)).filter(Boolean).slice(0, 12);
+        const structureRules = (Array.isArray(req.body?.structureRules) ? req.body.structureRules : []).map((r) => String(r || "").slice(0, 200)).filter(Boolean).slice(0, 12);
         if (!pieces.length)
             return res.status(400).json({ error: "Se requieren piezas." });
         const LAYER = ["", "PRIMARIO (define el sistema)", "SECUNDARIO (lo acompaña)", "ACENTO (aparece poco)"];
@@ -814,13 +824,19 @@ app.post("/api/system-sheet", async (req, res) => {
 ${list}
 
 Paleta: Primario ${String(palette.primary || "?")}, Secundario ${String(palette.secondary || "?")}, Acento ${String(palette.accent || "?")}.
+
+${boundary.ai}
 ${userRules.length ? `
-REGLAS QUE YA ESCRIBIÓ EL DISEÑADOR (son criterio suyo: no las repitas ni las contradigas; tus reglas las complementan):
+REGLAS QUE YA ESCRIBIÓ EL DISEÑADOR (mandan sobre cualquier sugerencia: no las repitas y NUNCA las contradigas; si alguna regla tuya choca con ellas, adaptala o descartala):
 ${userRules.map(r => `- ${r}`).join("\n")}
+` : ""}${structureRules.length ? `
+ESTRUCTURA DEL SISTEMA (cómo se arma la pieza entera; ya está escrita aparte y manda lo del diseñador: no la repitas, no la parafrasees y NUNCA la contradigas):
+${structureRules.map(r => `- ${r}`).join("\n")}
 ` : ""}
 
 Devolvé, en español rioplatense:
 - rules: entre 3 y 5 REGLAS DE USO del sistema. Cada una es una frase corta e imperativa o normativa (máximo 12 palabras) que dice cómo se usa o se combina algo: dónde va, dónde no, cuántas veces, sobre qué. Ejemplos del tipo buscado: "El naranja nunca va sobre fotografía.", "La tipografía display solo en titulares.", "Los sellos circulares van una vez por pieza.". NO repitas ni parafrasees los nombres de las piezas como si fueran reglas; no describas, normá. El Primario manda: al menos dos reglas sobre él.
+  Cada regla habla de UN elemento del sistema y lo nombra (una pieza, un color, una tipografía). Las reglas sobre la composición entera (cuánto se llena el plano, la escala general, qué va al centro o a los bordes, la jerarquía de niveles) NO van acá: son de la Estructura, que se escribe aparte.
 - fonts: los estilos de letra presentes (de 1 a 3), como clasificación tipográfica corta, no como nombre de pieza. Ejemplos: "Display condensada rotulada", "Mono técnica", "Grotesca pesada". Para cada uno: style (2 a 4 palabras), use (dónde se usa, máximo 6 palabras) y kind: uno de "condensed", "mono", "serif", "script", "rounded", "grotesk", "wide", "blackletter" (gótica), "bubble" (burbuja orgánica), "display3d" (tridimensional) o "stencil". Si no hay piezas tipográficas, deducilo de lo que haya o devolvé una lista vacía.`;
         const ai = getGeminiClient();
         const response = await generateContentWithRetry(ai, {
@@ -856,6 +872,102 @@ Devolvé, en español rioplatense:
     catch (error) {
         console.error("Error en /api/system-sheet:", error);
         return res.status(500).json({ error: "No se pudieron redactar las reglas.", details: error?.message });
+    }
+});
+// ==========================================
+// 2c-quinquies. Estructura del sistema: cómo se arma una pieza por dentro
+// ==========================================
+// Las piezas dicen qué elementos tiene la marca; esto dice cómo se ordenan (densidad, escala, niveles, ubicación).
+// Se lee mirando las imágenes, no las descripciones: la composición no sobrevive al pasar a texto.
+app.post("/api/system-structure", async (req, res) => {
+    dotenv_1.default.config({ override: true });
+    try {
+        const refs = Array.isArray(req.body?.references) ? req.body.references.slice(0, 12) : [];
+        const pieces = Array.isArray(req.body?.pieces) ? req.body.pieces.slice(0, 40) : [];
+        const boundary = boundaryCopyOf(req.body?.boundary);
+        const userRules = (Array.isArray(req.body?.userRules) ? req.body.userRules : []).map((r) => String(r || "").slice(0, 200)).filter(Boolean).slice(0, 12);
+        const usageRules = (Array.isArray(req.body?.usageRules) ? req.body.usageRules : []).map((r) => String(r || "").slice(0, 200)).filter(Boolean).slice(0, 12);
+        if (refs.length < 2)
+            return res.status(400).json({ error: "Se requieren al menos dos referencias." });
+        const parts = [];
+        const ids = [];
+        for (const ref of refs) {
+            const img = ref?.image ? await resolveImagePart(String(ref.image), String(ref.id)) : null;
+            if (!img)
+                continue;
+            ids.push(String(ref.id));
+            parts.push({ text: `[REFERENCIA ${ref.id}]` });
+            parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+        }
+        if (ids.length < 2)
+            return res.status(400).json({ error: "No se pudieron leer las referencias." });
+        const LAYER = ["", "PRIMARIO", "SECUNDARIO", "ACENTO"];
+        const list = pieces.map((x) => `- [${LAYER[Number(x.layer)] || "SIN CAPA"}] ${String(x.name || "").slice(0, 120)}`).join("\n");
+        parts.push({
+            text: `Sos director de arte. Estas ${ids.length} imágenes son el relevamiento visual de un proyecto${req.body?.name ? ` («${String(req.body.name).slice(0, 80)}»)` : ""}.
+${req.body?.intent ? `Qué es: ${String(req.body.intent).slice(0, 200)}\n` : ""}${req.body?.objective ? `Qué se busca: ${String(req.body.objective).slice(0, 800)}\n` : ""}
+Los ELEMENTOS del sistema ya están relevados (no los repitas como reglas):
+${list || "- (sin piezas)"}
+
+${boundary.ai}
+${userRules.length ? `
+REGLAS DE ESTRUCTURA QUE YA ESCRIBIÓ EL DISEÑADOR (mandan sobre cualquier sugerencia: no las repitas y NUNCA las contradigas; si alguna regla tuya choca con ellas, adaptala o descartala):
+${userRules.map(r => `- ${r}`).join("\n")}
+` : ""}${usageRules.length ? `
+REGLAS DE USO DE LOS ELEMENTOS (ya están escritas aparte y mandan las del diseñador: no las repitas, no las parafrasees y NUNCA las contradigas):
+${usageRules.map(r => `- ${r}`).join("\n")}
+` : ""}
+Ahora mirá otra cosa: la ESTRUCTURA. No qué hay, sino cómo se ordena lo que hay dentro de cada pieza. Mirá:
+- Densidad: cuánto del plano se ocupa, si hay aire o se satura, si los elementos van a sangre.
+- Escala: cuántos niveles de tamaño hay y qué tan grande es el salto entre el más grande y el más chico.
+- Jerarquía: qué se lee primero, segundo y tercero, y qué tipo de información ocupa cada nivel.
+- Ubicación: dónde va cada tipo de información (centro, bordes, perímetro, esquinas, laterales).
+- Dirección y orden: alineación, columnas, texto rotado, bandas que cruzan la composición, superposiciones.
+
+Devolvé entre 3 y 5 reglas de estructura, en español rioplatense. Condiciones:
+- Solo lo que se REPITE en la mayoría de las referencias. Si las referencias se arman distinto, quedate con lo que comparten (por ejemplo la densidad o el contraste de escala), no con un promedio ni con la plantilla de una sola.
+- Tienen que servir para CUALQUIER formato (afiche, posteo, web, prenda, señalética). Nada de "el lineup va al medio" o "la fecha abajo": decí la lógica ("la información secundaria va pegada a los bordes"), no el lugar de un afiche.
+- Cada una es una frase normativa corta (máximo 18 palabras), concreta y verificable a simple vista. Ejemplos del tipo buscado: "El plano se ocupa entero: el aire vacío es la excepción.", "Dos tamaños de letra: enorme o mínima, nunca intermedia.", "Los datos chicos van al perímetro, nunca en el centro.".
+- No nombres elementos de la lista como si fueran reglas; podés nombrarlos solo para decir dónde o cómo se ubican.
+- Una de las reglas tiene que decir CON QUÉ se resuelve el espacio. Si las referencias saturan el plano, decí con qué piezas de la lista se llena el aire (texturas, ruido, texto chico repetido, bandas, superposiciones…), nombrándolas tal como aparecen en la lista. Mirá qué llena el espacio en las imágenes, no qué es protagonista. Si las referencias dejan aire, decí qué lo sostiene. ${boundary.fill}
+- Para cada regla, evidence: los IDs de las referencias donde se ve (de ${ids.join(", ")}).`,
+        });
+        const ai = getGeminiClient();
+        const response = await generateContentWithRetry(ai, {
+            model: "gemini-3.5-flash",
+            contents: [{ role: "user", parts }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: genai_1.Type.OBJECT,
+                    properties: {
+                        rules: {
+                            type: genai_1.Type.ARRAY,
+                            items: {
+                                type: genai_1.Type.OBJECT,
+                                properties: { text: { type: genai_1.Type.STRING }, evidence: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
+                                required: ["text", "evidence"],
+                            },
+                        },
+                    },
+                    required: ["rules"],
+                },
+            },
+        });
+        const d = parseModelJsonResponse(response.text || "{}");
+        const known = new Set(ids);
+        const rules = (Array.isArray(d?.rules) ? d.rules : [])
+            .map((r) => ({
+            text: String(r?.text || "").trim().slice(0, 180),
+            refIds: (Array.isArray(r?.evidence) ? r.evidence : []).map((x) => String(x).replace(/^\[?REFERENCIA\s*/i, "").replace(/\]$/, "").trim()).filter((x) => known.has(x)),
+        }))
+            .filter((r) => r.text)
+            .slice(0, 5);
+        return res.json({ success: true, data: { rules, read: ids.length } });
+    }
+    catch (error) {
+        console.error("Error en /api/system-structure:", error);
+        return res.status(500).json({ error: "No se pudo leer la estructura.", details: error?.message });
     }
 });
 // ==========================================

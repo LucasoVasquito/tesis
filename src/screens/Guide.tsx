@@ -65,12 +65,18 @@ function tourFor(stage: Moment, sub: number): Step[] {
     case 'sistema':
       return sub === 5
         ? [
+            { sel: 'main ol li button', text: 'La estructura dice cómo se arma una pieza por dentro: densidad, escala, qué va dónde. Tocá una regla para editarla.' },
+            { sel: '[data-guide="structure-add"]', text: 'Escribí las tuyas acá. Van primero y el agente no las reescribe.' },
+            { sel: NEXT, text: 'Seguí a Reglas.' },
+          ]
+        : sub === 6
+        ? [
             { sel: 'main ol li button', text: 'Las reglas dicen cómo se usa el sistema. Tocá una para editarla.' },
             { sel: '[data-guide="rules-add"]', text: 'Escribí las tuyas acá. Van primero y el agente no las reescribe.' },
             { sel: NEXT, text: 'Seguí a Exportar.' },
           ]
         : [
-            { sel: RAIL, text: 'Son siete partes: Paleta, Tipografía, Primario, Secundario, Acento, Reglas y Exportar.' },
+            { sel: RAIL, text: 'Son ocho partes: Paleta, Tipografía, Primario, Secundario, Acento, Estructura, Reglas y Exportar.' },
             { sel: '[data-headline]', text: 'Acá solo se lee. Para cambiar algo, usá «Editar en Capas» al pie de cada parte.' },
             { sel: NEXT, text: 'Con Siguiente pasás a la parte que sigue. Al final, exportás.' },
           ];

@@ -184,6 +184,9 @@ export interface Pattern {
 /** 1 · Primario (adelante), 2 · Secundario (al medio), 3 · Acento (atrás). */
 export type Layer = 1 | 2 | 3;
 
+/** Límite del sistema: qué puede entrar desde afuera para completar o acompañar una pieza. */
+export type SystemBoundary = 'closed' | 'open_type' | 'open';
+
 /** Los tres momentos del flujo (reemplazan a las 5 etapas). */
 /** Las tres pantallas: 01 MOODBOARD · 02 SISTEMA · 03 PROBAR. */
 /** Reglas de uso (3 a 5 frases cortas) y estilos de letra del sistema, redactados por el agente. */
@@ -194,6 +197,20 @@ export interface SystemSheet {
   /** Reglas que escribió el diseñador: el agente no las toca y van primero. */
   userRules?: string[];
   fonts: { style: string; use?: string; kind?: string }[];
+}
+
+/**
+ * Estructura del sistema: cómo se arma una pieza por dentro (densidad, escala, niveles, ubicación).
+ * Es otro eje que las capas: las capas dicen qué elementos; la estructura, cómo se ordenan.
+ * Se lee mirando las referencias y se escribe en términos que sirvan para cualquier formato.
+ */
+export interface StructureSheet {
+  /** Referencias con las que se leyó: si cambian, se vuelve a leer. */
+  sig: string;
+  /** Reglas que leyó el agente, con las referencias que las muestran. */
+  rules: { text: string; refIds: string[] }[];
+  /** Reglas que escribió el diseñador: el agente no las toca y van primero. */
+  userRules?: string[];
 }
 
 export type Moment = 'brief' | 'referencias' | 'revisar' | 'capas' | 'sistema' | 'probar' | 'resultados';
@@ -466,6 +483,10 @@ export interface Project {
   originFixed?: boolean;
   /** Ficha de Sistema redactada por el agente: reglas de uso y estilos de letra. `sig` = piezas con las que se redactó. */
   systemSheet?: SystemSheet;
+  /** Estructura: cómo se ordena una pieza por dentro, leída de las referencias. */
+  structureSheet?: StructureSheet;
+  /** Límite del sistema: qué puede entrar desde afuera (por defecto: 'closed'). */
+  boundary?: SystemBoundary;
   /** Proyecto de ejemplo (muestra el cartel "EMPEZAR EL MÍO"). */
   example?: boolean;
 }

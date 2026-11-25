@@ -1172,6 +1172,8 @@ function Workspace({ boot }: { boot: Boot }) {
               paletteBusy={paletteBusy}
               onCompletePalette={handleCompletePalette}
               onSaveSheet={(sheet, drafted) => updateProject(p => ({ ...p, systemSheet: drafted ? { ...sheet, userRules: p.systemSheet?.userRules } : sheet }), project.id)}
+              onSaveStructure={(sheet, drafted) => updateProject(p => ({ ...p, structureSheet: drafted ? { ...sheet, userRules: p.structureSheet?.userRules } : sheet }), project.id)}
+              onSaveBoundary={boundary => updateProject(p => ({ ...p, boundary }), project.id)}
               sub={sub}
               onSub={goSub}
               onEditInLayers={l => {

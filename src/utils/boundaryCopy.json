@@ -1,0 +1,26 @@
+{
+  "closed": {
+    "label": "Cerrado",
+    "short": "No entra nada de afuera.",
+    "exportPrompt": "No agregues elementos ajenos al sistema: si hace falta llenar espacio, llenalo con los recursos del sistema, nunca con elementos nuevos. Escribí cada palabra tal como se indica.",
+    "probarLine": "- Do not add elements foreign to the system. Everything visible must come from the core, support or accent above. If space needs filling, fill it with the system's own resources, never with new elements.",
+    "aiContext": "LÍMITE DEL SISTEMA: Cerrado. No entra ningún elemento ajeno (ni tipografías, ni colores, ni imágenes fuera del sistema); si hace falta llenar espacio, se resuelve solo con las piezas del sistema. No escribas reglas que habiliten elementos nuevos.",
+    "structureFillRule": "Nunca propongas recursos que no estén en la lista."
+  },
+  "open_type": {
+    "label": "Abierto en tipografía",
+    "short": "Se pueden sumar letras de otros estilos, nunca colores ni imágenes.",
+    "exportPrompt": "Límite del sistema: abierto en tipografía. Se pueden sumar tipografías o letras de otros estilos para acompañar o llenar espacio, pero nunca agregues colores ni imágenes fuera del sistema. Escribí cada palabra tal como se indica.",
+    "probarLine": "- System boundary: open in typography only. You may introduce additional type styles or lettering to complement or fill space, but NEVER add colors, illustrations, textures, or images outside the system.",
+    "aiContext": "LÍMITE DEL SISTEMA: Abierto en tipografía. Se pueden sumar tipografías de otros estilos para acompañar o llenar espacio, pero nunca colores ni imágenes fuera del sistema. No escribas reglas que prohíban usar otras tipografías ni que habiliten colores o imágenes nuevas.",
+    "structureFillRule": "Si las referencias usan otros estilos tipográficos para llenar o contrastar, podés admitir tipografías complementarias, pero nunca propongas colores ni imágenes fuera de la lista."
+  },
+  "open": {
+    "label": "Abierto",
+    "short": "Entra lo que haga falta.",
+    "exportPrompt": "Límite del sistema: abierto. El sistema funciona como base y podés sumar tipografías, recursos gráficos o elementos nuevos si la pieza lo pide, respetando siempre el Primario y la paleta. Escribí cada palabra tal como se indica.",
+    "probarLine": "- System boundary: open. Use the core, support, accent and palette as the anchor, and you may add new graphic, typographic or visual elements if the piece requires them.",
+    "aiContext": "LÍMITE DEL SISTEMA: Abierto. Pueden entrar elementos nuevos (tipografías, recursos o imágenes) cuando la pieza lo pida, manteniendo el Primario y la paleta como eje. No escribas reglas que prohíban sumar recursos nuevos.",
+    "structureFillRule": "Tomá la lista como base; si hace falta llenar espacio, podés admitir recursos nuevos acordes al brief."
+  }
+}

@@ -82,6 +82,8 @@ export function migrateProject(input: any): Project {
     originFixed: raw?.originFixed ? true : undefined,
     probarBase: raw?.probarBase && typeof raw.probarBase === 'object' && Array.isArray(raw.probarBase.approved) ? raw.probarBase : undefined,
     systemSheet: raw?.systemSheet && Array.isArray(raw.systemSheet.rules) ? raw.systemSheet : undefined,
+    structureSheet: raw?.structureSheet && Array.isArray(raw.structureSheet.rules) ? raw.structureSheet : undefined,
+    boundary: raw?.boundary === 'closed' || raw?.boundary === 'open_type' || raw?.boundary === 'open' ? raw.boundary : undefined,
   };
   if (p.status === 'analyzing' || p.status === 'updating') p.status = p.patterns.length ? 'analyzed' : 'draft';
   const out = dedupePieces(migrateToPieces(migrateToStack(p, raw), raw)).project;

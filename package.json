@@ -12,7 +12,7 @@
     "start": "node server.cjs",
     "build": "vite build",
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tsconfig.server.json",
-    "test": "node --test src/utils/derivePalette.test.mjs src/pieces/dedupe.test.mjs"
+    "test": "node --test src/utils/derivePalette.test.mjs src/pieces/dedupe.test.mjs src/utils/boundary.test.mjs"
   },
   "keywords": [],
   "author": "",

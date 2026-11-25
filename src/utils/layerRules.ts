@@ -15,14 +15,28 @@ const firstSentence = (t: string) => {
 };
 const clip = (t: string, max: number) => (t.length <= max ? t : `${t.slice(0, max - 1).replace(/\s+\S*$/, '')}…`);
 
-/** Primario: la regla entera (hipótesis de sistema o descripción). */
-export const fullRule = (p: Pattern) => (p.systemHypothesis?.trim() || p.description?.trim() || '').trim();
+/** Primario: cómo es la pieza (descripción) y, si suma algo distinto, dónde o cómo se aplica. */
+export const fullRule = (p: Pattern) => {
+  const desc = (p.description || '').trim();
+  const hyp = (p.systemHypothesis || '').trim();
+  if (desc && hyp && desc.toLowerCase() !== hyp.toLowerCase() && !desc.toLowerCase().includes(hyp.toLowerCase())) {
+    const sep = /[.!?…]$/.test(desc) ? ' ' : '. ';
+    return `${desc}${sep}${hyp}`;
+  }
+  return desc || hyp;
+};
 /** Secundario: la primera oración, corta. */
 export const shortRule = (p: Pattern) => clip(firstSentence(p.description || p.systemHypothesis || ''), 110);
 /** Acento: una línea. */
 export const oneLine = (p: Pattern) => clip(firstSentence(p.description || p.systemHypothesis || '').split(/[;:—]/)[0], 64);
 
-export const ruleFor = (p: Pattern, l: Layer) => (l === 1 ? fullRule(p) : l === 2 ? shortRule(p) : oneLine(p));
+/**
+ * Para lo que se le manda a otra IA: la primera oración entera, sin recortar.
+ * Los recortes con «…» sirven en pantalla, pero una frase cortada en un prompt confunde.
+ */
+export const sentenceRule = (p: Pattern) => firstSentence(p.description || p.systemHypothesis || '');
+
+export const ruleFor =(p: Pattern, l: Layer) => (l === 1 ? fullRule(p) : l === 2 ? shortRule(p) : oneLine(p));
 
 /** Lo que vive en cada lámina: patrones (y grupos) y fragmentos sueltos, en el orden de la pila. */
 export function layerContents(p: Project, l: Layer): { patterns: Pattern[]; fragments: Fragment[] } {
