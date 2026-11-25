@@ -1,4 +1,5 @@
-import { Layer, PieceType, Project, SystemBoundary } from '../types';
+import { CropBox, Layer, PieceType, Project, Reference, SystemBoundary } from '../types';
+import { pieceEvidence, ruleTargets } from './evidence';
 import { corpusRefs, evidenceCount } from './layers';
 import { fullRule, oneLine, sentenceRule, shortRule } from './layerRules';
 import { structureRules } from './structure';
@@ -220,6 +221,19 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
     ];
     const swatch = (c: string, big = false) => `<span style="display:inline-block;width:${big ? 56 : 28}px;height:${big ? 56 : 28}px;background:${c};border-radius:4px;box-shadow:inset 0 0 0 1px rgba(20,18,16,.25)"></span>`;
 
+    /* Recortes de la evidencia: lo que interesa de cada referencia, chico, en fila. Se reusan entre piezas y reglas. */
+    const cropCache = new Map<string, Promise<string>>();
+    const cropSrc = (ref: Reference, crop?: CropBox | null) => {
+      const c = crop ?? { x: 0, y: 0, w: 1, h: 1 };
+      const key = `${ref.id}:${c.x.toFixed(3)},${c.y.toFixed(3)},${c.w.toFixed(3)},${c.h.toFixed(3)}`;
+      if (!cropCache.has(key)) cropCache.set(key, cropImage(ref.image, [c], 260).then(r => r[0]?.image ?? '').catch(() => ''));
+      return cropCache.get(key)!;
+    };
+    const cropRow = async (items: { ref: Reference; crop?: CropBox | null }[], max = 6) => {
+      const srcs = (await Promise.all(items.slice(0, max).map(i => cropSrc(i.ref, i.crop)))).filter(Boolean);
+      return srcs.length ? `<div class="ev">${srcs.map(s => `<img src="${s}">`).join('')}</div>` : '';
+    };
+
     const layerPages: string[] = [];
     for (const l of [1, 2, 3] as Layer[]) {
       const items = piecesIn(project, l);
@@ -228,25 +242,57 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
           const img = await pieceImage(project, x);
           const hex = x.category === 'color' ? pieceColor(x.id) : undefined;
           const rule = l === 1 ? fullRule(x) : l === 2 ? shortRule(x) : oneLine(x);
-          return `<div class="card">${img ? `<img src="${img}">` : ''}${hex ? `<div class="hex">${swatch(hex)} ${esc(hex.toUpperCase())}</div>` : ''}<b>${esc(x.name)}</b><p>${esc(rule)}</p><small>${evidenceCount(x, project)} de ${total} referencias</small></div>`;
+          // Las piezas de color no se recortan: son el color en sí.
+          const ev = x.category === 'color' ? '' : await cropRow(pieceEvidence(x, project));
+          return `<div class="card">${img ? `<img src="${img}">` : ''}${hex ? `<div class="hex">${swatch(hex)} ${esc(hex.toUpperCase())}</div>` : ''}<b>${esc(x.name)}</b><p>${esc(rule)}</p><small>${evidenceCount(x, project)} de ${total} referencias</small>${ev}</div>`;
         }),
       );
       const head = theme[`--cc-l${l - 1}-head`];
       const under = theme[`--cc-l${l - 1}-under`];
       const size = l === 1 ? 88 : l === 2 ? 52 : 34;
-      layerPages.push(`<section class="page"><small>CAPA ${l}</small><div class="head" style="font-size:${size}pt;font-weight:${l === 1 ? 900 : 700};color:${head};${under !== 'transparent' ? `text-decoration:underline 3px ${under};text-underline-offset:5px;` : ''}">${esc(SHEET_NAME[l])}</div><h2>${esc(LAYER_QUESTION[l])}</h2><div class="grid">${cards.join('') || '<p>Sin piezas.</p>'}</div></section>`);
+      layerPages.push(`<section class="page flow"><small>CAPA ${l}</small><div class="head" style="font-size:${size}pt;font-weight:${l === 1 ? 900 : 700};color:${head};${under !== 'transparent' ? `text-decoration:underline 3px ${under};text-underline-offset:5px;` : ''}">${esc(SHEET_NAME[l])}</div><h2>${esc(LAYER_QUESTION[l])}</h2><div class="grid">${cards.join('') || '<p>Sin piezas.</p>'}</div></section>`);
     }
 
     const allStructure = structureRules(project);
+    // Las reglas del agente traen la zona de cada referencia que las muestra; las tuyas no tienen evidencia.
+    const structureCrops = new Map((project.structureSheet?.rules ?? []).map(r => [r.text, r.crops ?? {}]));
+    const structureItems = await Promise.all(
+      allStructure.map(async r => {
+        const crops = structureCrops.get(r.text) ?? {};
+        const ev = await cropRow(
+          r.refIds.flatMap(id => {
+            const ref = project.references.find(x => x.id === id);
+            return ref ? [{ ref, crop: crops[id] }] : [];
+          }),
+        );
+        return `<li>${esc(r.text)}${ev}</li>`;
+      }),
+    );
     const structurePage = allStructure.length
-      ? `<section class="page"><small>ESTRUCTURA</small><h2>Cómo se arma una pieza por dentro</h2><ol class="rules">${allStructure.map(r => `<li>${esc(r.text)}</li>`).join('')}</ol></section>`
+      ? `<section class="page flow"><small>ESTRUCTURA</small><h2>Cómo se arma una pieza por dentro</h2><ol class="rules">${structureItems.join('')}</ol></section>`
       : '';
 
     const b = boundaryInfo(project.boundary);
-    const allRules = [...(project.systemSheet?.userRules ?? []), ...(project.systemSheet?.rules ?? [])];
+    const userRules = project.systemSheet?.userRules ?? [];
+    const agentRules = project.systemSheet?.rules ?? [];
+    const allRules = [...userRules, ...agentRules];
+    // Cada regla de uso muestra los recortes de la pieza de la que habla (como en la pantalla).
+    const ruleItems = await Promise.all(
+      allRules.map(async (r, i) => {
+        const names = i >= userRules.length ? project.systemSheet?.targets?.[i - userRules.length] : undefined;
+        const targets = ruleTargets(project, r, names).filter(x => x.category !== 'color');
+        const rows = await Promise.all(
+          targets.map(async x => {
+            const ev = await cropRow(pieceEvidence(x, project), 5);
+            return ev ? `<div class="evt"><small>${esc(x.name)}</small>${ev}</div>` : '';
+          }),
+        );
+        return `<li>${esc(r)}${rows.join('')}</li>`;
+      }),
+    );
     const rulesPage =
       allRules.length || project.boundary
-        ? `<section class="page"><small>REGLAS DE USO</small><h2>Cómo se usa el sistema</h2><p style="font-size:12pt;margin:0 0 8mm"><b>Límite del sistema: ${esc(b.label)}.</b> ${esc(b.short)}</p>${allRules.length ? `<ol class="rules">${allRules.map(r => `<li>${esc(r)}</li>`).join('')}</ol>` : ''}</section>`
+        ? `<section class="page flow"><small>REGLAS DE USO</small><h2>Cómo se usa el sistema</h2><p style="font-size:12pt;margin:0 0 8mm"><b>Límite del sistema: ${esc(b.label)}.</b> ${esc(b.short)}</p>${allRules.length ? `<ol class="rules">${ruleItems.join('')}</ol>` : ''}</section>`
         : '';
 
     const approved = approvedPieces(project);
@@ -276,6 +322,12 @@ export async function exportSystemPdf(project: Project, palette: Palette, pieceC
       .card b { display: block; font-size: 10pt } .card p { margin: 1mm 0; font-size: 8pt; color: ${muted} }
       .hex { font: 700 8pt Manrope, Arial, sans-serif; margin: -9mm 0 2mm 2mm; position: relative; background: ${bg}; display: inline-flex; gap: 6px; align-items: center; padding: 1mm }
       .rules { margin: 0; padding-left: 8mm; display: flex; flex-direction: column; gap: 6mm; font-size: 14pt; font-weight: 600; line-height: 1.35 }
+      .page.flow { height: auto; min-height: 297mm; overflow: visible }
+      .card, .rules li { break-inside: avoid }
+      .ev { display: flex; flex-wrap: wrap; gap: 1.5mm; margin-top: 2mm }
+      .ev img { width: 13mm; height: 13mm; object-fit: cover; display: block; border-radius: 1mm; box-shadow: inset 0 0 0 1px rgba(20,18,16,.2); margin: 0; aspect-ratio: auto }
+      .rules .ev img { width: 16mm; height: 16mm }
+      .evt { margin-top: 2mm; font-weight: 400 } .evt small { display: block; letter-spacing: 0 }
       .roles { display: flex; flex-direction: column; gap: 6mm; margin-top: 10mm }
       .role { display: flex; gap: 6mm; align-items: center } .role b { font-size: 14pt } .role code { font: 500 9pt Manrope, Arial, sans-serif; color: ${muted} }
     </style></head><body>

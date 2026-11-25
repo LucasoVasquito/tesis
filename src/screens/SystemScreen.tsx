@@ -17,7 +17,8 @@ import { CropStrip, EvidenceStrip } from './EvidenceStrip';
 import { SUBSTEPS } from '../utils/substeps';
 import { tallyText } from '../utils/results';
 import { compressImageString } from '../utils/imageCompressor';
-import { looksStructural, looksUsage, piecesNamedIn, structureRefs, structureRules, structureSig } from '../utils/structure';
+import { looksStructural, looksUsage, structureRefs, structureRules, structureSig } from '../utils/structure';
+import { ruleTargets } from '../utils/evidence';
 import { BOUNDARIES, boundaryInfo, detectBoundaryRule } from '../utils/boundary';
 
 interface SystemScreenProps {
@@ -375,9 +376,7 @@ export function SystemScreen(props: SystemScreenProps) {
    * en las tuyas se busca por el nombre. Sin pieza reconocible, no se muestra nada.
    */
   const usageCrops = (text: string, names?: string[]) => {
-    const placed = livePieces(project).filter(x => x.layer);
-    const found = names?.length ? names.map(n => placed.find(x => x.name === n)).filter((x): x is Pattern => !!x) : [];
-    const targets = found.length ? found : piecesNamedIn(project, text).slice(0, 2);
+    const targets = ruleTargets(project, text, names);
     if (!targets.length) return null;
     return (
       <div className="no-print mt-1 flex flex-col gap-3">

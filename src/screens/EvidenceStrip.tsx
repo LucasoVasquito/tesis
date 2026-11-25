@@ -4,6 +4,7 @@ import { CropBox, Pattern, Project, Reference } from '../types';
 import { Crop } from '../space/Crop';
 import { LightboxModal } from '../components/LightboxModal';
 import { compressImageString } from '../utils/imageCompressor';
+import { cropFor } from '../utils/evidence';
 
 /** Guarda dónde se ve una pieza en cada referencia (lo provee App, con updateProject). */
 export const EvidenceCropsContext = createContext<((pieceId: string, crops: Record<string, CropBox | null>) => void) | null>(null);
@@ -13,15 +14,7 @@ const BATCH = 10;
 /** Pedidos en curso o hechos en esta sesión, por pieza y referencias: no se repiten aunque el componente se monte de nuevo. */
 const asked = new Set<string>();
 
-/** El recorte de una referencia: lo que marcó la IA; si no, el de la portada o el de un fragmento de la pieza. */
-export function cropFor(piece: Pattern, project: Project, refId: string): CropBox | undefined {
-  const located = piece.evidenceCrops?.[refId];
-  if (located) return located;
-  if (located === null) return undefined;
-  if (piece.cover?.refId === refId && piece.cover.crop) return piece.cover.crop;
-  const frag = (project.fragments ?? []).find(f => f.refId === refId && ((piece.fragmentIds ?? []).includes(f.id) || f.groupId === piece.id));
-  return frag?.crop;
-}
+export { cropFor };
 
 /** ¿Falta saber dónde se ve la pieza en esta referencia? */
 const pending = (piece: Pattern, project: Project, refId: string) => piece.evidenceCrops?.[refId] === undefined && !cropFor(piece, project, refId);
