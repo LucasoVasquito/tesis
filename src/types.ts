@@ -199,6 +199,8 @@ export interface SystemSheet {
   sig: string;
   /** Reglas que redactó el agente (se reescriben al cambiar las piezas). */
   rules: string[];
+  /** De qué piezas habla cada regla del agente (nombres, en el mismo orden que `rules`): para mostrar sus recortes. */
+  targets?: string[][];
   /** Reglas que escribió el diseñador: el agente no las toca y van primero. */
   userRules?: string[];
   fonts: { style: string; use?: string; kind?: string }[];

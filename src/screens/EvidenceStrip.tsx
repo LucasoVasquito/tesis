@@ -31,7 +31,7 @@ const pending = (piece: Pattern, project: Project, refId: string) => piece.evide
  * Al tocar uno se abre la referencia completa con la zona marcada; ← → recorren la fila.
  * Si falta ubicar la pieza en alguna referencia, se le pide a la IA una vez (en tandas de 10).
  */
-export function EvidenceStrip({ piece, project, className = '' }: { piece: Pattern; project: Project; className?: string }) {
+export function EvidenceStrip({ piece, project, className = '', size }: { piece: Pattern; project: Project; className?: string; size?: number }) {
   const save = useContext(EvidenceCropsContext);
   const refs = piece.evidence.map(id => project.references.find(r => r.id === id)).filter((r): r is Reference => !!r && !!r.image);
   const [busy, setBusy] = useState(false);
@@ -77,6 +77,7 @@ export function EvidenceStrip({ piece, project, className = '' }: { piece: Patte
       caption={piece.name}
       busy={busy ? 'Recortando lo que interesa de cada referencia…' : undefined}
       className={className}
+      size={size}
     />
   );
 }

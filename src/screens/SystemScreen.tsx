@@ -17,7 +17,7 @@ import { CropStrip, EvidenceStrip } from './EvidenceStrip';
 import { SUBSTEPS } from '../utils/substeps';
 import { tallyText } from '../utils/results';
 import { compressImageString } from '../utils/imageCompressor';
-import { looksStructural, looksUsage, structureRefs, structureRules, structureSig } from '../utils/structure';
+import { looksStructural, looksUsage, piecesNamedIn, structureRefs, structureRules, structureSig } from '../utils/structure';
 import { BOUNDARIES, boundaryInfo, detectBoundaryRule } from '../utils/boundary';
 
 interface SystemScreenProps {
@@ -247,7 +247,7 @@ export function SystemScreen(props: SystemScreenProps) {
       const result = await res.json().catch(() => ({}));
       if (!res.ok || !result.success) throw new Error(result.details || result.error || `HTTP ${res.status}`);
       if (latestSig.current !== reqSig) return;
-      props.onSaveSheet({ sig: reqSig, rules: result.data.rules ?? [], fonts: result.data.fonts ?? [] }, true);
+      props.onSaveSheet({ sig: reqSig, rules: result.data.rules ?? [], targets: result.data.targets, fonts: result.data.fonts ?? [] }, true);
     } catch (err: any) {
       if (latestSig.current === reqSig) setSheetError('No se pudieron redactar las reglas.');
       console.warn(err);
@@ -368,7 +368,28 @@ export function SystemScreen(props: SystemScreenProps) {
   };
 
   /** Guarda la ficha conservando lo demás. Sin ficha todavía, sig vacío: así se sigue redactando la del agente. */
-  const saveSheet = (patch: Partial<SystemSheet>) => props.onSaveSheet({ sig: sheet?.sig ?? '', rules: sheet?.rules ?? [], fonts: sheet?.fonts ?? [], userRules: sheet?.userRules, ...patch });
+  const saveSheet = (patch: Partial<SystemSheet>) => props.onSaveSheet({ sig: sheet?.sig ?? '', rules: sheet?.rules ?? [], targets: sheet?.targets, fonts: sheet?.fonts ?? [], userRules: sheet?.userRules, ...patch });
+
+  /**
+   * Recortes de una regla de uso: los de la pieza de la que habla. Las del agente traen la pieza (`targets`);
+   * en las tuyas se busca por el nombre. Sin pieza reconocible, no se muestra nada.
+   */
+  const usageCrops = (text: string, names?: string[]) => {
+    const placed = livePieces(project).filter(x => x.layer);
+    const found = names?.length ? names.map(n => placed.find(x => x.name === n)).filter((x): x is Pattern => !!x) : [];
+    const targets = found.length ? found : piecesNamedIn(project, text).slice(0, 2);
+    if (!targets.length) return null;
+    return (
+      <div className="no-print mt-1 flex flex-col gap-3">
+        {targets.map(x => (
+          <div key={x.id} className="flex min-w-0 flex-col gap-1">
+            <span className="text-[0.8125rem] text-ink-2">{x.name}</span>
+            <EvidenceStrip piece={x} project={project} size={72} />
+          </div>
+        ))}
+      </div>
+    );
+  };
   const mine = sheet?.userRules ?? [];
   const theirs = sheet?.rules ?? [];
   const total = mine.length + theirs.length;
@@ -477,6 +498,7 @@ export function SystemScreen(props: SystemScreenProps) {
                   saveSheet({ userRules: mine.filter((_, j) => j !== i) });
                 }) ?? (looksStructural(project, r) ? 'Parece de Estructura: habla de la pieza entera, no de un elemento.' : undefined)
               }
+              extra={usageCrops(r)}
               onSave={t => saveSheet({ userRules: t ? mine.map((x, j) => (j === i ? t : x)) : mine.filter((_, j) => j !== i) })}
             />
           ))}
@@ -485,8 +507,16 @@ export function SystemScreen(props: SystemScreenProps) {
               key={`a${i}${r}`}
               n={mine.length + i + 1}
               text={r}
+              extra={usageCrops(r, sheet?.targets?.[i])}
               // Al editar una del agente pasa a ser tuya: el agente ya no la reescribe.
-              onSave={t => saveSheet({ rules: theirs.filter((_, j) => j !== i), userRules: t && t !== r ? [...mine, t] : mine })}
+              onSave={t =>
+                saveSheet({
+                  rules: theirs.filter((_, j) => j !== i),
+                  // Las piezas de cada regla van en el mismo orden: se saca la misma posición.
+                  targets: sheet?.targets?.filter((_, j) => j !== i),
+                  userRules: t && t !== r ? [...mine, t] : mine,
+                })
+              }
             />
           ))}
         </ol>

@@ -1,4 +1,4 @@
-import { Project, Reference } from '../types';
+import { Pattern, Project, Reference } from '../types';
 import { corpusRefs } from './layers';
 import { livePieces } from '../pieces/model';
 
@@ -59,6 +59,20 @@ const namesPiece = (p: Project, text: string) => {
   const words = norm(text).split(/[^a-z0-9]+/).filter(w => w.length >= 4);
   return pieceStems(p).some(s => words.some(w => w.startsWith(s)));
 };
+
+/** Piezas ubicadas que nombra un texto (por las raíces de su nombre), la que más coincide primero. */
+export function piecesNamedIn(p: Project, text: string): Pattern[] {
+  const words = norm(text).split(/[^a-z0-9]+/).filter(w => w.length >= 4);
+  return livePieces(p)
+    .filter(x => x.layer)
+    .map(x => {
+      const stems = [...new Set(norm(x.name).split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !GENERIC.has(w)).map(w => w.slice(0, 5)))];
+      return { x, hits: stems.filter(s => words.some(w => w.startsWith(s))).length };
+    })
+    .filter(r => r.hits > 0)
+    .sort((a, b) => b.hits - a.hits)
+    .map(r => r.x);
+}
 
 /** Regla escrita en Reglas que parece de Estructura: habla de la pieza entera y no nombra ningún elemento. */
 export const looksStructural = (p: Project, text: string) => STRUCTURAL.test(norm(text)) && !namesPiece(p, text);

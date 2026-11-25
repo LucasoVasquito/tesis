@@ -837,6 +837,7 @@ ${structureRules.map(r => `- ${r}`).join("\n")}
 Devolvé, en español rioplatense:
 - rules: entre 3 y 5 REGLAS DE USO del sistema. Cada una es una frase corta e imperativa o normativa (máximo 12 palabras) que dice cómo se usa o se combina algo: dónde va, dónde no, cuántas veces, sobre qué. Ejemplos del tipo buscado: "El naranja nunca va sobre fotografía.", "La tipografía display solo en titulares.", "Los sellos circulares van una vez por pieza.". NO repitas ni parafrasees los nombres de las piezas como si fueran reglas; no describas, normá. El Primario manda: al menos dos reglas sobre él.
   Cada regla habla de UN elemento del sistema y lo nombra (una pieza, un color, una tipografía). Las reglas sobre la composición entera (cuánto se llena el plano, la escala general, qué va al centro o a los bordes, la jerarquía de niveles) NO van acá: son de la Estructura, que se escribe aparte.
+  Para cada regla devolvé text (la regla) y pieces: el nombre EXACTO, tal como aparece en la lista, de la pieza o las piezas (máximo 2) de las que habla.
 - fonts: los estilos de letra presentes (de 1 a 3), como clasificación tipográfica corta, no como nombre de pieza. Ejemplos: "Display condensada rotulada", "Mono técnica", "Grotesca pesada". Para cada uno: style (2 a 4 palabras), use (dónde se usa, máximo 6 palabras) y kind: uno de "condensed", "mono", "serif", "script", "rounded", "grotesk", "wide", "blackletter" (gótica), "bubble" (burbuja orgánica), "display3d" (tridimensional) o "stencil". Si no hay piezas tipográficas, deducilo de lo que haya o devolvé una lista vacía.`;
         const ai = getGeminiClient();
         const response = await generateContentWithRetry(ai, {
@@ -847,7 +848,14 @@ Devolvé, en español rioplatense:
                 responseSchema: {
                     type: genai_1.Type.OBJECT,
                     properties: {
-                        rules: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } },
+                        rules: {
+                            type: genai_1.Type.ARRAY,
+                            items: {
+                                type: genai_1.Type.OBJECT,
+                                properties: { text: { type: genai_1.Type.STRING }, pieces: { type: genai_1.Type.ARRAY, items: { type: genai_1.Type.STRING } } },
+                                required: ["text"],
+                            },
+                        },
                         fonts: {
                             type: genai_1.Type.ARRAY,
                             items: {
@@ -862,12 +870,23 @@ Devolvé, en español rioplatense:
             },
         });
         const d = parseModelJsonResponse(response.text || "{}");
-        const rules = (Array.isArray(d?.rules) ? d.rules : []).map((r) => String(r || "").trim()).filter(Boolean).slice(0, 5).map((r) => r.slice(0, 160));
+        // Cada regla trae de qué piezas habla (por nombre): así la interfaz muestra los recortes de esas piezas.
+        const pieceNames = new Map(pieces.map((x) => [String(x.name || "").trim().toLowerCase(), String(x.name || "").trim()]));
+        const parsed = (Array.isArray(d?.rules) ? d.rules : [])
+            .map((r) => (typeof r === "string" ? { text: r, pieces: [] } : r))
+            .map((r) => ({
+            text: String(r?.text || "").trim().slice(0, 160),
+            targets: [...new Set((Array.isArray(r?.pieces) ? r.pieces : []).map((n) => pieceNames.get(String(n || "").trim().toLowerCase())).filter(Boolean))].slice(0, 2),
+        }))
+            .filter((r) => r.text)
+            .slice(0, 5);
+        const rules = parsed.map((r) => r.text);
+        const targets = parsed.map((r) => r.targets);
         const fonts = (Array.isArray(d?.fonts) ? d.fonts : [])
             .map((f) => ({ style: String(f?.style || "").trim().slice(0, 60), use: String(f?.use || "").trim().slice(0, 80), kind: String(f?.kind || "").trim().slice(0, 20) }))
             .filter((f) => f.style)
             .slice(0, 3);
-        return res.json({ success: true, data: { rules, fonts } });
+        return res.json({ success: true, data: { rules, targets, fonts } });
     }
     catch (error) {
         console.error("Error en /api/system-sheet:", error);
