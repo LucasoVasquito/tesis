@@ -350,7 +350,7 @@ export function mergeInducedPatterns(previous: Pattern[], detected: any[]): { me
 export function migrateToPieces(p: Project, raw: any): Project {
   const moment = (): Project['moment'] => {
     const m = raw?.moment;
-    if (m === 'brief' || m === 'referencias' || m === 'revisar' || m === 'capas' || m === 'sistema' || m === 'probar') return m;
+    if (m === 'brief' || m === 'referencias' || m === 'revisar' || m === 'capas' || m === 'sistema' || m === 'probar' || m === 'resultados') return m;
     if (m === 'moodboard' || m === 'subir' || m === 'ordenar') return 'referencias';
     if (raw?.view === 'front' || m === 'girar') return 'sistema';
     return 'referencias';

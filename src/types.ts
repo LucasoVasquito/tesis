@@ -196,7 +196,7 @@ export interface SystemSheet {
   fonts: { style: string; use?: string; kind?: string }[];
 }
 
-export type Moment = 'brief' | 'referencias' | 'revisar' | 'capas' | 'sistema' | 'probar';
+export type Moment = 'brief' | 'referencias' | 'revisar' | 'capas' | 'sistema' | 'probar' | 'resultados';
 
 /** Costado: láminas separadas en profundidad. Frente: la Síntesis, como página editorial. */
 export type StackView = 'side' | 'front';

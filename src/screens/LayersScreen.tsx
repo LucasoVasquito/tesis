@@ -460,7 +460,7 @@ export function LayersScreen({ project, enabled, apply, onNext, onBlocked, onLay
             key={l}
             data-drop-zone={l}
             className={`layer-${l} flex min-w-0 flex-1 flex-col justify-center gap-[2px] rounded-[4px] px-4 py-3`}
-            style={{ minHeight: mobile ? 64 : 'clamp(56px, 11vh, 88px)', background: 'var(--cc-surface)', outline: hot ? '1px dotted var(--cc-text)' : undefined, outlineOffset: -4, opacity: here ? 0.75 : 1 }}
+            style={{ minHeight: mobile ? 64 : 'clamp(56px, 11vh, 88px)', background: 'var(--cc-surface)', outline: hot ? '1px dotted var(--cc-text)' : undefined, outlineOffset: -4, filter: here ? 'brightness(0.8)' : undefined, boxShadow: '0 -16px 36px rgba(0,0,0,.6), 0 12px 30px rgba(0,0,0,.5), 0 0 0 1px var(--cc-line-strong, rgba(255,255,255,.18))' }}
           >
             <span className="flex items-baseline gap-2">
               <span className="layer-headline" style={{ fontSize: 30, fontWeight: 700, color: hot ? 'var(--layer-head)' : 'var(--cc-text-muted)', textDecoration: hot ? undefined : 'none' }}>

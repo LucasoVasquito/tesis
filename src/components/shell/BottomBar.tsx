@@ -58,7 +58,7 @@ export function BottomBar({ help, actions, primary, extra }: { help?: string; ac
       data-primary
       aria-disabled={primary.blocked ? true : undefined}
       onClick={() => (primary.blocked ? primary.onBlockedClick?.(primary.blocked) : primary.onClick())}
-      className={`group/primary inline-flex items-center justify-center gap-3 whitespace-nowrap rounded-full px-[22px] text-[0.875rem] font-bold transition-colors duration-150 ${mobile ? 'h-12 flex-1' : viewport === 'tablet' ? 'h-12' : 'h-[46px]'} ${primary.blocked ? 'cursor-not-allowed bg-white/10 text-ink-3' : 'bg-bone text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]'}`}
+      className={`group/primary inline-flex items-center justify-center gap-3 whitespace-nowrap rounded-full px-[22px] text-[0.875rem] font-bold transition-colors duration-150 ${mobile ? 'h-12 flex-1' : viewport === 'tablet' ? 'h-12' : 'h-11'} ${primary.blocked ? 'cursor-not-allowed bg-white/10 text-ink-3' : 'bg-bone text-void hover:bg-[var(--cc-primary)] hover:text-[var(--cc-on-primary)]'}`}
     >
       {primary.blocked ? primary.blockedLabel ?? primary.label : primary.label}
       {primary.kbd && !primary.blocked && !mobile && <kbd className="text-[0.875rem] font-medium opacity-75">{primary.kbd}</kbd>}

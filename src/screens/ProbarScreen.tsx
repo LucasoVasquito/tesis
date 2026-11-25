@@ -42,6 +42,8 @@ interface ProbarScreenProps {
   onEvaluate?: (pieceId: string, label: string) => void;
   /** Se empieza otra pieza: los ✓ del riel vuelven a cero. */
   onNewPiece?: () => void;
+  /** Ir a la etapa Resultados. */
+  onGoResults?: () => void;
 }
 
 type Piece = GeneratedPiece & { imageUrl: string };
@@ -77,7 +79,7 @@ const StepLabel = ({ children }: { children: React.ReactNode }) => <span classNa
  * 05 · PROBAR. Aplica el sistema a una pieza concreta. Dos columnas: a la izquierda la pieza (paso 1) y la receta
  * (paso 2, sale sola de las capas); a la derecha el resultado (paso 3): dos variantes que se revisan contra el Primario.
  */
-export function ProbarScreen({ project, enabled, session, onSaveSession, onNotify, onActivity, onUndoable, onType, onBlocked, active, sub, onSub, onEvaluate, onNewPiece }: ProbarScreenProps) {
+export function ProbarScreen({ project, enabled, session, onSaveSession, onNotify, onActivity, onUndoable, onType, onBlocked, active, sub, onSub, onEvaluate, onNewPiece, onGoResults }: ProbarScreenProps) {
   const system = useMemo(() => stackSystem(project), [project]);
   const [pieceType, setPieceType] = useState<PieceType>('logo');
   const [direct, setDirect] = useState(false);
@@ -914,6 +916,8 @@ export function ProbarScreen({ project, enabled, session, onSaveSession, onNotif
               <BarButton onClick={() => void generate([0, 1])} disabled={busy || (!direct && !sel.core.length)}>
                 Generar otras 2
               </BarButton>
+            ) : sub === 3 && onGoResults ? (
+              <BarButton onClick={onGoResults}>Ir a Resultados →</BarButton>
             ) : undefined
           }
           extra={sub === 2 ? <ExportMenu project={project} notify={onNotify} disabled={anyApproved ? undefined : 'Aprobá una variante para exportar'} /> : undefined}

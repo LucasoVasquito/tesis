@@ -53,6 +53,8 @@ export const SUBSTEPS: Record<Moment, Substep[]> = {
     { id: 'comparar', label: 'Comparar', question: 'Compará' },
     { id: 'listo', label: 'Listo', question: 'Listo' },
   ],
+  // Una sola pantalla: la bitácora de lo que hicieron otras IA u otros diseñadores.
+  resultados: [{ id: 'resultados', label: 'Resultados', question: 'Resultados' }],
 };
 
 export const substepCount = (m: Moment) => SUBSTEPS[m].length;

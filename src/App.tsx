@@ -396,7 +396,6 @@ function Workspace({ boot }: { boot: Boot }) {
   };
   // 05 PROBAR queda montada (oculta) una vez abierta: si cambiás de etapa con una generación en curso, no se corta ni se pierde el resultado.
   const [probarSeen, setProbarSeen] = useState<string | null>(null);
-  const [probarTab, setProbarTab] = useState<'probar' | 'resultados'>('probar');
   const [resultFocus, setResultFocus] = useState<string | undefined>(undefined);
   useEffect(() => {
     if (screen === 'probar') setProbarSeen(project.id);
@@ -1117,9 +1116,10 @@ function Workspace({ boot }: { boot: Boot }) {
         nav={viewport === 'desktop' ? <StageNav project={project} current={screen} onGo={goStage} /> : undefined}
         onUndo={undo}
         canUndo={undoStack.current.length > 0}
+        onStartOwn={project.example ? handleNewProject : undefined}
       />
-      {project.example && <ExampleBanner onStart={handleNewProject} />}
-      {!(screen === 'probar' && probarTab === 'resultados') && <SubstepRail project={project} stage={screen} current={sub} onGo={goSub} />}
+      {project.example && viewport === 'mobile' && <ExampleBanner onStart={handleNewProject} />}
+      <SubstepRail project={project} stage={screen} current={sub} onGo={goSub} />
 
       <div className={`relative z-[1] flex min-h-0 flex-1 ${viewport === 'mobile' ? 'flex-col' : ''}`}>
         <StepRail project={project} current={screen} viewport={viewport} onGoLayer={l => { const why = blockReason(projectRef.current, 'capas'); if (why) return notify(`Capas · ${why}`); setReturnTo(null); enter('capas'); setGoLayer({ layer: l, n: Date.now() }); }} onGo={goStage} />
@@ -1183,24 +1183,11 @@ function Workspace({ boot }: { boot: Boot }) {
             />
           )}
           {(screen === 'probar' || probarSeen === project.id) && (
-            <div className={screen === 'probar' ? 'stage-enter flex h-full flex-col' : 'hidden'}>
-              <div role="tablist" aria-label="Probar" className="flex shrink-0 gap-6 border-b border-line px-6 lg:px-12">
-                {([['probar', 'Probar'], ['resultados', `Resultados${project.results?.length ? ` (${project.results.length})` : ''}`]] as const).map(([k, label]) => (
-                  <button key={k} type="button" role="tab" aria-selected={probarTab === k} onClick={() => setProbarTab(k)} className={`-mb-px h-10 border-b-2 text-[0.9375rem] font-semibold ${probarTab === k ? 'border-ink text-ink' : 'border-transparent text-ink-2 hover:text-ink'}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {probarTab === 'resultados' && (
-                <div className="min-h-0 flex-1">
-                  <ResultsScreen key={project.id} project={project} notify={notify} focusId={resultFocus} onChange={fn => updateProject(x => ({ ...x, results: fn(x.results ?? []) }), project.id)} />
-                </div>
-              )}
-              <div className={probarTab === 'probar' ? 'min-h-0 flex-1' : 'hidden'}>
+            <div className={screen === 'probar' ? 'stage-enter h-full' : 'hidden'}>
               <ProbarScreen
                 key={project.id}
                 project={project}
-                enabled={enabled && screen === 'probar' && probarTab === 'probar'}
+                enabled={enabled && screen === 'probar'}
                 session={project.applications?.stack}
                 onSaveSession={session => {
                   const pid = project.id;
@@ -1211,7 +1198,7 @@ function Workspace({ boot }: { boot: Boot }) {
                 onUndoable={pushUndo}
                 onType={setProbarType}
                 onBlocked={notifyBlocked}
-                active={screen === 'probar' && probarTab === 'probar'}
+                active={screen === 'probar'}
                 sub={screen === 'probar' ? sub : savedSub(project, 'probar')}
                 onSub={i => enter('probar', undefined, i)}
                 onNewPiece={() =>
@@ -1224,15 +1211,20 @@ function Workspace({ boot }: { boot: Boot }) {
                     };
                   }, project.id)
                 }
+                onGoResults={() => enter('resultados')}
                 onEvaluate={(pieceId, label) => {
                   const existing = project.results?.find(r => r.pieceId === pieceId);
                   const id = existing?.id ?? `res_gen_${pieceId}`;
                   if (!existing) updateProject(x => ({ ...x, results: [{ id, ai: `Camaleón · ${label}`, createdAt: new Date().toISOString(), imageIds: [pieceId], pieceId, verdicts: {} }, ...(x.results ?? [])] }), project.id);
                   setResultFocus(id);
-                  setProbarTab('resultados');
+                  enter('resultados');
                 }}
               />
-              </div>
+            </div>
+          )}
+          {screen === 'resultados' && (
+            <div className="stage-enter h-full">
+              <ResultsScreen key={project.id} project={project} notify={notify} focusId={resultFocus} onChange={fn => updateProject(x => ({ ...x, results: fn(x.results ?? []) }), project.id)} />
             </div>
           )}
         </main>
@@ -1241,7 +1233,7 @@ function Workspace({ boot }: { boot: Boot }) {
       {/* Barra de acción fija: 72 px, ancho completo, debajo del escenario (nada la tapa ni queda debajo).
           Izquierda: estado y herramientas de la etapa. Derecha: la acción principal. */}
       {viewport !== 'mobile' && (
-        <footer className="no-print surface-glass relative z-[30] grid h-[72px] shrink-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)_auto] items-center gap-4 border-t border-line px-4 lg:px-10">
+        <footer className="no-print surface-glass relative z-[30] grid h-16 shrink-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)_auto] items-center gap-4 border-t border-line px-4 lg:px-10">
           {/* «↩ Volver a…»: solo después de un salto por enlace */}
           {returnTo && (
             <button
@@ -1270,14 +1262,16 @@ function Workspace({ boot }: { boot: Boot }) {
             <div ref={setBarActions} className="bar-tools flex min-w-0 items-center overflow-x-auto [&>*]:shrink-0" />
           </div>
           {/* Centro: el estado */}
-          <StatusBar status={status} className="min-w-0 justify-center" />
+          {/* «Probar · paso 1 de 4» repetía el riel de arriba: el centro solo se ve cuando hay algo que decir (generando, analizando, volver atrás). */}
+          {/* En ubicación queda solo para lectores de pantalla. */}
+          <StatusBar status={status} className={status.mode === 'location' ? 'sr-only' : 'min-w-0 justify-center'} />
           {/* Derecha: la acción del subpaso */}
           <div ref={setBarPrimary} className="flex shrink-0 items-center justify-end" />
         </footer>
       )}
 
       <Notices notice={notice} onClose={() => setNotice(null)} />
-      {guideOpen && <Guide stage={screen} sub={sub} tab={probarTab} onClose={() => setGuideOpen(false)} />}
+      {guideOpen && <Guide stage={screen} sub={sub} onClose={() => setGuideOpen(false)} />}
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} existing={project.references} onAddFiles={files => handleAddFiles(files)} onAddReferences={handleAddReferences} onAddUrl={(url, extra) => void handleAddUrl(url, extra)} />
       <Modal open={!!deleteRequest} title={deleteRequest === 'all' ? 'Eliminar todos los proyectos' : 'Eliminar proyecto'} meta="No se puede deshacer" width={440} onClose={() => setDeleteRequest(null)}>
         <div className="flex flex-col gap-4 p-5">

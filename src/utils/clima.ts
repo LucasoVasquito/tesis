@@ -176,7 +176,7 @@ export function buildClima(i: ClimaInput): ClimaState {
   } else if (i.screen === 'sistema') {
     lights = layerLights(i.palette, w);
     drift = false;
-  } else if (i.screen === 'probar') {
+  } else if (i.screen === 'probar' || i.screen === 'resultados') {
     // Para juzgar color, el fondo no puede teñir la pieza: luces tenues y lejos de los marcos.
     lights = layerLights(i.palette, w, { intensity: 0.3, away: true });
   } else {

@@ -7,7 +7,7 @@ import { Viewport } from '../../hooks/useViewport';
 
 const MUSTARD = 'var(--cc-warn)';
 
-/** Las 5 etapas en la barra superior (escritorio): la actual con subrayado de 2 px, las completadas con ✓. */
+/** Las etapas en la barra superior (escritorio): la actual con subrayado de 2 px, las completadas con ✓. */
 /** Qué quedó pendiente en una etapa marcada con «!». */
 const STALE_WHY: Partial<Record<Moment, string>> = {
   revisar: 'Cambiaste piezas después de revisar. Pasá de nuevo para confirmar que todo siga bien.',

@@ -3,7 +3,7 @@ import { corpusRefs } from './layers';
 import { SHEET_NAME, livePieces, outPieces, piecesIn, suggestions } from '../pieces/model';
 
 /**
- * Las etapas: 0 Brief · 1 Referencias · 2 Revisar · 3 Capas · 4 Sistema · 5 Probar.
+ * Las etapas: 0 Brief · 1 Referencias · 2 Revisar · 3 Capas · 4 Sistema · 5 Probar · 6 Resultados.
  * El índice en STEPS es el número que se muestra.
  * Acá vive todo lo que la barra lateral y la barra superior necesitan saber: qué está completo,
  * qué está bloqueado, qué quedó desactualizado y dónde estabas.
@@ -22,6 +22,7 @@ export const STEPS: StepInfo[] = [
   { id: 'capas', label: 'Capas', desc: 'Ordená por importancia' },
   { id: 'sistema', label: 'Sistema', desc: 'Mirá el resultado' },
   { id: 'probar', label: 'Probar', desc: 'Aplicalo a una pieza' },
+  { id: 'resultados', label: 'Resultados', desc: 'Lo que hicieron otras IA' },
 ];
 
 export const stepIndex = (id: Moment) => STEPS.findIndex(s => s.id === id);
@@ -47,7 +48,7 @@ export const approvedCount = (p: Project) => Object.values(p.applications?.stack
 export function blockReason(p: Project, id: Moment): string | null {
   if (id === 'brief' || id === 'referencias') return null;
   if (!isAnalyzed(p)) return 'Se habilita al analizar';
-  if ((id === 'sistema' || id === 'probar') && piecesIn(p, 1).length === 0) return 'Necesita al menos una pieza en Primario.';
+  if ((id === 'sistema' || id === 'probar' || id === 'resultados') && piecesIn(p, 1).length === 0) return 'Necesita al menos una pieza en Primario.';
   return null;
 }
 
@@ -65,6 +66,8 @@ export function isDone(p: Project, id: Moment): boolean {
       return !!p.done?.includes(id);
     case 'probar':
       return approvedCount(p) > 0;
+    case 'resultados':
+      return (p.results?.length ?? 0) > 0;
   }
 }
 
@@ -85,6 +88,8 @@ export function summary(p: Project, id: Moment): string {
       return 'Revisado';
     case 'probar':
       return plural(approvedCount(p), 'pieza aprobada', 'piezas aprobadas');
+    case 'resultados':
+      return plural(p.results?.length ?? 0, 'resultado', 'resultados');
   }
 }
 
@@ -145,5 +150,7 @@ export function locationText(p: Project, current: Moment, detail?: string): stri
       return `${head} · leyendo el resultado`;
     case 'probar':
       return `${head} · probando ${detail ?? 'logotipo'}`;
+    case 'resultados':
+      return `${head} · ${plural(p.results?.length ?? 0, 'resultado cargado', 'resultados cargados')}`;
   }
 }

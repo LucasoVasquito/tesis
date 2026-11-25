@@ -23,7 +23,7 @@ const NEXT = '[data-primary]';
 const RAIL = 'nav[aria-label="Subpasos"]';
 
 /** El recorrido de la pantalla donde está el usuario (etapa, subpaso y, en Probar, pestaña). */
-function tourFor(stage: Moment, sub: number, tab: 'probar' | 'resultados'): Step[] {
+function tourFor(stage: Moment, sub: number): Step[] {
   switch (stage) {
     case 'brief':
       return sub >= 3
@@ -75,22 +75,21 @@ function tourFor(stage: Moment, sub: number, tab: 'probar' | 'resultados'): Step
             { sel: NEXT, text: 'Con Siguiente pasás a la parte que sigue. Al final, exportás.' },
           ];
     case 'probar':
-      if (tab === 'resultados')
-        return [
-          { sel: '[data-guide="import-result"]', text: 'Cargá lo que otra IA u otro diseñador hizo con tu sistema.' },
-          { sel: 'main ul li button', text: 'Abrí un resultado para ver la imagen grande y marcar qué piezas funcionaron, fallaron o ignoró.' },
-          { sel: '[role="tablist"][aria-label="Probar"]', text: 'Para volver a generar piezas, pasá a la pestaña Probar.' },
-        ];
       return sub === 0
         ? [
             { sel: '[role="radiogroup"]', text: 'Elegí qué querés probar. Doble clic avanza directo.' },
-            { sel: '[role="tablist"][aria-label="Probar"]', text: 'En «Resultados» cargás lo que hicieron otras IA y evaluás tus piezas.' },
-            { sel: NEXT, text: 'Seguí con el texto y el pedido.' },
+            { sel: NEXT, text: 'Seguí con el texto y el pedido. Lo que generes o hagas afuera lo evaluás después en Resultados.' },
           ]
         : [
             { sel: RAIL, text: 'Probar va en cuatro pasos: Pieza, Pedido, Comparar y Listo.' },
             { sel: NEXT, text: 'Este botón hace lo siguiente que corresponde: generar, aprobar o seguir.' },
           ];
+    case 'resultados':
+      return [
+        { sel: '[data-guide="import-result"]', text: 'Cargá lo que otra IA u otro diseñador hizo con tu sistema.' },
+        { sel: 'main ul li button', text: 'Abrí un resultado para ver la imagen grande y marcar qué piezas funcionaron, fallaron o ignoró.' },
+        { text: 'Con 2 o más pruebas, Capas te propone subir, bajar o sacar piezas. Lo decidís vos.' },
+      ];
   }
 }
 
@@ -99,8 +98,8 @@ const popWidth = () => Math.min(380, window.innerWidth - 24);
 const GAP = 14;
 
 /** Ayuda de la pantalla actual: cartelitos que señalan qué tocar, paso a paso. */
-export function Guide({ onClose, stage, sub, tab = 'probar' }: { onClose: () => void; stage: Moment; sub: number; tab?: 'probar' | 'resultados' }) {
-  const steps = tourFor(stage, sub, tab);
+export function Guide({ onClose, stage, sub }: { onClose: () => void; stage: Moment; sub: number }) {
+  const steps = tourFor(stage, sub);
   const [i, setI] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });

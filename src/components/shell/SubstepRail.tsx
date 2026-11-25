@@ -11,7 +11,7 @@ export function SubstepRail({ project, stage, current, onGo }: { project: Projec
   const steps = SUBSTEPS[stage];
   if (steps.length < 2) return null;
   return (
-    <nav aria-label="Subpasos" className="no-print surface-glass relative z-[5] flex h-10 shrink-0 items-center justify-center overflow-x-auto px-4">
+    <nav aria-label="Subpasos" className="no-print surface-glass relative z-[5] flex h-9 shrink-0 items-center justify-center overflow-x-auto px-4">
       <ol className="m-0 flex list-none items-center gap-1 p-0">
         {steps.map((s, i) => {
           const here = i === current;
