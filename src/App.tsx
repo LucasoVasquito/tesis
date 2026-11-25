@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Layer, LogItem, LogKind, Moment, Project, Reference, ReferenceBreakdown } from './types';
+import { CropBox, Layer, LogItem, LogKind, Moment, Project, Reference, ReferenceBreakdown } from './types';
 import { loadStoredProjects, saveProjects } from './utils/projectStore';
 import { createEmptyProject } from './data/emptyProject';
 import { compressImageString } from './utils/imageCompressor';
@@ -46,6 +46,7 @@ import { MutateOptions, NotifyOptions } from './screens/types';
 import { DEMO_ID, EXAMPLE_ID, OLD_EXAMPLE_ID, asExample, buildDemo, demoRequested } from './utils/demo';
 import { clearTestLog, downloadTestLog, logEvent, setLogStage, testMode } from './utils/testLog';
 import { useViewport } from './hooks/useViewport';
+import { EvidenceCropsContext } from './screens/EvidenceStrip';
 import { STEPS, blockReason, isAnalyzed, locationText, stepIndex, stepLabel } from './utils/steps';
 
 /** Claves viejas de localStorage que ya no se usan (los proyectos pasaron a IndexedDB). */
@@ -730,6 +731,15 @@ function Workspace({ boot }: { boot: Boot }) {
   })();
   const [paletteBusy, setPaletteBusy] = useState(false);
   const [paletteActivity, setPaletteActivity] = useState<string | null>(null);
+  /** Dónde se ve cada pieza en sus referencias (recortes de la evidencia): se suma a lo que ya había. */
+  const saveEvidenceCrops = useCallback(
+    (pieceId: string, crops: Record<string, CropBox | null>) => {
+      const pid = projectRef.current.id;
+      updateProject(p => ({ ...p, patterns: p.patterns.map(x => (x.id === pieceId ? { ...x, evidenceCrops: { ...x.evidenceCrops, ...crops } } : x)) }), pid);
+    },
+    [updateProject],
+  );
+
   const handleCompletePalette = async () => {
     if (paletteBusy) return;
     setPaletteBusy(true);
@@ -1086,6 +1096,7 @@ function Workspace({ boot }: { boot: Boot }) {
     <DeskContext.Provider value={{ dir: deskDir, enabled }}>
     <ClimaContext.Provider value={climaApi}>
     <ColorContext.Provider value={{ ...colorCtx, eyedrop: startEyedropper }}>
+    <EvidenceCropsContext.Provider value={saveEvidenceCrops}>
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-bg text-ink print:h-auto print:overflow-visible">
       {/* Luces de clima (v7): tres luces de capa detrás de todo, que reaccionan a cada etapa */}
       <Clima state={climaState} pulse={climaPulse} />
@@ -1306,6 +1317,7 @@ function Workspace({ boot }: { boot: Boot }) {
 
       {overlay?.kind === 'about' && <AboutView onBack={() => setOverlay(null)} />}
     </div>
+    </EvidenceCropsContext.Provider>
     </ColorContext.Provider>
     </ClimaContext.Provider>
     </DeskContext.Provider>

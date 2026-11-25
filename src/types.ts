@@ -173,6 +173,11 @@ export interface Pattern {
   /** Imagen de la pieza: un recorte de una de sus referencias. Sin recorte se usa la primera evidencia entera. */
   cover?: { refId: string; crop?: CropBox };
   /**
+   * Dónde se ve la pieza en cada referencia de su evidencia (lo marca la IA): refId → recorte.
+   * null = se buscó y la pieza ocupa la imagen entera (o no se pudo ubicar): se muestra entera.
+   */
+  evidenceCrops?: Record<string, CropBox | null>;
+  /**
    * La hoja (layer) la confirmó el diseñador. false = sugerencia de la IA (borde punteado).
    * Fuera del sistema = status 'discarded' (recuperable).
    */

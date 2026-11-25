@@ -971,6 +971,79 @@ Devolvé entre 3 y 5 reglas de estructura, en español rioplatense. Condiciones:
 });
 
 // ==========================================
+// 2c-sexies. Dónde se ve una pieza en cada referencia de su evidencia
+// ==========================================
+// Para mostrar la evidencia como recortes (lo que interesa) y no como la referencia entera.
+app.post("/api/locate-piece", async (req, res) => {
+  dotenv.config({ override: true });
+  try {
+    const piece = req.body?.piece || {};
+    const refs: any[] = Array.isArray(req.body?.references) ? req.body.references.slice(0, 10) : [];
+    if (!piece?.name || !refs.length) return res.status(400).json({ error: "Se requiere una pieza con referencias." });
+    const parts: any[] = [];
+    const ids = new Set<string>();
+    for (const ref of refs) {
+      const img = ref?.image ? await resolveImagePart(String(ref.image), String(ref.id)) : null;
+      if (!img) continue;
+      ids.add(String(ref.id));
+      parts.push({ text: `[REFERENCIA ${ref.id}]` });
+      parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+    }
+    if (!ids.size) return res.status(400).json({ error: "No se pudieron leer las referencias." });
+    parts.push({
+      text: `Esta es una pieza de un sistema visual: "${String(piece.name).slice(0, 120)}"${piece.description ? ` — ${String(piece.description).slice(0, 400)}` : ""}${piece.category ? ` (categoría: ${String(piece.category)})` : ""}.
+En cada referencia, marcá la zona exacta donde se ve esa pieza, ajustada a lo que interesa (solo el logo, solo la letra, solo el marco, solo la textura), no la imagen entera.
+Si la pieza abarca toda la imagen (un color de fondo, una composición, un tratamiento que cubre todo), devolvé [0, 0, 1000, 1000].
+Si en una referencia no la encontrás, devolvé found: false.
+Para cada referencia: refId, found y box_2d [ymin, xmin, ymax, xmax] normalizado 0-1000.`,
+    });
+    const ai = getGeminiClient();
+    const response = await generateContentWithRetry(ai, {
+      model: "gemini-3.5-flash",
+      contents: [{ role: "user", parts }],
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            boxes: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: { refId: { type: Type.STRING }, found: { type: Type.BOOLEAN }, box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } } },
+                required: ["refId", "found"],
+              },
+            },
+          },
+          required: ["boxes"],
+        },
+      },
+    });
+    const d = parseModelJsonResponse(response.text || "{}");
+    const crops: Record<string, { x: number; y: number; w: number; h: number } | null> = {};
+    for (const b of Array.isArray(d?.boxes) ? d.boxes : []) {
+      const refId = String(b?.refId || "").replace(/^\[?REFERENCIA\s*/i, "").replace(/\]$/, "").trim();
+      if (!ids.has(refId)) continue;
+      const box = Array.isArray(b?.box_2d) ? b.box_2d.map(Number) : [];
+      if (!b?.found || box.length !== 4 || box.some((n: number) => !Number.isFinite(n))) {
+        crops[refId] = null;
+        continue;
+      }
+      const [y0, x0, y1, x1] = box.map((n: number) => Math.min(1000, Math.max(0, n)) / 1000);
+      const crop = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+      // Casi entera o demasiado chica para leerse: se muestra la referencia entera.
+      crops[refId] = (crop.w >= 0.95 && crop.h >= 0.95) || crop.w < 0.04 || crop.h < 0.04 ? null : crop;
+    }
+    // Las que la IA no devolvió también quedan resueltas (enteras), para no volver a pedirlas.
+    for (const id of ids) if (!(id in crops)) crops[id] = null;
+    return res.json({ success: true, data: { crops } });
+  } catch (error: any) {
+    console.error("Error en /api/locate-piece:", error);
+    return res.status(500).json({ error: "No se pudo ubicar la pieza.", details: error?.message });
+  }
+});
+
+// ==========================================
 // 2c-ter. Separar una pieza que mezcla dos cosas
 // ==========================================
 // La IA propone la división; el diseñador la confirma en la interfaz.

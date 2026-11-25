@@ -4,6 +4,7 @@ import { Layer, Pattern, Project } from '../types';
 import { SHEET_NAME, evidenceText, isSuggestion } from '../pieces/model';
 import { Modal } from '../components/shell/Modal';
 import { PieceThumb } from './common';
+import { EvidenceStrip } from './EvidenceStrip';
 
 /** Acción del pie del modal. `quiet`: texto discreto a la derecha (para lo destructivo). */
 export interface ModalAction {
@@ -54,6 +55,7 @@ export function PieceModal({ piece, project, onClose, actions, note }: { piece: 
           {!desc && !hyp && <p className="m-0 text-ink-2">Todavía sin regla redactada.</p>}
         </div>
         <span className="type-data text-[0.875rem] text-ink-2">En {evidenceText(piece, project)}</span>
+        <EvidenceStrip piece={piece} project={project} />
         {note && <div className="flex flex-col gap-1 border-l-2 border-ink/40 pl-3 text-[0.9375rem] text-ink">{note}</div>}
         {actions && actions.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">

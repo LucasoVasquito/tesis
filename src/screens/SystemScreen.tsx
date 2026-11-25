@@ -13,6 +13,7 @@ import { BottomBar } from '../components/shell/BottomBar';
 import { Desk, DeskQuestion, Shelf } from '../components/shell/Desk';
 import { PieceThumb } from './common';
 import { PieceRule } from './PieceRule';
+import { EvidenceStrip } from './EvidenceStrip';
 import { SUBSTEPS } from '../utils/substeps';
 import { tallyText } from '../utils/results';
 import { compressImageString } from '../utils/imageCompressor';
@@ -341,6 +342,7 @@ export function SystemScreen(props: SystemScreenProps) {
                 <h3 className="m-0 text-[2rem] font-semibold leading-[1.1]">{lead.name}</h3>
                 <p className="m-0 max-w-[68ch] text-[1.0625rem] leading-[1.6]">{fullRule(lead) || 'Todavía sin regla redactada.'}</p>
                 <span className="type-data text-[0.875rem] text-ink-2">En {evidenceText(lead, project)}</span>
+                <EvidenceStrip piece={lead} project={project} className="no-print" />
                 {tallyText(project, lead.id) && <span className="type-data text-[0.875rem] text-ink-2">En pruebas: {tallyText(project, lead.id)}</span>}
               </div>
             </div>
