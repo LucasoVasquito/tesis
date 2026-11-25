@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Moment } from '../types';
-import { KeyButton } from './common';
 
 const KEY = 'tesis_guide_done';
 
@@ -212,12 +211,14 @@ export function Guide({ onClose, stage, sub, tab = 'probar' }: { onClose: () => 
   );
 }
 
-/** Cartel del proyecto de ejemplo. */
+/** Cartel del proyecto de ejemplo: una franja de vidrio, igual que el riel de subpasos, para no cortar el fondo. */
 export function ExampleBanner({ onStart }: { onStart: () => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-4 bg-surface px-10 py-2 text-ink">
-      <span className="text-[0.875rem]">Esto es un proyecto de ejemplo.</span>
-      <KeyButton label="Empezar el mío" tone="bone" onClick={onStart} />
+    <div className="no-print surface-glass relative z-[5] flex h-10 shrink-0 items-center justify-center gap-3 border-b border-line px-4">
+      <span className="truncate text-[0.875rem] text-ink-2">Esto es un proyecto de ejemplo.</span>
+      <button type="button" onClick={onStart} className="h-7 shrink-0 whitespace-nowrap rounded-full bg-bone px-4 text-[0.8125rem] font-bold text-void transition-opacity duration-150 hover:opacity-90">
+        Empezar el mío
+      </button>
     </div>
   );
 }
