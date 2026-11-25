@@ -13,7 +13,7 @@ import { BottomBar } from '../components/shell/BottomBar';
 import { Desk, DeskQuestion, Shelf } from '../components/shell/Desk';
 import { PieceThumb } from './common';
 import { PieceRule } from './PieceRule';
-import { EvidenceStrip } from './EvidenceStrip';
+import { CropStrip, EvidenceStrip } from './EvidenceStrip';
 import { SUBSTEPS } from '../utils/substeps';
 import { tallyText } from '../utils/results';
 import { compressImageString } from '../utils/imageCompressor';
@@ -94,7 +94,7 @@ function specimenFor(f: { style: string; kind?: string }): Specimen {
 }
 
 /** Una regla de uso: se toca para editarla; Enter guarda, Esc cancela, vacía se borra. */
-function RuleRow({ n, text, mine, note, onSave }: { n: number; text: string; mine?: boolean; note?: React.ReactNode; onSave: (t: string) => void }) {
+function RuleRow({ n, text, mine, note, extra, onSave }: { n: number; text: string; mine?: boolean; note?: React.ReactNode; extra?: React.ReactNode; onSave: (t: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
   const done = (save: boolean) => {
@@ -135,6 +135,7 @@ function RuleRow({ n, text, mine, note, onSave }: { n: number; text: string; min
             </span>
           </button>
           {note && <div className="type-data text-[0.875rem] font-normal text-ink-2">{note}</div>}
+          {extra}
         </div>
       )}
     </li>
@@ -619,6 +620,17 @@ export function SystemScreen(props: SystemScreenProps) {
               n={sMine.length + i + 1}
               text={r.text}
               note={refNote(r.refIds)}
+              extra={
+                <CropStrip
+                  className="no-print mt-1"
+                  size={72}
+                  caption={r.text}
+                  items={r.refIds.flatMap(id => {
+                    const ref = project.references.find(x => x.id === id);
+                    return ref ? [{ ref, crop: r.crops?.[id] }] : [];
+                  })}
+                />
+              }
               // Al editar una del agente pasa a ser tuya: el agente ya no la reescribe.
               onSave={t => saveStructure({ rules: sTheirs.filter((_, j) => j !== i), userRules: t && t !== r.text ? [...sMine, t] : sMine })}
             />

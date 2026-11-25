@@ -213,7 +213,7 @@ export interface StructureSheet {
   /** Referencias con las que se leyó: si cambian, se vuelve a leer. */
   sig: string;
   /** Reglas que leyó el agente, con las referencias que las muestran. */
-  rules: { text: string; refIds: string[] }[];
+  rules: { text: string; refIds: string[]; /** Zona de cada referencia que muestra la regla (null = entera). */ crops?: Record<string, CropBox | null> }[];
   /** Reglas que escribió el diseñador: el agente no las toca y van primero. */
   userRules?: string[];
 }

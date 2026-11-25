@@ -929,7 +929,7 @@ Devolvé entre 3 y 5 reglas de estructura, en español rioplatense. Condiciones:
 - Cada una es una frase normativa corta (máximo 18 palabras), concreta y verificable a simple vista. Ejemplos del tipo buscado: "El plano se ocupa entero: el aire vacío es la excepción.", "Dos tamaños de letra: enorme o mínima, nunca intermedia.", "Los datos chicos van al perímetro, nunca en el centro.".
 - No nombres elementos de la lista como si fueran reglas; podés nombrarlos solo para decir dónde o cómo se ubican.
 - Una de las reglas tiene que decir CON QUÉ se resuelve el espacio. Si las referencias saturan el plano, decí con qué piezas de la lista se llena el aire (texturas, ruido, texto chico repetido, bandas, superposiciones…), nombrándolas tal como aparecen en la lista. Mirá qué llena el espacio en las imágenes, no qué es protagonista. Si las referencias dejan aire, decí qué lo sostiene. ${boundary.fill}
-- Para cada regla, evidence: los IDs de las referencias donde se ve (de ${ids.join(", ")}).`,
+- Para cada regla, evidence: las referencias donde se ve (de ${ids.join(", ")}). En cada una, refId y box_2d [ymin, xmin, ymax, xmax] normalizado 0-1000 con un DETALLE que muestre la regla de cerca: una zona acotada (como máximo la mitad de la imagen), no la pieza entera. Por ejemplo: para los datos en el perímetro, solo la franja del borde con el texto chico; para el salto de escala, el encuentro entre una letra gigante y el texto mínimo; para una banda, solo la banda. Solo si la regla habla de la densidad o la saturación del plano entero, devolvé [0, 0, 1000, 1000].`,
     });
 
     const ai = getGeminiClient();
@@ -945,7 +945,17 @@ Devolvé entre 3 y 5 reglas de estructura, en español rioplatense. Condiciones:
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
-                properties: { text: { type: Type.STRING }, evidence: { type: Type.ARRAY, items: { type: Type.STRING } } },
+                properties: {
+                  text: { type: Type.STRING },
+                  evidence: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: { refId: { type: Type.STRING }, box_2d: { type: Type.ARRAY, items: { type: Type.NUMBER } } },
+                      required: ["refId"],
+                    },
+                  },
+                },
                 required: ["text", "evidence"],
               },
             },
@@ -956,11 +966,26 @@ Devolvé entre 3 y 5 reglas de estructura, en español rioplatense. Condiciones:
     });
     const d = parseModelJsonResponse(response.text || "{}");
     const known = new Set(ids);
+    const cleanId = (x: any) => String(x ?? "").replace(/^\[?REFERENCIA\s*/i, "").replace(/\]$/, "").trim();
+    /** Zona donde se ve la regla; null = la referencia entera. */
+    const cropOf = (raw: any) => {
+      const b = Array.isArray(raw) ? raw.map(Number) : [];
+      if (b.length !== 4 || b.some((n: number) => !Number.isFinite(n))) return null;
+      const [y0, x0, y1, x1] = b.map((n: number) => Math.min(1000, Math.max(0, n)) / 1000);
+      const c = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+      return (c.w >= 0.95 && c.h >= 0.95) || c.w < 0.04 || c.h < 0.04 ? null : c;
+    };
     const rules = (Array.isArray(d?.rules) ? d.rules : [])
-      .map((r: any) => ({
-        text: String(r?.text || "").trim().slice(0, 180),
-        refIds: (Array.isArray(r?.evidence) ? r.evidence : []).map((x: any) => String(x).replace(/^\[?REFERENCIA\s*/i, "").replace(/\]$/, "").trim()).filter((x: string) => known.has(x)),
-      }))
+      .map((r: any) => {
+        const ev = (Array.isArray(r?.evidence) ? r.evidence : [])
+          // Por si el modelo devuelve solo IDs sueltos.
+          .map((e: any) => (typeof e === "string" ? { refId: cleanId(e), crop: null } : { refId: cleanId(e?.refId), crop: cropOf(e?.box_2d) }))
+          .filter((e: any) => known.has(e.refId));
+        const refIds = [...new Set(ev.map((e: any) => e.refId))] as string[];
+        const crops: Record<string, any> = {};
+        for (const e of ev) if (!(e.refId in crops)) crops[e.refId] = e.crop;
+        return { text: String(r?.text || "").trim().slice(0, 180), refIds, crops };
+      })
       .filter((r: any) => r.text)
       .slice(0, 5);
     return res.json({ success: true, data: { rules, read: ids.length } });

@@ -34,7 +34,6 @@ const pending = (piece: Pattern, project: Project, refId: string) => piece.evide
 export function EvidenceStrip({ piece, project, className = '' }: { piece: Pattern; project: Project; className?: string }) {
   const save = useContext(EvidenceCropsContext);
   const refs = piece.evidence.map(id => project.references.find(r => r.id === id)).filter((r): r is Reference => !!r && !!r.image);
-  const [open, setOpen] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
   const missing = refs.filter(r => pending(piece, project, r.id));
@@ -72,37 +71,54 @@ export function EvidenceStrip({ piece, project, className = '' }: { piece: Patte
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, save]);
 
-  if (!refs.length) return null;
-  const current = open !== null ? refs[open] : null;
-  const go = (d: number) => setOpen(i => (i === null ? null : (i + d + refs.length) % refs.length));
+  return (
+    <CropStrip
+      items={refs.map(r => ({ ref: r, crop: cropFor(piece, project, r.id) }))}
+      caption={piece.name}
+      busy={busy ? 'Recortando lo que interesa de cada referencia…' : undefined}
+      className={className}
+    />
+  );
+}
+
+/**
+ * Fila de recortes de referencias; al tocar uno se abre la referencia completa con la zona marcada (← → recorren).
+ * La usan las piezas (EvidenceStrip) y las reglas de estructura.
+ */
+export function CropStrip({ items, caption, busy, size = 84, className = '' }: { items: { ref: Reference; crop?: CropBox | null }[]; caption: string; busy?: string; size?: number; className?: string }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const list = items.filter(x => !!x.ref.image);
+  if (!list.length) return busy ? <span className="text-[0.8125rem] text-ink-2">{busy}</span> : null;
+  const current = open !== null ? list[open] : null;
+  const go = (d: number) => setOpen(i => (i === null ? null : (i + d + list.length) % list.length));
 
   return (
     <div className={`flex min-w-0 flex-col gap-2 ${className}`}>
-      <ul className="m-0 flex list-none gap-2 overflow-x-auto p-0 pb-1" aria-label={`Dónde se ve ${piece.name}`}>
-        {refs.map((r, i) => (
+      <ul className="m-0 flex list-none gap-2 overflow-x-auto p-0 pb-1" aria-label={`Dónde se ve: ${caption}`}>
+        {list.map(({ ref: r, crop }, i) => (
           <li key={r.id} className="shrink-0">
             <button
               type="button"
               onClick={() => setOpen(i)}
               title={`${r.name || r.id} · ver en detalle`}
-              className="block size-[84px] overflow-hidden rounded-[3px] bg-raised outline-offset-2 transition-transform duration-150 hover:scale-[1.04] focus-visible:outline-2"
-              style={{ boxShadow: 'inset 0 0 0 1px var(--cc-line)' }}
+              className="block overflow-hidden rounded-[3px] bg-raised outline-offset-2 transition-transform duration-150 hover:scale-[1.04] focus-visible:outline-2"
+              style={{ width: size, height: size, boxShadow: 'inset 0 0 0 1px var(--cc-line)' }}
             >
-              <Crop image={r.image} crop={cropFor(piece, project, r.id)} fit="cover" alt={`${piece.name} en ${r.name || r.id}`} className="size-full" />
+              <Crop image={r.image} crop={crop ?? undefined} fit="cover" alt={`${caption} en ${r.name || r.id}`} className="size-full" />
             </button>
           </li>
         ))}
       </ul>
-      {busy && <span className="text-[0.8125rem] text-ink-2">Recortando lo que interesa de cada referencia…</span>}
+      {busy && <span className="text-[0.8125rem] text-ink-2">{busy}</span>}
       {current &&
         createPortal(
           <LightboxModal
-            reference={current}
-            highlight={cropFor(piece, project, current.id) ?? null}
-            caption={piece.name}
-            position={`${(open ?? 0) + 1} de ${refs.length}`}
-            onPrev={refs.length > 1 ? () => go(-1) : undefined}
-            onNext={refs.length > 1 ? () => go(1) : undefined}
+            reference={current.ref}
+            highlight={current.crop ?? null}
+            caption={caption}
+            position={`${(open ?? 0) + 1} de ${list.length}`}
+            onPrev={list.length > 1 ? () => go(-1) : undefined}
+            onNext={list.length > 1 ? () => go(1) : undefined}
             onClose={() => setOpen(null)}
           />,
           document.body,
