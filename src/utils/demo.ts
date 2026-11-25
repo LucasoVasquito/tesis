@@ -2,6 +2,9 @@ import { Project } from '../types';
 import { restoreBackup } from './backup';
 
 export const DEMO_ID = 'proj_demo_badder';
+/** El ejemplo actual (Badder) y el anterior (Badder Hamburguesería): quien ya había abierto el anterior pasa al nuevo. */
+export const EXAMPLE_ID = 'proj_1795292408137';
+export const OLD_EXAMPLE_ID = 'proj_mvss64wg00';
 export const demoRequested = () => {
   try {
     return new URLSearchParams(location.search).get('demo') === 'badder';

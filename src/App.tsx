@@ -43,7 +43,7 @@ import { SystemScreen } from './screens/SystemScreen';
 import { ExampleBanner, Guide, guideDone } from './screens/Guide';
 import { BriefScreen } from './screens/BriefScreen';
 import { MutateOptions, NotifyOptions } from './screens/types';
-import { DEMO_ID, buildDemo, demoRequested } from './utils/demo';
+import { DEMO_ID, EXAMPLE_ID, OLD_EXAMPLE_ID, buildDemo, demoRequested } from './utils/demo';
 import { clearTestLog, downloadTestLog, logEvent, setLogStage, testMode } from './utils/testLog';
 import { useViewport } from './hooks/useViewport';
 import { STEPS, blockReason, isAnalyzed, locationText, stepIndex, stepLabel } from './utils/steps';
@@ -111,7 +111,22 @@ export default function App() {
       }
       if (projects.length) {
         const list = projects.map(migrateProject);
-        setBoot({ projects: list, activeId: activeId && list.some(p => p.id === activeId) ? activeId : list[0].id });
+        let active = activeId && list.some(p => p.id === activeId) ? activeId : list[0].id;
+        // Quien ya había abierto el ejemplo anterior (Badder Hamburguesería) recibe el nuevo (Badder). El anterior no se borra.
+        if (list.some(p => p.id === OLD_EXAMPLE_ID) && !list.some(p => p.id === EXAMPLE_ID)) {
+          try {
+            const { project } = await restoreBackup(await fetchExample(), list.map(p => p.id));
+            if (project.id === EXAMPLE_ID) {
+              const example = { ...project, example: true, moment: 'referencias' as Moment };
+              list.push(example);
+              if (active === OLD_EXAMPLE_ID) active = example.id;
+              await saveProjects(list, active, new Set([example.id]));
+            }
+          } catch {
+            /* sin ejemplo nuevo: se sigue con lo que haya */
+          }
+        }
+        setBoot({ projects: list, activeId: active });
         return;
       }
       try {
